@@ -51,6 +51,23 @@ export async function tidyUpTodayDiary(app: App, plugin: DiaryCopilotPlugin) {
       await app.vault.create(backupPath, rawDoc);
     }
 
+    // Extract or retain title and creation date properties
+    let noteTitle = file.basename;
+    const existingTitleMatch = rawDoc.match(/^title:\s*["']?(.*?)["']?\s*$/m);
+    if (existingTitleMatch && existingTitleMatch[1].trim()) {
+      noteTitle = existingTitleMatch[1].trim();
+    }
+
+    let createdDateStr = "";
+    const existingCreatedMatch = rawDoc.match(/^created:\s*["']?(.*?)["']?\s*$/m);
+    if (existingCreatedMatch && existingCreatedMatch[1].trim()) {
+      createdDateStr = existingCreatedMatch[1].trim();
+    } else {
+      const cDate = file.stat?.ctime ? new Date(file.stat.ctime) : new Date();
+      const pad = (n: number) => String(n).padStart(2, "0");
+      createdDateStr = `${cDate.getFullYear()}-${pad(cDate.getMonth() + 1)}-${pad(cDate.getDate())} ${pad(cDate.getHours())}:${pad(cDate.getMinutes())}`;
+    }
+
     // 2. Extract previously saved draft sections if already tidied before
     let draftTextToProcess = rawDoc;
     let originalDraftText = rawDoc;
@@ -63,6 +80,14 @@ export async function tidyUpTodayDiary(app: App, plugin: DiaryCopilotPlugin) {
       const existingEnglishMatch = rawDoc.match(/## English\s*\n([\s\S]*?)(?=\n## |$)/);
       if (existingEnglishMatch && existingEnglishMatch[1].trim()) {
         draftTextToProcess = existingEnglishMatch[1].trim();
+      } else {
+        const bodyCleaned = rawDoc
+          .replace(/^---[\s\S]*?\n---\s*/, "")
+          .replace(/^#\s+[^\n]+\n+/, "");
+        if (bodyCleaned.trim()) {
+          draftTextToProcess = bodyCleaned.trim();
+          originalDraftText = draftTextToProcess;
+        }
       }
     }
 
@@ -148,7 +173,8 @@ export async function tidyUpTodayDiary(app: App, plugin: DiaryCopilotPlugin) {
     }
 
     const finalContent = `---
-date: ${todayDate}
+title: ${noteTitle}
+created: ${createdDateStr}
 type: english-diary
 mood: [${moodList}]
 topics: [${topicList}]

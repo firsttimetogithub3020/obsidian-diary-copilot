@@ -22,7 +22,17 @@ export async function openTodayDiary(app: App, plugin: DiaryCopilotPlugin) {
 
   let file = app.vault.getAbstractFileByPath(filePath);
   if (!file) {
-    const initialContent = `# ${todayStr}\n\n`;
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const createdStr = `${todayStr} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    const initialContent = `---
+title: ${todayStr}
+created: ${createdStr}
+type: english-diary
+---
+
+# ${todayStr}
+
+`;
     file = await app.vault.create(filePath, initialContent);
     new Notice(`已建立今日日記：${filePath}`);
   }
