@@ -9,19 +9,51 @@
   z-index: 15;
   background-color: var(--background-secondary);
   border-top: 1px solid var(--background-modifier-border);
-  box-shadow: 0 -3px 12px rgba(0, 0, 0, 0.1);
-  padding: 10px 14px;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12);
+  padding: 6px 14px 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  transition: opacity 0.2s ease-in-out;
+  gap: 6px;
   box-sizing: border-box;
-  min-height: var(--diary-copilot-panel-height, 115px);
+  height: var(--diary-copilot-panel-height, 125px);
+  min-height: 80px;
+  max-height: 70vh;
+}
+
+/* Resize Handle on top of panel */
+.diary-copilot-resize-handle {
+  position: absolute;
+  top: -6px;
+  left: 0;
+  right: 0;
+  height: 12px;
+  cursor: ns-resize;
+  z-index: 25;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.diary-copilot-resize-handle::after {
+  content: "";
+  width: 44px;
+  height: 4px;
+  border-radius: 2px;
+  background-color: var(--text-faint);
+  opacity: 0.5;
+  transition: opacity 0.15s ease, background-color 0.15s ease, height 0.15s ease;
+}
+
+.diary-copilot-resize-handle:hover::after,
+.diary-copilot-panel.is-resizing .diary-copilot-resize-handle::after {
+  opacity: 1;
+  background-color: var(--interactive-accent);
+  height: 5px;
 }
 
 /* Ensure editor content scroller reserves space above the card panel */
 .mod-root .workspace-leaf.mod-active .cm-scroller {
-  padding-bottom: calc(var(--diary-copilot-panel-height, 115px) + 20px) !important;
+  padding-bottom: calc(var(--diary-copilot-panel-height, 125px) + 24px) !important;
 }
 
 .diary-copilot-panel.is-loading {
@@ -40,6 +72,7 @@
   font-size: 11.5px;
   color: var(--text-muted);
   user-select: none;
+  margin-top: 2px;
   margin-bottom: 2px;
 }
 
@@ -67,7 +100,7 @@
 }
 
 .diary-copilot-hint {
-  font-size: 11.5px;
+  font-size: 11px;
   color: var(--text-faint);
 }
 
@@ -77,6 +110,8 @@
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 10px;
   width: 100%;
+  flex: 1;
+  min-height: 0; /* Prevents overflow */
 }
 
 /* Single Suggestion Card */
@@ -89,10 +124,12 @@
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
   user-select: none;
-  min-height: var(--diary-copilot-card-height, 64px);
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .diary-copilot-card:hover {
@@ -127,14 +164,15 @@
 
 .diary-copilot-card-text {
   font-size: 13.5px;
-  line-height: 1.4;
+  line-height: 1.45;
   color: var(--text-normal);
   display: -webkit-box;
-  -webkit-line-clamp: var(--diary-copilot-max-lines, 3);
+  -webkit-line-clamp: 6; /* Allows generous multiline text when dragged up */
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
   word-break: break-word;
+  flex: 1;
 }
 
 .diary-copilot-card:hover .diary-copilot-card-text {
@@ -164,10 +202,15 @@
 /* Mobile specific adaptations */
 .is-mobile .diary-copilot-panel {
   padding: 8px 10px;
-  min-height: var(--diary-copilot-panel-height, 110px);
+  height: auto;
+  min-height: 110px;
+}
+
+.is-mobile .diary-copilot-resize-handle {
+  display: none;
 }
 
 .is-mobile .diary-copilot-card {
-  min-height: var(--diary-copilot-card-height, 52px); /* Touch target size */
+  min-height: 52px;
   padding: 8px 10px;
 }

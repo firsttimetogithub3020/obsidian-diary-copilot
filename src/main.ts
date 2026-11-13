@@ -178,6 +178,10 @@ export default class DiaryCopilotPlugin extends Plugin {
             this.cardPanel?.hide();
             this.clearGhostText();
           },
+          onHeightResize: async (newHeight: number) => {
+            this.settings.panelMinHeight = newHeight;
+            await this.saveSettings();
+          },
         });
       }
     } else {

@@ -4,6 +4,7 @@ import { SuggestionItem } from "../types";
 export interface CardPanelCallbacks {
   onAdopt: (text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }) => void;
   onDismiss: () => void;
+  onHeightResize?: (newHeight: number) => void;
 }
 
 export class CardPanel {
@@ -11,8 +12,10 @@ export class CardPanel {
   private panelEl: HTMLElement | null = null;
   private statusDotEl: HTMLElement | null = null;
   private cardsRowEl: HTMLElement | null = null;
+  private resizeHandleEl: HTMLElement | null = null;
   private callbacks: CardPanelCallbacks;
   private currentItem: SuggestionItem | null = null;
+  private isResizing = false;
 
   constructor(containerEl: HTMLElement, callbacks: CardPanelCallbacks) {
     this.containerEl = containerEl;
@@ -26,6 +29,10 @@ export class CardPanel {
       this.panelEl.addClass("is-mobile");
     }
 
+    // Top resize handle bar
+    this.resizeHandleEl = this.panelEl.createDiv({ cls: "diary-copilot-resize-handle" });
+    this.setupResizeListeners();
+
     // Top status bar
     const header = this.panelEl.createDiv({ cls: "diary-copilot-panel-header" });
     const brand = header.createDiv({ cls: "diary-copilot-brand" });
@@ -33,10 +40,54 @@ export class CardPanel {
     brand.createSpan({ text: "Diary Copilot" });
 
     const hint = header.createSpan({ cls: "diary-copilot-hint" });
-    hint.setText(Platform.isMobile ? "點擊卡片採納" : "Tab 採納卡 1 · Alt+1/2/3 · Esc 關閉");
+    hint.setText(Platform.isMobile ? "點擊卡片採納" : "可拖曳頂部邊框調整高度 · Tab 採納 · Esc 關閉");
 
     // Cards row
     this.cardsRowEl = this.panelEl.createDiv({ cls: "diary-copilot-cards-row" });
+  }
+
+  private setupResizeListeners() {
+    if (!this.resizeHandleEl || Platform.isMobile) return;
+
+    this.resizeHandleEl.addEventListener("mousedown", (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (!this.panelEl) return;
+      this.isResizing = true;
+      this.panelEl.addClass("is-resizing");
+
+      const startY = e.clientY;
+      const startHeight = this.panelEl.getBoundingClientRect().height;
+
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        if (!this.isResizing || !this.panelEl) return;
+        const diffY = startY - moveEvent.clientY; // Dragging UP increases height
+        const newHeight = Math.round(Math.max(80, Math.min(window.innerHeight * 0.7, startHeight + diffY)));
+
+        this.panelEl.style.height = `${newHeight}px`;
+        document.body.style.setProperty("--diary-copilot-panel-height", `${newHeight}px`);
+      };
+
+      const onMouseUp = (upEvent: MouseEvent) => {
+        if (!this.isResizing) return;
+        this.isResizing = false;
+        this.panelEl?.removeClass("is-resizing");
+
+        window.removeEventListener("mousemove", onMouseMove);
+        window.removeEventListener("mouseup", onMouseUp);
+
+        if (this.panelEl) {
+          const finalHeight = Math.round(this.panelEl.getBoundingClientRect().height);
+          if (this.callbacks.onHeightResize) {
+            this.callbacks.onHeightResize(finalHeight);
+          }
+        }
+      };
+
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
+    });
   }
 
   setLoading() {
