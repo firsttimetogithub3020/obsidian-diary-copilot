@@ -104,11 +104,11 @@
   color: var(--text-faint);
 }
 
-/* Cards List */
+/* Cards List (All 4 cards side by side in 1 row) */
 .diary-copilot-cards-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
   width: 100%;
   flex: 1;
   min-height: 0; /* Prevents overflow */
@@ -120,7 +120,7 @@
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-radius: 8px;
-  padding: 8px 12px;
+  padding: 6px 10px;
   cursor: pointer;
   display: flex;
   flex-direction: column;

@@ -7,11 +7,19 @@ export function parsePartialSuggestion(raw: string): SuggestionItem | null {
   try {
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === "object") {
+      const c1 = parsed.card1 || parsed.continue || parsed.option1 || "";
+      const c2 = parsed.card2 || parsed.alternative || parsed.option2 || "";
+      const c3 = parsed.card3 || parsed.translation || parsed.option3 || "";
+      const c4 = parsed.card4 || parsed.option4 || "";
+
       return {
-        continueText: parsed.continue ? String(parsed.continue).trim() : "",
-        alternativeText: parsed.alternative ? String(parsed.alternative).trim() : "",
-        translationText: parsed.translation ? String(parsed.translation).trim() : null,
-        translationSource: parsed.translation_source ? String(parsed.translation_source).trim() : null,
+        card1: String(c1).trim(),
+        card2: String(c2).trim(),
+        card3: String(c3).trim(),
+        card4: String(c4).trim(),
+        continueText: String(c1).trim(),
+        alternativeText: String(c2).trim(),
+        translationText: c3 ? String(c3).trim() : null,
       };
     }
   } catch {
@@ -32,17 +40,20 @@ export function parsePartialSuggestion(raw: string): SuggestionItem | null {
     return "";
   };
 
-  const continueVal = extractField("continue", raw);
-  const alternativeVal = extractField("alternative", raw);
-  const translationVal = extractField("translation", raw);
-  const translationSourceVal = extractField("translation_source", raw);
+  const c1 = extractField("card1", raw) || extractField("continue", raw) || extractField("option1", raw);
+  const c2 = extractField("card2", raw) || extractField("alternative", raw) || extractField("option2", raw);
+  const c3 = extractField("card3", raw) || extractField("translation", raw) || extractField("option3", raw);
+  const c4 = extractField("card4", raw) || extractField("option4", raw);
 
-  if (continueVal || alternativeVal || translationVal) {
+  if (c1 || c2 || c3 || c4) {
     return {
-      continueText: continueVal.trim(),
-      alternativeText: alternativeVal.trim(),
-      translationText: translationVal ? translationVal.trim() : null,
-      translationSource: translationSourceVal ? translationSourceVal.trim() : null,
+      card1: c1.trim(),
+      card2: c2.trim(),
+      card3: c3.trim(),
+      card4: c4.trim(),
+      continueText: c1.trim(),
+      alternativeText: c2.trim(),
+      translationText: c3 ? c3.trim() : null,
     };
   }
 

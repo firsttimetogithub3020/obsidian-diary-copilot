@@ -28,7 +28,7 @@ export function extractContextFromDoc(docText: string, cursorOffset: number): Ex
   const currentSentence = allSentences.length > 0 ? allSentences[allSentences.length - 1] : "";
   const recentSentences = allSentences.slice(Math.max(0, allSentences.length - 4), Math.max(0, allSentences.length - 1));
 
-  // Check for Chinese in current line / nearby cursor
+  // Check for Chinese in current line before cursor
   const lastNewlinePos = textBeforeCursor.lastIndexOf("\n");
   const lineStartPos = lastNewlinePos === -1 ? 0 : lastNewlinePos + 1;
   const currentLineBeforeCursor = docText.slice(lineStartPos, cursorOffset);
@@ -37,20 +37,22 @@ export function extractContextFromDoc(docText: string, cursorOffset: number): Ex
   let chineseRange: { from: number; to: number } | undefined = undefined;
 
   if (CHINESE_CHAR_REGEX.test(currentLineBeforeCursor)) {
-    // Match the Chinese block immediately ending near cursor
-    const chineseMatch = currentLineBeforeCursor.match(/[\u4e00-\u9fa5，。！？、…\s]{1,}/g);
-    if (chineseMatch && chineseMatch.length > 0) {
-      const target = chineseMatch[chineseMatch.length - 1].trim();
-      if (target.length > 0 && CHINESE_CHAR_REGEX.test(target)) {
-        chineseSegment = target;
-        const relativeStart = currentLineBeforeCursor.lastIndexOf(target);
-        if (relativeStart !== -1) {
-          const from = lineStartPos + relativeStart;
-          let to = from + target.length;
-          // If there is trailing whitespace between Chinese and cursor, consume it into the range to replace cleanly
-          if (to < cursorOffset && docText.slice(to, cursorOffset).trim().length === 0) {
-            to = cursorOffset;
-          }
+    // Find all Chinese occurrences in the line
+    const matches = Array.from(currentLineBeforeCursor.matchAll(/[\u4e00-\u9fa5，。！？、…]+/g));
+    if (matches.length > 0) {
+      const lastMatch = matches[matches.length - 1];
+      const matchIndex = lastMatch.index ?? -1;
+
+      if (matchIndex !== -1) {
+        const chineseStr = lastMatch[0].trim();
+        const textAfterChinese = currentLineBeforeCursor.slice(matchIndex + lastMatch[0].length);
+
+        // If the Chinese is within the recent 80 characters before cursor
+        if (textAfterChinese.length < 80) {
+          chineseSegment = chineseStr;
+          const from = lineStartPos + matchIndex;
+          // to covers all the way to current cursor if only spaces or partial typing occurred!
+          const to = cursorOffset;
           chineseRange = { from, to };
         }
       }

@@ -12,9 +12,10 @@ export interface KeymapCallbacks {
 export function createDiaryKeymap(callbacks: KeymapCallbacks) {
   const acceptCard1: Command = () => {
     const item = callbacks.getCurrentSuggestion();
-    if (item && item.continueText) {
+    const text = item?.card1 || item?.continueText;
+    if (item && text) {
       const kind = item.sourceRange ? "translation" : "continue";
-      callbacks.onAdopt(item.continueText, kind, item.sourceRange);
+      callbacks.onAdopt(text, kind, item.sourceRange);
       return true;
     }
     return false;
@@ -22,9 +23,10 @@ export function createDiaryKeymap(callbacks: KeymapCallbacks) {
 
   const acceptCard2: Command = () => {
     const item = callbacks.getCurrentSuggestion();
-    if (item && item.alternativeText) {
+    const text = item?.card2 || item?.alternativeText;
+    if (item && text) {
       const kind = item.sourceRange ? "translation" : "alternative";
-      callbacks.onAdopt(item.alternativeText, kind, item.sourceRange);
+      callbacks.onAdopt(text, kind, item.sourceRange);
       return true;
     }
     return false;
@@ -32,9 +34,21 @@ export function createDiaryKeymap(callbacks: KeymapCallbacks) {
 
   const acceptCard3: Command = () => {
     const item = callbacks.getCurrentSuggestion();
-    const text = item?.translationText || item?.alternativeText;
+    const text = item?.card3 || item?.translationText;
     if (item && text) {
-      callbacks.onAdopt(text, "translation", item.sourceRange);
+      const kind = item.sourceRange ? "translation" : "alternative";
+      callbacks.onAdopt(text, kind, item.sourceRange);
+      return true;
+    }
+    return false;
+  };
+
+  const acceptCard4: Command = () => {
+    const item = callbacks.getCurrentSuggestion();
+    const text = item?.card4;
+    if (item && text) {
+      const kind = item.sourceRange ? "translation" : "alternative";
+      callbacks.onAdopt(text, kind, item.sourceRange);
       return true;
     }
     return false;
@@ -63,6 +77,7 @@ export function createDiaryKeymap(callbacks: KeymapCallbacks) {
       { key: "Alt-1", run: acceptCard1 },
       { key: "Alt-2", run: acceptCard2 },
       { key: "Alt-3", run: acceptCard3 },
+      { key: "Alt-4", run: acceptCard4 },
       { key: "Escape", run: dismiss },
       { key: "F3", run: polish },
     ])

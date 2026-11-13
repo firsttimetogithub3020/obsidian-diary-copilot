@@ -41,9 +41,9 @@ export class CardPanel {
     brand.createSpan({ text: "Diary Copilot" });
 
     this.headerHintEl = header.createSpan({ cls: "diary-copilot-hint" });
-    this.headerHintEl.setText(Platform.isMobile ? "點擊卡片採納" : "F3 潤飾前句 · Tab 採納 · Esc 關閉");
+    this.headerHintEl.setText(Platform.isMobile ? "點擊卡片採納" : "4張建議卡 · Tab / Alt+1/2/3/4 採納 · Esc 關閉");
 
-    // Cards row
+    // Cards row (4 columns)
     this.cardsRowEl = this.panelEl.createDiv({ cls: "diary-copilot-cards-row" });
   }
 
@@ -115,7 +115,7 @@ export class CardPanel {
     this.currentItem = item;
     if (!this.panelEl || !this.cardsRowEl) return;
 
-    if (!item || (!item.continueText && !item.alternativeText && !item.translationText)) {
+    if (!item || (!item.card1 && !item.card2 && !item.card3 && !item.card4 && !item.continueText)) {
       this.panelEl.addClass("is-hidden");
       return;
     }
@@ -130,114 +130,151 @@ export class CardPanel {
 
     if (this.headerHintEl) {
       if (isPolishMode) {
-        this.headerHintEl.setText("✨ F3 潤飾模式：按 Tab / Alt+2 / Alt+3 替換為更佳表達");
+        this.headerHintEl.setText("✨ F3 潤飾模式：按 Tab / Alt+2 / Alt+3 / Alt+4 替換為更佳表達");
       } else if (hasChineseSource) {
-        this.headerHintEl.setText("💡 中翻英模式：按 Tab 直接將中文「替換」為道地英文");
+        this.headerHintEl.setText(`💡 中翻英模式：點擊任一卡或按 Tab/Alt+2/3/4 直接「取代」【${item.translationSource}】`);
       } else {
-        this.headerHintEl.setText(Platform.isMobile ? "點擊卡片採納" : "F3 潤飾前句 · Tab 採納 · Esc 關閉");
+        this.headerHintEl.setText(Platform.isMobile ? "點擊卡片採納" : "F3 潤飾前句 · Tab 採納卡1 · Alt+2/3/4 · Esc 關閉");
       }
     }
 
     this.cardsRowEl.empty();
 
+    const c1 = item.card1 || item.continueText || "";
+    const c2 = item.card2 || item.alternativeText || "";
+    const c3 = item.card3 || item.translationText || "";
+    const c4 = item.card4 || "";
+
     if (isPolishMode) {
-      if (item.continueText) {
+      if (c1) {
         this.renderCard(
           this.cardsRowEl,
           "💡 潤飾 1 · 自然口語",
           Platform.isMobile ? "" : "Tab",
-          item.continueText,
-          () => this.callbacks.onAdopt(item.continueText, "translation", item.sourceRange),
-          item.translationSource
+          c1,
+          () => this.callbacks.onAdopt(c1, "translation", item.sourceRange),
+          `原句：${item.translationSource}`
         );
       }
-      if (item.alternativeText) {
+      if (c2) {
         this.renderCard(
           this.cardsRowEl,
           "✨ 潤飾 2 · 地道生動",
           Platform.isMobile ? "" : "Alt+2",
-          item.alternativeText,
-          () => this.callbacks.onAdopt(item.alternativeText, "translation", item.sourceRange),
-          item.translationSource
+          c2,
+          () => this.callbacks.onAdopt(c2, "translation", item.sourceRange),
+          `原句：${item.translationSource}`
         );
       }
-      if (item.translationText) {
+      if (c3) {
         this.renderCard(
           this.cardsRowEl,
           "⚡ 潤飾 3 · 精煉有力",
           Platform.isMobile ? "" : "Alt+3",
-          item.translationText,
-          () => this.callbacks.onAdopt(item.translationText!, "translation", item.sourceRange),
-          item.translationSource
+          c3,
+          () => this.callbacks.onAdopt(c3, "translation", item.sourceRange),
+          `原句：${item.translationSource}`
+        );
+      }
+      if (c4) {
+        this.renderCard(
+          this.cardsRowEl,
+          "🎯 潤飾 4 · 優雅反思",
+          Platform.isMobile ? "" : "Alt+4",
+          c4,
+          () => this.callbacks.onAdopt(c4, "translation", item.sourceRange),
+          `原句：${item.translationSource}`
         );
       }
       return;
     }
 
-    // Chinese Translation Mode (Option 1: 置頂中翻英，Tab 直接取代中文)
+    // Chinese Translation Mode (All 4 cards REPLACE the Chinese segment)
     if (hasChineseSource) {
-      const card1Text = item.continueText || item.translationText || "";
-      this.renderCard(
-        this.cardsRowEl,
-        "💡 卡 1 · 中 → 英 (按 Tab 取代)",
-        Platform.isMobile ? "" : "Tab",
-        card1Text,
-        () => this.callbacks.onAdopt(card1Text, "translation", item.sourceRange),
-        `取代：${item.translationSource}`
-      );
-
-      if (item.alternativeText) {
+      if (c1) {
         this.renderCard(
           this.cardsRowEl,
-          "✨ 卡 2 · 另種表達",
-          Platform.isMobile ? "" : "Alt+2",
-          item.alternativeText,
-          () => this.callbacks.onAdopt(item.alternativeText, "translation", item.sourceRange),
+          "💡 卡 1 · 自然口語",
+          Platform.isMobile ? "" : "Tab",
+          c1,
+          () => this.callbacks.onAdopt(c1, "translation", item.sourceRange),
           `取代：${item.translationSource}`
         );
       }
 
-      if (item.translationText && item.translationText !== card1Text) {
+      if (c2) {
         this.renderCard(
           this.cardsRowEl,
-          "⚡ 卡 3 · 換個方向",
+          "✨ 卡 2 · 地道片語",
+          Platform.isMobile ? "" : "Alt+2",
+          c2,
+          () => this.callbacks.onAdopt(c2, "translation", item.sourceRange),
+          `取代：${item.translationSource}`
+        );
+      }
+
+      if (c3) {
+        this.renderCard(
+          this.cardsRowEl,
+          "⚡ 卡 3 · 精煉簡潔",
           Platform.isMobile ? "" : "Alt+3",
-          item.translationText,
-          () => this.callbacks.onAdopt(item.translationText!, "translation", item.sourceRange),
+          c3,
+          () => this.callbacks.onAdopt(c3, "translation", item.sourceRange),
+          `取代：${item.translationSource}`
+        );
+      }
+
+      if (c4) {
+        this.renderCard(
+          this.cardsRowEl,
+          "🎯 卡 4 · 換種句式",
+          Platform.isMobile ? "" : "Alt+4",
+          c4,
+          () => this.callbacks.onAdopt(c4, "translation", item.sourceRange),
           `取代：${item.translationSource}`
         );
       }
       return;
     }
 
-    // Normal English Suggestion Mode
-    if (item.continueText) {
+    // Normal English Suggestion Mode (4 distinct directions)
+    if (c1) {
       this.renderCard(
         this.cardsRowEl,
         "卡 1 · 猜下一句",
         Platform.isMobile ? "" : "Tab",
-        item.continueText,
-        () => this.callbacks.onAdopt(item.continueText, "continue", item.sourceRange)
+        c1,
+        () => this.callbacks.onAdopt(c1, "continue", item.sourceRange)
       );
     }
 
-    if (item.alternativeText) {
+    if (c2) {
       this.renderCard(
         this.cardsRowEl,
-        "卡 2 · 換個方向",
+        "卡 2 · 內心感受",
         Platform.isMobile ? "" : "Alt+2",
-        item.alternativeText,
-        () => this.callbacks.onAdopt(item.alternativeText, "alternative", item.sourceRange)
+        c2,
+        () => this.callbacks.onAdopt(c2, "alternative", item.sourceRange)
       );
     }
 
-    if (item.translationText) {
+    if (c3) {
       this.renderCard(
         this.cardsRowEl,
-        "卡 3 · 參考表達",
+        "卡 3 · 細節展開",
         Platform.isMobile ? "" : "Alt+3",
-        item.translationText,
-        () => this.callbacks.onAdopt(item.translationText!, "translation", item.sourceRange)
+        c3,
+        () => this.callbacks.onAdopt(c3, "alternative", item.sourceRange)
+      );
+    }
+
+    if (c4) {
+      this.renderCard(
+        this.cardsRowEl,
+        "卡 4 · 地道片語",
+        Platform.isMobile ? "" : "Alt+4",
+        c4,
+        () => this.callbacks.onAdopt(c4, "alternative", item.sourceRange)
       );
     }
   }

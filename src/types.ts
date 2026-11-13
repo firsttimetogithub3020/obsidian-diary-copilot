@@ -17,6 +17,11 @@ export interface PluginSettings {
 }
 
 export interface SuggestionItem {
+  card1: string;
+  card2: string;
+  card3: string;
+  card4: string;
+  // Aliases for compatibility
   continueText: string;
   alternativeText: string;
   translationText?: string | null;
