@@ -1,0 +1,9 @@
+{
+  "id": "diary-copilot",
+  "name": "Diary Copilot",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "AI-guided English diary writing with live suggestions.",
+  "author": "Alan",
+  "isDesktopOnly": false
+}
