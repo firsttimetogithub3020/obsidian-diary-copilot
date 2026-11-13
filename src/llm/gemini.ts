@@ -1,10 +1,11 @@
 import { requestUrl } from "obsidian";
 import { LLMProvider, LLMRequest } from "./provider";
 
-const FALLBACK_MODELS = [
-  "gemini-2.5-flash-lite",
-  "gemini-2.5-flash",
-  "gemini-1.5-flash"
+export const FALLBACK_MODELS = [
+  "gemini-3.5-flash-lite",
+  "gemini-flash-lite-latest",
+  "gemini-3.8-flash",
+  "gemini-flash-latest",
 ];
 
 export class GeminiProvider implements LLMProvider {
@@ -14,13 +15,13 @@ export class GeminiProvider implements LLMProvider {
 
   constructor(apiKey: string, primaryModel: string) {
     this.apiKey = apiKey;
-    this.primaryModel = primaryModel || "gemini-2.5-flash-lite";
+    this.primaryModel = primaryModel || "gemini-3.5-flash-lite";
     this.activeWorkingModel = this.primaryModel;
   }
 
   updateConfig(apiKey: string, primaryModel: string) {
     this.apiKey = apiKey;
-    this.primaryModel = primaryModel || "gemini-2.5-flash-lite";
+    this.primaryModel = primaryModel || "gemini-3.5-flash-lite";
     this.activeWorkingModel = this.primaryModel;
   }
 
@@ -30,65 +31,45 @@ export class GeminiProvider implements LLMProvider {
 
   async testConnection(): Promise<boolean> {
     if (!this.apiKey) return false;
-    const model = this.activeWorkingModel;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
 
-    try {
-      const resp = await requestUrl({
-        url,
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": this.apiKey,
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: "ping" }] }],
-          generationConfig: { maxOutputTokens: 5 },
-        }),
-      });
-      return resp.status === 200;
-    } catch (e: any) {
-      // If 404, try fallbacks
-      for (const fallback of FALLBACK_MODELS) {
-        if (fallback === model) continue;
-        try {
-          const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(fallback)}:generateContent`;
-          const resp = await requestUrl({
-            url: fallbackUrl,
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "x-goog-api-key": this.apiKey,
-            },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: "ping" }] }],
-              generationConfig: { maxOutputTokens: 5 },
-            }),
-          });
-          if (resp.status === 200) {
-            this.activeWorkingModel = fallback;
-            return true;
-          }
-        } catch {
-          // continue checking
+    const modelsToTry = [
+      this.activeWorkingModel,
+      ...FALLBACK_MODELS.filter((m) => m !== this.activeWorkingModel),
+    ];
+
+    for (const model of modelsToTry) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(this.apiKey)}`;
+        const resp = await requestUrl({
+          url,
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: "ping" }] }],
+            generationConfig: { maxOutputTokens: 5 },
+          }),
+        });
+
+        if (resp.status === 200) {
+          this.activeWorkingModel = model;
+          return true;
         }
+      } catch (e: any) {
+        // Continue to try fallback model
       }
-      return false;
     }
+
+    return false;
   }
 
-  private buildPayload(req: LLMRequest, includeThinking: boolean) {
+  private buildPayload(req: LLMRequest) {
     const generationConfig: Record<string, any> = {
       temperature: req.temperature ?? 0.7,
       maxOutputTokens: req.maxOutputTokens ?? 200,
       responseMimeType: "application/json",
     };
-
-    if (includeThinking) {
-      generationConfig.thinkingConfig = {
-        thinkingBudget: 0,
-      };
-    }
 
     return {
       contents: [
@@ -118,35 +99,23 @@ export class GeminiProvider implements LLMProvider {
 
     for (const currentModel of modelsToTry) {
       try {
-        const result = await this.streamWithModel(currentModel, req, onChunk, true);
+        const result = await this.streamWithModel(currentModel, req, onChunk);
         this.activeWorkingModel = currentModel;
         return result;
       } catch (err: any) {
         lastError = err;
-        // If aborted by user, don't try fallback models
         if (req.signal?.aborted) {
           throw err;
         }
 
-        // If error might be due to thinkingConfig not supported, retry without thinkingConfig
-        if (err.message && (err.message.includes("thinking") || err.message.includes("400"))) {
-          try {
-            const result = await this.streamWithModel(currentModel, req, onChunk, false);
-            this.activeWorkingModel = currentModel;
-            return result;
-          } catch (retryErr: any) {
-            lastError = retryErr;
-          }
-        }
-
-        // If error is 404 (model not found), proceed to next fallback model
-        if (err.message && (err.message.includes("404") || err.message.includes("not found"))) {
+        // If 404 or deprecated model, try next fallback
+        if (err.message && (err.message.includes("404") || err.message.includes("not found") || err.message.includes("no longer available"))) {
           continue;
         }
 
-        // For other network/CORS issues, attempt fallback to complete() via Obsidian requestUrl
+        // Try non-streaming requestUrl fallback
         try {
-          const nonStreamResult = await this.completeWithModel(currentModel, req, false);
+          const nonStreamResult = await this.completeWithModel(currentModel, req);
           onChunk(nonStreamResult);
           this.activeWorkingModel = currentModel;
           return nonStreamResult;
@@ -162,17 +131,15 @@ export class GeminiProvider implements LLMProvider {
   private async streamWithModel(
     model: string,
     req: LLMRequest,
-    onChunk: (accumulatedText: string) => void,
-    includeThinking: boolean
+    onChunk: (accumulatedText: string) => void
   ): Promise<string> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
-    const payload = this.buildPayload(req, includeThinking);
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(this.apiKey)}`;
+    const payload = this.buildPayload(req);
 
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-goog-api-key": this.apiKey,
       },
       body: JSON.stringify(payload),
       signal: req.signal,
@@ -228,7 +195,7 @@ export class GeminiProvider implements LLMProvider {
               }
             }
           } catch {
-            // Partial JSON in SSE chunk, ignore parse error until full JSON line arrives
+            // Partial JSON chunk
           }
         }
       }
@@ -252,12 +219,12 @@ export class GeminiProvider implements LLMProvider {
     let lastError: any = null;
     for (const currentModel of modelsToTry) {
       try {
-        const res = await this.completeWithModel(currentModel, req, false);
+        const res = await this.completeWithModel(currentModel, req);
         this.activeWorkingModel = currentModel;
         return res;
       } catch (err: any) {
         lastError = err;
-        if (err.message && (err.message.includes("404") || err.message.includes("not found"))) {
+        if (err.message && (err.message.includes("404") || err.message.includes("not found") || err.message.includes("no longer available"))) {
           continue;
         }
       }
@@ -268,18 +235,16 @@ export class GeminiProvider implements LLMProvider {
 
   private async completeWithModel(
     model: string,
-    req: LLMRequest,
-    includeThinking: boolean
+    req: LLMRequest
   ): Promise<string> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
-    const payload = this.buildPayload(req, includeThinking);
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(this.apiKey)}`;
+    const payload = this.buildPayload(req);
 
     const resp = await requestUrl({
       url,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-goog-api-key": this.apiKey,
       },
       body: JSON.stringify(payload),
     });

@@ -4,8 +4,8 @@ import { PluginSettings } from "./types";
 
 export const DEFAULT_SETTINGS: PluginSettings = {
   geminiApiKey: "",
-  model: "gemini-2.5-flash-lite",
-  tidyModel: "gemini-2.5-flash-lite",
+  model: "gemini-3.5-flash-lite",
+  tidyModel: "gemini-3.5-flash-lite",
   diaryFolder: "Diary",
   englishLevel: "upper-intermediate",
   debounceMs: 400,
@@ -16,10 +16,10 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 };
 
 export const RECOMMENDED_MODELS = [
-  { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash-Lite（最快、超低延遲，推薦）" },
-  { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash（均衡快速）" },
-  { id: "gemini-1.5-flash", label: "Gemini 1.5 Flash（穩定備援）" },
-  { id: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash-Lite（實驗/預設標的）" },
+  { id: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash-Lite（最快、超低延遲，推薦）" },
+  { id: "gemini-flash-lite-latest", label: "Gemini Flash-Lite Latest（自動保持最新 Flash-Lite）" },
+  { id: "gemini-3.8-flash", label: "Gemini 3.8 Flash（高智能、快速）" },
+  { id: "gemini-flash-latest", label: "Gemini Flash Latest（自動保持最新 Flash）" },
 ];
 
 export class DiaryCopilotSettingTab extends PluginSettingTab {
