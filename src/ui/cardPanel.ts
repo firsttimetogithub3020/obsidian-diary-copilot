@@ -87,96 +87,120 @@ export class CardPanel {
   }
 
   private setupResizeListeners() {
-    if (!this.resizeHandleEl) return;
+    const handleEl = this.resizeHandleEl;
+    if (!handleEl) return;
 
-    const startResize = (clientY: number) => {
+    let isDragging = false;
+    let startY = 0;
+    let startHeight = 0;
+
+    const onMove = (clientY: number) => {
+      if (!isDragging || !this.panelEl) return;
+      const diffY = startY - clientY; // Dragging up increases height
+      const minH = Platform.isMobile ? 70 : 80;
+      const maxH = Math.round(window.innerHeight * 0.8);
+      const newHeight = Math.round(Math.max(minH, Math.min(maxH, startHeight + diffY)));
+
+      this.panelEl.style.height = `${newHeight}px`;
+      document.body.style.setProperty("--diary-copilot-panel-height", `${newHeight}px`);
+    };
+
+    const onEnd = () => {
+      if (!isDragging) return;
+      isDragging = false;
+      this.isResizing = false;
+      this.panelEl?.removeClass("is-resizing");
+
+      if (this.panelEl) {
+        const finalHeight = Math.round(this.panelEl.getBoundingClientRect().height);
+        if (this.callbacks.onHeightResize) {
+          this.callbacks.onHeightResize(finalHeight);
+        }
+      }
+    };
+
+    // 1. Pointer Events with Pointer Capture (seamless on iPad, Android & Desktop)
+    handleEl.addEventListener("pointerdown", (e: PointerEvent) => {
       if (!this.panelEl) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      isDragging = true;
       this.isResizing = true;
       this.panelEl.addClass("is-resizing");
 
-      const startY = clientY;
-      const startHeight = this.panelEl.getBoundingClientRect().height;
+      startY = e.clientY;
+      startHeight = this.panelEl.getBoundingClientRect().height;
 
-      const doResize = (currentY: number) => {
-        if (!this.isResizing || !this.panelEl) return;
-        const diffY = startY - currentY; // Dragging UP increases height
-        const minH = Platform.isMobile ? 70 : 80;
-        const maxH = window.innerHeight * 0.75;
-        const newHeight = Math.round(Math.max(minH, Math.min(maxH, startHeight + diffY)));
-
-        this.panelEl.style.height = `${newHeight}px`;
-        document.body.style.setProperty("--diary-copilot-panel-height", `${newHeight}px`);
-      };
-
-      const endResize = () => {
-        if (!this.isResizing) return;
-        this.isResizing = false;
-        this.panelEl?.removeClass("is-resizing");
-
-        cleanup();
-
-        if (this.panelEl) {
-          const finalHeight = Math.round(this.panelEl.getBoundingClientRect().height);
-          if (this.callbacks.onHeightResize) {
-            this.callbacks.onHeightResize(finalHeight);
-          }
-        }
-      };
-
-      const onMouseMove = (e: MouseEvent) => {
-        e.preventDefault();
-        doResize(e.clientY);
-      };
-
-      const onMouseUp = () => {
-        endResize();
-      };
-
-      const onTouchMove = (e: TouchEvent) => {
-        if (e.touches.length > 0) {
-          e.preventDefault(); // Prevent viewport scrolling during drag
-          doResize(e.touches[0].clientY);
-        }
-      };
-
-      const onTouchEnd = () => {
-        endResize();
-      };
-
-      const cleanup = () => {
-        window.removeEventListener("mousemove", onMouseMove);
-        window.removeEventListener("mouseup", onMouseUp);
-        window.removeEventListener("touchmove", onTouchMove);
-        window.removeEventListener("touchend", onTouchEnd);
-        window.removeEventListener("touchcancel", onTouchEnd);
-      };
-
-      window.addEventListener("mousemove", onMouseMove);
-      window.addEventListener("mouseup", onMouseUp);
-      window.addEventListener("touchmove", onTouchMove, { passive: false });
-      window.addEventListener("touchend", onTouchEnd);
-      window.addEventListener("touchcancel", onTouchEnd);
-    };
-
-    // Mouse drag listener (Desktop & Mac)
-    this.resizeHandleEl.addEventListener("mousedown", (e: MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      startResize(e.clientY);
+      try {
+        handleEl.setPointerCapture(e.pointerId);
+      } catch {}
     });
 
-    // Touch drag listener (iPhone, iPad, Android)
-    this.resizeHandleEl.addEventListener(
+    handleEl.addEventListener("pointermove", (e: PointerEvent) => {
+      if (!isDragging) return;
+      e.preventDefault();
+      e.stopPropagation();
+      onMove(e.clientY);
+    });
+
+    handleEl.addEventListener("pointerup", (e: PointerEvent) => {
+      if (!isDragging) return;
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        handleEl.releasePointerCapture(e.pointerId);
+      } catch {}
+      onEnd();
+    });
+
+    handleEl.addEventListener("pointercancel", (e: PointerEvent) => {
+      if (!isDragging) return;
+      try {
+        handleEl.releasePointerCapture(e.pointerId);
+      } catch {}
+      onEnd();
+    });
+
+    // 2. Direct Touch Events (prevents mobile page scrolling during drag)
+    handleEl.addEventListener(
       "touchstart",
       (e: TouchEvent) => {
-        if (e.touches.length > 0) {
+        if (e.touches.length > 0 && this.panelEl) {
           e.preventDefault();
           e.stopPropagation();
-          startResize(e.touches[0].clientY);
+          isDragging = true;
+          this.isResizing = true;
+          this.panelEl.addClass("is-resizing");
+          startY = e.touches[0].clientY;
+          startHeight = this.panelEl.getBoundingClientRect().height;
         }
       },
       { passive: false }
     );
+
+    handleEl.addEventListener(
+      "touchmove",
+      (e: TouchEvent) => {
+        if (!isDragging || e.touches.length === 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onMove(e.touches[0].clientY);
+      },
+      { passive: false }
+    );
+
+    handleEl.addEventListener("touchend", (e: TouchEvent) => {
+      if (!isDragging) return;
+      e.preventDefault();
+      e.stopPropagation();
+      onEnd();
+    });
+
+    handleEl.addEventListener("touchcancel", (e: TouchEvent) => {
+      if (!isDragging) return;
+      onEnd();
+    });
   }
 
   renderIdleState(message?: string) {
