@@ -12,10 +12,10 @@ AI 引導式英文日記書寫 Obsidian 外掛（電腦版＋手機版 App 通�
 
 | 文件 | 內容 |
 |---|---|
-| [docs/SPEC.md](docs/SPEC.md) | 完整產品規格（功能、介面、即時呈現策略、存檔格式） |
-| [docs/HANDOFF.md](docs/HANDOFF.md) | 給 coding agent（Antigravity）的技術交接：架構、模組、API、驗收條件 |
-| [docs/ANTIGRAVITY_PROMPT.md](docs/ANTIGRAVITY_PROMPT.md) | 直接貼給 Antigravity 的第一段指令 |
-| [AGENTS.md](AGENTS.md) | coding agent 的工作規則 |
+| [docs/SPEC.md](https://github.com/firsttimetogithub3020/obsidian-diary-copilot/blob/main/docs/SPEC.md) | 完整產品規格（功能、介面、即時呈現策略、存檔格式） |
+| [docs/HANDOFF.md](https://github.com/firsttimetogithub3020/obsidian-diary-copilot/blob/main/docs/HANDOFF.md) | 給 coding agent（Antigravity）的技術交接：架構、模組、API、驗收條件 |
+| [docs/ANTIGRAVITY_PROMPT.md](https://github.com/firsttimetogithub3020/obsidian-diary-copilot/blob/main/docs/ANTIGRAVITY_PROMPT.md) | 直接貼給 Antigravity 的第一段指令 |
+| [AGENTS.md](https://github.com/firsttimetogithub3020/obsidian-diary-copilot/blob/main/AGENTS.md) | coding agent 的工作規則 |
 
 ## 開發階段
 
