@@ -1,11 +1,21 @@
 export type EnglishLevel = "beginner" | "intermediate" | "upper-intermediate" | "advanced";
 
+export type DiaryTone =
+  | "casual"
+  | "reflective"
+  | "motivational"
+  | "vivid"
+  | "humorous"
+  | "social-science"
+  | "sinology";
+
 export interface PluginSettings {
   geminiApiKey: string;
   model: string;
   tidyModel: string;
   diaryFolder: string;
   englishLevel: EnglishLevel;
+  diaryTone: DiaryTone;
   debounceMs: number;
   noPunctuationDebounceMs: number;
   guidanceDelaySec: number;

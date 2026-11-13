@@ -1,7 +1,7 @@
 import { Plugin, MarkdownView, TFile, Platform, Notice } from "obsidian";
 import { EditorView, ViewUpdate } from "@codemirror/view";
-import { DEFAULT_SETTINGS, DiaryCopilotSettingTab } from "./settings";
-import { PluginData, PluginSettings, SuggestionItem } from "./types";
+import { DEFAULT_SETTINGS, DiaryCopilotSettingTab, DIARY_TONE_OPTIONS } from "./settings";
+import { PluginData, PluginSettings, SuggestionItem, DiaryTone } from "./types";
 import { GeminiProvider } from "./llm/gemini";
 import { SummaryManager } from "./engine/summary";
 import { SuggestionScheduler } from "./engine/scheduler";
@@ -242,6 +242,8 @@ export default class DiaryCopilotPlugin extends Plugin {
             this.settings.panelMinHeight = newHeight;
             await this.saveSettings();
           },
+          getTone: () => this.settings.diaryTone,
+          onToneChange: (tone) => this.handleToneChange(tone),
         });
       }
     } else {
@@ -252,6 +254,26 @@ export default class DiaryCopilotPlugin extends Plugin {
       this.currentPolishItem = null;
       this.scheduler.clear();
       this.clearGhostText();
+    }
+  }
+
+  async handleToneChange(tone: DiaryTone) {
+    this.settings.diaryTone = tone;
+    await this.saveSettings();
+
+    const option = DIARY_TONE_OPTIONS.find((t) => t.id === tone);
+    new Notice(`🎭 語調切換為：${option?.label || tone}`, 2000);
+
+    // If active diary view exists, re-fetch suggestions with new tone immediately!
+    if (this.currentActiveEditorView && this.activeView && this.isDiaryFile(this.activeView.file)) {
+      const docText = this.currentActiveEditorView.state.doc.toString();
+      const cursor = this.currentActiveEditorView.state.selection.main.head;
+      const context = extractContextFromDoc(docText, cursor);
+      const filePath = this.activeView.file.path;
+      const paragraphSummary = this.summaryManager.getParagraphSummary(filePath);
+      const styleSummary = this.data.styleSummary?.summary;
+
+      this.scheduler.refetch(context, styleSummary, paragraphSummary);
     }
   }
 
@@ -316,11 +338,12 @@ export default class DiaryCopilotPlugin extends Plugin {
     this.clearGhostText();
 
     try {
-      const systemPrompt = buildPolishSystemPrompt(this.settings.englishLevel);
+      const systemPrompt = buildPolishSystemPrompt(this.settings.englishLevel, this.settings.diaryTone);
       const userPrompt = buildPolishUserPrompt({
         targetSentence: target.sentence,
         surroundingContext: target.surroundingContext,
         englishLevel: this.settings.englishLevel,
+        tone: this.settings.diaryTone,
       });
 
       const responseText = await this.llm.complete({

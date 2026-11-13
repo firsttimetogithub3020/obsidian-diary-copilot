@@ -90,6 +90,11 @@ export class SuggestionScheduler {
     this.isShadowTypingMode = false;
   }
 
+  refetch(context: ExtractedContext, styleSummary?: string, paragraphSummary?: string) {
+    this.lastContextHash = "";
+    this.triggerFetch(context, styleSummary, paragraphSummary);
+  }
+
   handleDocChange(
     context: ExtractedContext,
     styleSummary?: string,
@@ -179,9 +184,10 @@ export class SuggestionScheduler {
     const abortController = new AbortController();
     this.activeAbortController = abortController;
 
-    const systemPrompt = buildSuggestionSystemPrompt(settings.englishLevel, styleSummary);
+    const systemPrompt = buildSuggestionSystemPrompt(settings.englishLevel, settings.diaryTone, styleSummary);
     const userPrompt = buildSuggestionUserPrompt({
       englishLevel: settings.englishLevel,
+      tone: settings.diaryTone,
       styleSummary,
       paragraphSummary,
       recentSentences: context.recentSentences,

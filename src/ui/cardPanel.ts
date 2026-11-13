@@ -1,10 +1,13 @@
 import { Platform } from "obsidian";
-import { SuggestionItem } from "../types";
+import { SuggestionItem, DiaryTone } from "../types";
+import { DIARY_TONE_OPTIONS } from "../settings";
 
 export interface CardPanelCallbacks {
   onAdopt: (text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }) => void;
   onDismiss: () => void;
   onHeightResize?: (newHeight: number) => void;
+  onToneChange?: (tone: DiaryTone) => void;
+  getTone?: () => DiaryTone;
 }
 
 export class CardPanel {
@@ -12,6 +15,7 @@ export class CardPanel {
   private panelEl: HTMLElement | null = null;
   private statusDotEl: HTMLElement | null = null;
   private headerHintEl: HTMLElement | null = null;
+  private toneSelectEl: HTMLSelectElement | null = null;
   private cardsRowEl: HTMLElement | null = null;
   private resizeHandleEl: HTMLElement | null = null;
   private callbacks: CardPanelCallbacks;
@@ -40,8 +44,30 @@ export class CardPanel {
     this.statusDotEl = brand.createSpan({ cls: "diary-copilot-status-dot" });
     brand.createSpan({ text: "Diary Copilot" });
 
+    // Middle: Tone selector dropdown
+    const toneWrapper = header.createDiv({ cls: "diary-copilot-tone-wrapper" });
+    toneWrapper.createSpan({ cls: "diary-copilot-tone-label", text: "語調：" });
+
+    this.toneSelectEl = toneWrapper.createEl("select", { cls: "diary-copilot-tone-select" });
+    const currentTone = this.callbacks.getTone?.() || "casual";
+
+    for (const opt of DIARY_TONE_OPTIONS) {
+      const optionEl = this.toneSelectEl.createEl("option", {
+        value: opt.id,
+        text: opt.label,
+      });
+      if (opt.id === currentTone) {
+        optionEl.selected = true;
+      }
+    }
+
+    this.toneSelectEl.addEventListener("change", (e) => {
+      const selectedTone = (e.target as HTMLSelectElement).value as DiaryTone;
+      this.callbacks.onToneChange?.(selectedTone);
+    });
+
     this.headerHintEl = header.createSpan({ cls: "diary-copilot-hint" });
-    this.headerHintEl.setText(Platform.isMobile ? "點擊卡片採納" : "Alt+1/2/3/4 或點擊卡片採納 · Esc 關閉");
+    this.headerHintEl.setText(Platform.isMobile ? "點擊卡片跟寫" : "Alt+1/2/3/4 或點擊卡片跟寫 · Esc 關閉");
 
     // Cards row (4 columns)
     this.cardsRowEl = this.panelEl.createDiv({ cls: "diary-copilot-cards-row" });
@@ -113,6 +139,12 @@ export class CardPanel {
 
   getCurrentItem(): SuggestionItem | null {
     return this.currentItem;
+  }
+
+  setTone(tone: DiaryTone) {
+    if (this.toneSelectEl) {
+      this.toneSelectEl.value = tone;
+    }
   }
 
   updateSuggestions(item: SuggestionItem | null, isPolishMode = false) {

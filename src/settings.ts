@@ -1,6 +1,6 @@
 import { App, PluginSettingTab, Setting, Notice } from "obsidian";
 import type DiaryCopilotPlugin from "./main";
-import { PluginSettings } from "./types";
+import { PluginSettings, DiaryTone } from "./types";
 
 export const DEFAULT_SETTINGS: PluginSettings = {
   geminiApiKey: "",
@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   tidyModel: "gemini-3.5-flash-lite",
   diaryFolder: "Diary",
   englishLevel: "upper-intermediate",
+  diaryTone: "casual",
   debounceMs: 400,
   noPunctuationDebounceMs: 800,
   guidanceDelaySec: 20,
@@ -17,6 +18,16 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   cardMaxLines: 3,
   panelMinHeight: 115,
 };
+
+export const DIARY_TONE_OPTIONS: { id: DiaryTone; label: string; desc: string }[] = [
+  { id: "casual", label: "日常自然 (Casual)", desc: "自然親切的日常母語口語表達" },
+  { id: "reflective", label: "自我對話 (Reflective)", desc: "內省沉思、情緒覺察與個人深度思考" },
+  { id: "motivational", label: "正向激勵 (Empowering)", desc: "肯定進步、感恩視角與行動力量" },
+  { id: "vivid", label: "生動故事 (Vivid)", desc: "注重五感描寫與畫面感" },
+  { id: "humorous", label: "幽默自嘲 (Humorous)", desc: "輕鬆自嘲與俏皮筆調" },
+  { id: "social-science", label: "社科學術期刊 (Social Science)", desc: "社會科學學術期刊論文語調：精準學術術語、概念化框架、客觀分析、嚴謹論述" },
+  { id: "sinology", label: "漢學學術期刊 (Sinology)", desc: "漢學學術期刊論文語調：西方漢學/中國研究學術風格，善用文獻考據、義理辨析、歷史脈絡與學術英譯" },
+];
 
 export const RECOMMENDED_MODELS = [
   { id: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash-Lite（最快、超低延遲，推薦）" },
@@ -170,6 +181,21 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
             this.plugin.settings.englishLevel = val as any;
             await this.plugin.saveSettings();
           });
+      });
+
+    // Diary Tone
+    new Setting(containerEl)
+      .setName("預設寫作語調")
+      .setDesc("控制 AI 建議與潤飾的行文風格（亦可直接在底部面板頂部隨時切換）")
+      .addDropdown((dropdown) => {
+        for (const t of DIARY_TONE_OPTIONS) {
+          dropdown.addOption(t.id, t.label);
+        }
+        dropdown.setValue(this.plugin.settings.diaryTone || "casual");
+        dropdown.onChange(async (val) => {
+          this.plugin.settings.diaryTone = val as any;
+          await this.plugin.saveSettings();
+        });
       });
 
     // Ghost text toggle (Desktop)
