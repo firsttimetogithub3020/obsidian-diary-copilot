@@ -11,6 +11,7 @@ export class CardPanel {
   private containerEl: HTMLElement;
   private panelEl: HTMLElement | null = null;
   private statusDotEl: HTMLElement | null = null;
+  private headerHintEl: HTMLElement | null = null;
   private cardsRowEl: HTMLElement | null = null;
   private resizeHandleEl: HTMLElement | null = null;
   private callbacks: CardPanelCallbacks;
@@ -39,8 +40,8 @@ export class CardPanel {
     this.statusDotEl = brand.createSpan({ cls: "diary-copilot-status-dot" });
     brand.createSpan({ text: "Diary Copilot" });
 
-    const hint = header.createSpan({ cls: "diary-copilot-hint" });
-    hint.setText(Platform.isMobile ? "點擊卡片採納" : "可拖曳頂部邊框調整高度 · Tab 採納 · Esc 關閉");
+    this.headerHintEl = header.createSpan({ cls: "diary-copilot-hint" });
+    this.headerHintEl.setText(Platform.isMobile ? "點擊卡片採納" : "F3 潤飾前句 · Tab 採納 · Esc 關閉");
 
     // Cards row
     this.cardsRowEl = this.panelEl.createDiv({ cls: "diary-copilot-cards-row" });
@@ -69,7 +70,7 @@ export class CardPanel {
         document.body.style.setProperty("--diary-copilot-panel-height", `${newHeight}px`);
       };
 
-      const onMouseUp = (upEvent: MouseEvent) => {
+      const onMouseUp = () => {
         if (!this.isResizing) return;
         this.isResizing = false;
         this.panelEl?.removeClass("is-resizing");
@@ -90,12 +91,15 @@ export class CardPanel {
     });
   }
 
-  setLoading() {
+  setLoading(message?: string) {
     if (!this.panelEl) return;
     this.panelEl.removeClass("is-hidden");
     this.panelEl.addClass("is-loading");
     if (this.statusDotEl) {
       this.statusDotEl.className = "diary-copilot-status-dot loading";
+    }
+    if (this.headerHintEl && message) {
+      this.headerHintEl.setText(message);
     }
   }
 
@@ -107,7 +111,7 @@ export class CardPanel {
     }
   }
 
-  updateSuggestions(item: SuggestionItem | null) {
+  updateSuggestions(item: SuggestionItem | null, isPolishMode = false) {
     this.currentItem = item;
     if (!this.panelEl || !this.cardsRowEl) return;
 
@@ -122,8 +126,52 @@ export class CardPanel {
       this.statusDotEl.className = "diary-copilot-status-dot";
     }
 
+    if (this.headerHintEl) {
+      if (isPolishMode) {
+        this.headerHintEl.setText("✨ F3 潤飾模式：點擊或按 Tab/Alt+2/Alt+3 替換為更佳表達");
+      } else {
+        this.headerHintEl.setText(Platform.isMobile ? "點擊卡片採納" : "F3 潤飾前句 · Tab 採納 · Esc 關閉");
+      }
+    }
+
     this.cardsRowEl.empty();
 
+    if (isPolishMode) {
+      // Polish Mode: 3 better rewrite options
+      if (item.continueText) {
+        this.renderCard(
+          this.cardsRowEl,
+          "💡 潤飾 1 · 自然口語",
+          Platform.isMobile ? "" : "Tab",
+          item.continueText,
+          () => this.callbacks.onAdopt(item.continueText, "translation", item.sourceRange),
+          item.translationSource
+        );
+      }
+      if (item.alternativeText) {
+        this.renderCard(
+          this.cardsRowEl,
+          "✨ 潤飾 2 · 地道生動",
+          Platform.isMobile ? "" : "Alt+2",
+          item.alternativeText,
+          () => this.callbacks.onAdopt(item.alternativeText, "translation", item.sourceRange),
+          item.translationSource
+        );
+      }
+      if (item.translationText) {
+        this.renderCard(
+          this.cardsRowEl,
+          "⚡ 潤飾 3 · 精煉有力",
+          Platform.isMobile ? "" : "Alt+3",
+          item.translationText,
+          () => this.callbacks.onAdopt(item.translationText!, "translation", item.sourceRange),
+          item.translationSource
+        );
+      }
+      return;
+    }
+
+    // Normal Suggestion Mode:
     // Card 1: Continue / Predict Next
     if (item.continueText) {
       this.renderCard(
@@ -131,7 +179,7 @@ export class CardPanel {
         "卡 1 · 猜下一句",
         Platform.isMobile ? "" : "Tab",
         item.continueText,
-        () => this.callbacks.onAdopt(item.continueText, "continue")
+        () => this.callbacks.onAdopt(item.continueText, "continue", item.sourceRange)
       );
     }
 
@@ -142,7 +190,7 @@ export class CardPanel {
         "卡 2 · 換個方向",
         Platform.isMobile ? "" : "Alt+2",
         item.alternativeText,
-        () => this.callbacks.onAdopt(item.alternativeText, "alternative")
+        () => this.callbacks.onAdopt(item.alternativeText, "alternative", item.sourceRange)
       );
     }
 
@@ -179,7 +227,7 @@ export class CardPanel {
       badge.createSpan({ cls: "key-hint", text: shortcut });
     }
 
-    const content = card.createDiv({ cls: "diary-copilot-card-text", text });
+    card.createDiv({ cls: "diary-copilot-card-text", text });
 
     if (subText) {
       card.createDiv({

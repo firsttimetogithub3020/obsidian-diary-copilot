@@ -26,11 +26,11 @@ export class SuggestionScheduler {
   private currentRequestId = 0;
   private activeAbortController: AbortController | null = null;
 
-  // Cache & Prefix Matching state
+  // Cache & Prefix Matching (Shadow Typing) state
   private lastContextHash = "";
   private lastActiveSuggestion: SuggestionItem | null = null;
-  private typedDiffSinceSuggestion = "";
   private originalContinueText = "";
+  private anchorPos = 0;
 
   constructor(
     llm: LLMProvider,
@@ -56,25 +56,27 @@ export class SuggestionScheduler {
       this.activeAbortController = null;
     }
     this.lastActiveSuggestion = null;
-    this.typedDiffSinceSuggestion = "";
     this.originalContinueText = "";
+    this.anchorPos = 0;
   }
 
-  handleDocChange(context: ExtractedContext, styleSummary?: string, paragraphSummary?: string) {
+  handleDocChange(
+    context: ExtractedContext,
+    styleSummary?: string,
+    paragraphSummary?: string
+  ) {
     const settings = this.getSettings();
 
-    // Check if doc change can be satisfied by local prefix matching
+    // Check if doc change can be satisfied by local shadow typing (prefix matching)
     if (
       this.lastActiveSuggestion &&
       this.originalContinueText &&
-      !context.chineseSegment
+      !context.chineseSegment &&
+      context.cursorOffset >= this.anchorPos
     ) {
-      // Check prefix matching
-      const currentSentence = context.currentSentence;
-      const lastWord = currentSentence.slice(-1);
-      this.typedDiffSinceSuggestion += lastWord;
+      const typedDiff = context.fullDocText.slice(this.anchorPos, context.cursorOffset);
+      const match = tryMatchPrefix(typedDiff, this.originalContinueText);
 
-      const match = tryMatchPrefix(this.typedDiffSinceSuggestion, this.originalContinueText);
       if (match.matched) {
         if (match.remainingContinueText.length > 0) {
           const updatedSuggestion: SuggestionItem = {
@@ -89,8 +91,8 @@ export class SuggestionScheduler {
     }
 
     // Reset prefix tracking when not matched or typing new thought
-    this.typedDiffSinceSuggestion = "";
     this.originalContinueText = "";
+    this.anchorPos = context.cursorOffset;
 
     // Clear previous timer & cancel active request
     if (this.timer !== null) {
@@ -188,7 +190,7 @@ export class SuggestionScheduler {
         this.lastContextHash = contextHash;
         this.lastActiveSuggestion = latestSuggestion;
         this.originalContinueText = (latestSuggestion as SuggestionItem).continueText;
-        this.typedDiffSinceSuggestion = "";
+        this.anchorPos = context.cursorOffset;
         this.callbacks.onSuggestion(latestSuggestion, false);
       }
     } catch (e: any) {

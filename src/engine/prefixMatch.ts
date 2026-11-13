@@ -12,25 +12,26 @@ export function tryMatchPrefix(typedDiff: string, fullContinueText: string): Pre
     return { matched: true, remainingContinueText: fullContinueText };
   }
 
-  const normalizedTyped = typedDiff.toLowerCase();
-  const normalizedTarget = fullContinueText.toLowerCase();
+  // Strip leading spaces on both sides to align correctly
+  const typedTrimmed = typedDiff.trimStart();
+  const targetTrimmed = fullContinueText.trimStart();
 
-  // If typed text directly matches the start of the prediction
-  if (normalizedTarget.startsWith(normalizedTyped)) {
+  // If user only typed spaces so far (e.g. hitting spacebar right after preceding word)
+  if (typedTrimmed.length === 0) {
     return {
       matched: true,
-      remainingContinueText: fullContinueText.slice(typedDiff.length),
+      remainingContinueText: targetTrimmed,
     };
   }
 
-  // Also check if typed has leading space matching or non-space matching
-  const trimmedTyped = normalizedTyped.trimStart();
-  const trimmedTarget = normalizedTarget.trimStart();
-  if (trimmedTyped.length > 0 && trimmedTarget.startsWith(trimmedTyped)) {
-    const diffLength = fullContinueText.length - (trimmedTarget.length - trimmedTyped.length);
+  const typedLower = typedTrimmed.toLowerCase();
+  const targetLower = targetTrimmed.toLowerCase();
+
+  if (targetLower.startsWith(typedLower)) {
+    const remaining = targetTrimmed.slice(typedTrimmed.length);
     return {
       matched: true,
-      remainingContinueText: fullContinueText.slice(Math.max(0, diffLength)),
+      remainingContinueText: remaining,
     };
   }
 

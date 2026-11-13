@@ -7,6 +7,13 @@ export interface ExtractedContext {
   fullDocText: string;
 }
 
+export interface SentenceToPolish {
+  sentence: string;
+  from: number;
+  to: number;
+  surroundingContext: string;
+}
+
 const SENTENCE_SPLIT_REGEX = /(?<=[.!?。！？\n])\s+/;
 const CHINESE_CHAR_REGEX = /[\u4e00-\u9fa5]/;
 
@@ -55,5 +62,62 @@ export function extractContextFromDoc(docText: string, cursorOffset: number): Ex
     chineseRange,
     cursorOffset,
     fullDocText: docText,
+  };
+}
+
+export function extractSentenceToPolish(docText: string, cursorOffset: number): SentenceToPolish | null {
+  if (!docText || docText.trim().length === 0) return null;
+
+  // Search backwards from cursor for start of sentence
+  let searchPos = Math.min(cursorOffset, docText.length);
+  // If cursor is at whitespace or newline, backtrack to last non-whitespace
+  while (searchPos > 0 && /\s/.test(docText[searchPos - 1])) {
+    searchPos--;
+  }
+
+  if (searchPos <= 0) return null;
+
+  // Find sentence start (after previous .!?\n)
+  let from = 0;
+  for (let i = searchPos - 1; i >= 0; i--) {
+    const ch = docText[i];
+    if (/[.!?。！？\n]/.test(ch)) {
+      from = i + 1;
+      break;
+    }
+  }
+
+  // Skip leading whitespace in sentence
+  while (from < docText.length && /\s/.test(docText[from])) {
+    from++;
+  }
+
+  // Find sentence end (next .!?\n or doc end)
+  let to = docText.length;
+  for (let i = searchPos; i < docText.length; i++) {
+    const ch = docText[i];
+    if (/[.!?。！？\n]/.test(ch)) {
+      to = i + 1;
+      break;
+    }
+  }
+
+  // If sentence hasn't ended with punctuation yet, sentence ends at cursor or current line end
+  if (to > cursorOffset && !/[.!?。！？]/.test(docText.slice(from, to))) {
+    to = cursorOffset;
+  }
+
+  const sentence = docText.slice(from, to).trim();
+  if (!sentence) return null;
+
+  const contextStart = Math.max(0, from - 250);
+  const contextEnd = Math.min(docText.length, to + 250);
+  const surroundingContext = docText.slice(contextStart, contextEnd);
+
+  return {
+    sentence,
+    from,
+    to,
+    surroundingContext,
   };
 }

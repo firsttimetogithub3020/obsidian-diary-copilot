@@ -6,13 +6,14 @@ export interface KeymapCallbacks {
   getCurrentSuggestion: () => SuggestionItem | null;
   onAdopt: (text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }) => void;
   onDismiss: () => void;
+  onPolishRequest?: () => void;
 }
 
 export function createDiaryKeymap(callbacks: KeymapCallbacks) {
   const acceptCard1: Command = () => {
     const item = callbacks.getCurrentSuggestion();
     if (item && item.continueText) {
-      callbacks.onAdopt(item.continueText, "continue");
+      callbacks.onAdopt(item.continueText, "continue", item.sourceRange);
       return true;
     }
     return false;
@@ -21,7 +22,7 @@ export function createDiaryKeymap(callbacks: KeymapCallbacks) {
   const acceptCard2: Command = () => {
     const item = callbacks.getCurrentSuggestion();
     if (item && item.alternativeText) {
-      callbacks.onAdopt(item.alternativeText, "alternative");
+      callbacks.onAdopt(item.alternativeText, "alternative", item.sourceRange);
       return true;
     }
     return false;
@@ -45,6 +46,14 @@ export function createDiaryKeymap(callbacks: KeymapCallbacks) {
     return false;
   };
 
+  const polish: Command = () => {
+    if (callbacks.onPolishRequest) {
+      callbacks.onPolishRequest();
+      return true;
+    }
+    return false;
+  };
+
   return Prec.highest(
     keymap.of([
       { key: "Tab", run: acceptCard1 },
@@ -52,6 +61,7 @@ export function createDiaryKeymap(callbacks: KeymapCallbacks) {
       { key: "Alt-2", run: acceptCard2 },
       { key: "Alt-3", run: acceptCard3 },
       { key: "Escape", run: dismiss },
+      { key: "F3", run: polish },
     ])
   );
 }
