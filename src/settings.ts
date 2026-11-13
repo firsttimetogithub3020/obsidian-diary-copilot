@@ -4,13 +4,13 @@ import { PluginSettings, DiaryTone } from "./types";
 
 export const DEFAULT_SETTINGS: PluginSettings = {
   geminiApiKey: "",
-  model: "gemini-flash-lite-latest",
-  tidyModel: "gemini-flash-lite-latest",
+  model: "gemini-3.5-flash-lite",
+  tidyModel: "gemini-3.5-flash-lite",
   diaryFolder: "Diary",
   englishLevel: "upper-intermediate",
   diaryTone: "casual",
-  debounceMs: 400,
-  noPunctuationDebounceMs: 800,
+  debounceMs: 180,
+  noPunctuationDebounceMs: 350,
   guidanceDelaySec: 20,
   showGhostText: true,
   dailyRequestLimit: 1500,
@@ -247,11 +247,11 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("標點／空格停頓觸發延遲 (毫秒)")
-      .setDesc("打完逗號、句號、空格後暫停多久開始向 AI 請求建議（預設 400ms）")
+      .setDesc("打完逗號、句號、空格後暫停多久開始向 AI 請求建議（預設極速 180ms）")
       .addSlider((slider) => {
         slider
-          .setLimits(200, 1500, 50)
-          .setValue(this.plugin.settings.debounceMs)
+          .setLimits(100, 1000, 20)
+          .setValue(this.plugin.settings.debounceMs || 180)
           .setDynamicTooltip()
           .onChange(async (val) => {
             this.plugin.settings.debounceMs = val;
@@ -261,11 +261,11 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("無標點長句觸發延遲 (毫秒)")
-      .setDesc("持續書寫但未打標點時的延遲（預設 800ms）")
+      .setDesc("持續書寫但未打標點時的延遲（預設極速 350ms）")
       .addSlider((slider) => {
         slider
-          .setLimits(400, 2000, 100)
-          .setValue(this.plugin.settings.noPunctuationDebounceMs)
+          .setLimits(200, 1500, 50)
+          .setValue(this.plugin.settings.noPunctuationDebounceMs || 350)
           .setDynamicTooltip()
           .onChange(async (val) => {
             this.plugin.settings.noPunctuationDebounceMs = val;

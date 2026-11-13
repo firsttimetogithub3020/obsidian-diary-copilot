@@ -89,6 +89,7 @@ export class SuggestionScheduler {
     this.originalContinueText = "";
     this.anchorPos = 0;
     this.isShadowTypingMode = false;
+    this.lastContextHash = "";
   }
 
   refetch(context: ExtractedContext, styleSummary?: string, paragraphSummary?: string) {
@@ -117,7 +118,10 @@ export class SuggestionScheduler {
         if (typedDiff.includes("\n")) {
           this.clear();
           this.callbacks.onShadowAbandon?.();
-          // Fall through to normal suggestion flow for the new paragraph / line
+          this.callbacks.onLoading();
+          // Instant 0ms trigger for new line: do not wait for debounce!
+          this.triggerFetch(context, styleSummary, paragraphSummary);
+          return;
         } else {
           const match = tryMatchPrefix(typedDiff, this.originalContinueText);
 
@@ -131,11 +135,9 @@ export class SuggestionScheduler {
               this.clear();
               this.callbacks.onShadowComplete?.(completedText);
 
-              // Immediately schedule next suggestions after completing sentence
+              // Instant 0ms trigger for next sentence: do not wait for debounce!
               this.callbacks.onLoading();
-              this.timer = window.setTimeout(() => {
-                this.triggerFetch(context, styleSummary, paragraphSummary);
-              }, settings.debounceMs);
+              this.triggerFetch(context, styleSummary, paragraphSummary);
               return;
             }
           } else {
@@ -168,9 +170,7 @@ export class SuggestionScheduler {
           // Finished typing Card 1
           this.clear();
           this.callbacks.onLoading();
-          this.timer = window.setTimeout(() => {
-            this.triggerFetch(context, styleSummary, paragraphSummary);
-          }, settings.debounceMs);
+          this.triggerFetch(context, styleSummary, paragraphSummary);
           return;
         }
       }
@@ -195,8 +195,8 @@ export class SuggestionScheduler {
     // Determine debounce delay
     const hasPunctuationOrSpace = PUNCTUATION_OR_SPACE_REGEX.test(context.currentSentence);
     const delay = hasPunctuationOrSpace
-      ? settings.debounceMs
-      : settings.noPunctuationDebounceMs;
+      ? (settings.debounceMs || 180)
+      : (settings.noPunctuationDebounceMs || 350);
 
     this.callbacks.onLoading();
 
@@ -254,7 +254,7 @@ export class SuggestionScheduler {
           systemPrompt,
           userPrompt,
           temperature: 0.7,
-          maxOutputTokens: 350,
+          maxOutputTokens: 250,
           signal: abortController.signal,
         },
         (chunkText) => {

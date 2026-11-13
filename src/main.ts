@@ -203,6 +203,12 @@ export default class DiaryCopilotPlugin extends Plugin {
       rawData
     );
     this.settings = Object.assign({}, DEFAULT_SETTINGS, this.data.settings);
+    if (!this.data.settings?.debounceMs || this.settings.debounceMs >= 400) {
+      this.settings.debounceMs = 180;
+    }
+    if (!this.data.settings?.noPunctuationDebounceMs || this.settings.noPunctuationDebounceMs >= 800) {
+      this.settings.noPunctuationDebounceMs = 350;
+    }
   }
 
   async saveSettings() {
