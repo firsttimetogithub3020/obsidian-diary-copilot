@@ -13,6 +13,7 @@ export interface SchedulerCallbacks {
   onSuggestion: (item: SuggestionItem, isStreaming: boolean) => void;
   onError: () => void;
   onUsageIncrement?: (inputTokens: number, outputTokens: number) => void;
+  onShadowComplete?: () => void;
 }
 
 const PUNCTUATION_OR_SPACE_REGEX = /[,.?!;:，。？！、\s]$/;
@@ -31,6 +32,7 @@ export class SuggestionScheduler {
   private lastActiveSuggestion: SuggestionItem | null = null;
   private originalContinueText = "";
   private anchorPos = 0;
+  private isShadowTypingMode = false;
 
   constructor(
     llm: LLMProvider,
@@ -46,6 +48,33 @@ export class SuggestionScheduler {
     return this.lastActiveSuggestion;
   }
 
+  startShadowTyping(targetText: string, anchorPosition: number) {
+    if (this.timer !== null) {
+      window.clearTimeout(this.timer);
+      this.timer = null;
+    }
+    if (this.activeAbortController) {
+      this.activeAbortController.abort();
+      this.activeAbortController = null;
+    }
+
+    this.isShadowTypingMode = true;
+    this.originalContinueText = targetText.trim();
+    this.anchorPos = anchorPosition;
+
+    const shadowItem: SuggestionItem = {
+      card1: this.originalContinueText,
+      card2: "",
+      card3: "",
+      card4: "",
+      continueText: this.originalContinueText,
+      alternativeText: "",
+    };
+
+    this.lastActiveSuggestion = shadowItem;
+    this.callbacks.onSuggestion(shadowItem, false);
+  }
+
   clear() {
     if (this.timer !== null) {
       window.clearTimeout(this.timer);
@@ -58,6 +87,7 @@ export class SuggestionScheduler {
     this.lastActiveSuggestion = null;
     this.originalContinueText = "";
     this.anchorPos = 0;
+    this.isShadowTypingMode = false;
   }
 
   handleDocChange(
@@ -67,12 +97,10 @@ export class SuggestionScheduler {
   ) {
     const settings = this.getSettings();
 
-    // Check if doc change can be satisfied by local shadow typing (prefix matching)
-    // Only in pure English mode (not while Chinese translation is waiting for Tab)
+    // Check if doc change satisfies active shadow typing
     if (
       this.lastActiveSuggestion &&
       this.originalContinueText &&
-      !context.chineseSegment &&
       context.cursorOffset >= this.anchorPos
     ) {
       const typedDiff = context.fullDocText.slice(this.anchorPos, context.cursorOffset);
@@ -82,10 +110,18 @@ export class SuggestionScheduler {
         if (match.remainingContinueText.length > 0) {
           const updatedSuggestion: SuggestionItem = {
             ...this.lastActiveSuggestion,
+            card1: match.remainingContinueText,
             continueText: match.remainingContinueText,
           };
           this.lastActiveSuggestion = updatedSuggestion;
           this.callbacks.onSuggestion(updatedSuggestion, false);
+          return;
+        } else {
+          // Finished typing the entire shadow text!
+          if (this.isShadowTypingMode) {
+            this.callbacks.onShadowComplete?.();
+          }
+          this.clear();
           return;
         }
       }
@@ -94,6 +130,7 @@ export class SuggestionScheduler {
     // Reset prefix tracking when not matched or typing new thought
     this.originalContinueText = "";
     this.anchorPos = context.cursorOffset;
+    this.isShadowTypingMode = false;
 
     // Clear previous timer & cancel active request
     if (this.timer !== null) {
@@ -130,7 +167,6 @@ export class SuggestionScheduler {
       return;
     }
 
-    // Check if sentence is practically empty
     if (
       context.currentSentence.trim().length === 0 &&
       (!context.chineseSegment || context.chineseSegment.trim().length === 0)
@@ -139,7 +175,6 @@ export class SuggestionScheduler {
       return;
     }
 
-    // Context deduplication hash
     const contextHash = `${context.currentSentence}__${context.chineseSegment || ""}`;
     if (contextHash === this.lastContextHash && this.lastActiveSuggestion) {
       this.callbacks.onSuggestion(this.lastActiveSuggestion, false);
@@ -169,22 +204,17 @@ export class SuggestionScheduler {
           systemPrompt,
           userPrompt,
           temperature: 0.7,
-          maxOutputTokens: 160,
+          maxOutputTokens: 180,
           signal: abortController.signal,
         },
         (chunkText) => {
           if (requestId !== this.currentRequestId) return;
 
           const parsed = parsePartialSuggestion(chunkText);
-          if (parsed && (parsed.continueText || parsed.alternativeText || parsed.translationText)) {
-            if (context.chineseRange) {
+          if (parsed && (parsed.card1 || parsed.card2 || parsed.card3 || parsed.card4)) {
+            if (hasChinese && context.chineseRange) {
               parsed.sourceRange = context.chineseRange;
               parsed.translationSource = context.chineseSegment;
-            }
-
-            // Option 1: When Chinese is present, promote translation to Card 1 for instant Tab replacement!
-            if (hasChinese && parsed.translationText) {
-              parsed.continueText = parsed.translationText;
             }
 
             latestSuggestion = parsed;
@@ -197,13 +227,12 @@ export class SuggestionScheduler {
         this.lastContextHash = contextHash;
         this.lastActiveSuggestion = latestSuggestion;
 
-        if (hasChinese && (latestSuggestion as SuggestionItem).translationText) {
-          (latestSuggestion as SuggestionItem).continueText = (latestSuggestion as SuggestionItem).translationText!;
+        if (hasChinese && context.chineseRange) {
           (latestSuggestion as SuggestionItem).sourceRange = context.chineseRange;
           (latestSuggestion as SuggestionItem).translationSource = context.chineseSegment;
         }
 
-        this.originalContinueText = (latestSuggestion as SuggestionItem).continueText;
+        this.originalContinueText = (latestSuggestion as SuggestionItem).card1 || (latestSuggestion as SuggestionItem).continueText;
         this.anchorPos = context.cursorOffset;
         this.callbacks.onSuggestion(latestSuggestion, false);
       }

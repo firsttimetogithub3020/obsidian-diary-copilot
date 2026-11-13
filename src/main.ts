@@ -47,8 +47,9 @@ export default class DiaryCopilotPlugin extends Plugin {
           if (this.isPolishMode) return;
           this.cardPanel?.updateSuggestions(item, false);
 
-          if (this.settings.showGhostText && !Platform.isMobile && item.continueText) {
-            this.setGhostText(item.continueText);
+          const ghostStr = item?.card1 || item?.continueText;
+          if (this.settings.showGhostText && !Platform.isMobile && ghostStr) {
+            this.setGhostText(ghostStr);
           }
         },
         onError: () => {
@@ -59,6 +60,10 @@ export default class DiaryCopilotPlugin extends Plugin {
         },
         onUsageIncrement: (inTokens, outTokens) => {
           this.recordUsage(inTokens, outTokens);
+        },
+        onShadowComplete: () => {
+          new Notice("🎉 跟寫練習完成！", 2000);
+          this.clearGhostText();
         },
       }
     );
@@ -276,7 +281,7 @@ export default class DiaryCopilotPlugin extends Plugin {
     }
 
     this.isPolishMode = true;
-    this.cardPanel?.setLoading("✨ 正在為您構思 3 種更地道優雅的表達方式...");
+    this.cardPanel?.setLoading("✨ 正在為您構思 4 種更地道優雅的表達方式...");
     this.clearGhostText();
 
     try {
@@ -291,7 +296,7 @@ export default class DiaryCopilotPlugin extends Plugin {
         systemPrompt,
         userPrompt,
         temperature: 0.7,
-        maxOutputTokens: 300,
+        maxOutputTokens: 350,
       });
 
       let cleaned = responseText.trim();
@@ -301,9 +306,13 @@ export default class DiaryCopilotPlugin extends Plugin {
 
       const parsed = JSON.parse(cleaned);
       const polishItem: SuggestionItem = {
-        continueText: parsed.option1 ? String(parsed.option1).trim() : "",
-        alternativeText: parsed.option2 ? String(parsed.option2).trim() : "",
-        translationText: parsed.option3 ? String(parsed.option3).trim() : null,
+        card1: parsed.card1 || parsed.option1 || "",
+        card2: parsed.card2 || parsed.option2 || "",
+        card3: parsed.card3 || parsed.option3 || "",
+        card4: parsed.card4 || parsed.option4 || "",
+        continueText: parsed.card1 || parsed.option1 || "",
+        alternativeText: parsed.card2 || parsed.option2 || "",
+        translationText: parsed.card3 || parsed.option3 || "",
         translationSource: target.sentence,
         sourceRange: { from: target.from, to: target.to },
       };
@@ -311,8 +320,8 @@ export default class DiaryCopilotPlugin extends Plugin {
       this.currentPolishItem = polishItem;
       this.cardPanel?.updateSuggestions(polishItem, true);
 
-      if (this.settings.showGhostText && !Platform.isMobile && polishItem.continueText) {
-        this.setGhostText(polishItem.continueText);
+      if (this.settings.showGhostText && !Platform.isMobile && polishItem.card1) {
+        this.setGhostText(polishItem.card1);
       }
     } catch (e: any) {
       this.isPolishMode = false;
@@ -340,33 +349,43 @@ export default class DiaryCopilotPlugin extends Plugin {
     if (!this.activeView || !this.currentActiveEditorView) return;
 
     const editorView = this.currentActiveEditorView;
-    const cursor = editorView.state.selection.main.head;
+    const cleanText = text.trim();
 
+    // IF sourceRange exists (Chinese replacement OR F3 polish):
+    // 1. DELETE the original text immediately!
+    // 2. TURN the chosen text into GHOST TEXT so the user can SHADOW-WRITE it!
+    if (sourceRange) {
+      const from = sourceRange.from;
+      const to = sourceRange.to;
+
+      editorView.dispatch({
+        changes: { from, to, insert: "" },
+        selection: { anchor: from },
+        userEvent: "delete",
+      });
+
+      this.isPolishMode = false;
+      this.currentPolishItem = null;
+
+      // Start shadow typing session for this chosen text at `from`
+      this.scheduler.startShadowTyping(cleanText, from);
+      this.setGhostText(cleanText);
+
+      new Notice("✍️ 已消除原文字，請跟寫練習！", 2500);
+      return;
+    }
+
+    // Normal insertion (e.g. Tab pressed during shadow typing to complete remaining tail)
+    const cursor = editorView.state.selection.main.head;
     let from = cursor;
     let to = cursor;
-    let insertText = text.trim();
+    let insertText = cleanText;
 
-    if (sourceRange) {
-      // Direct replacement for Chinese or Polish mode
-      from = sourceRange.from;
-      to = sourceRange.to;
-
-      // Check if preceding character needs space
-      if (from > 0) {
-        const prevChar = editorView.state.doc.sliceString(from - 1, from);
-        if (!/\s/.test(prevChar)) {
-          insertText = " " + insertText;
-        }
-      }
-      new Notice("✨ 已將中文替換為道地英文！", 2000);
-    } else {
-      // Normal insert at cursor
-      const doc = editorView.state.doc;
-      if (from > 0) {
-        const prevChar = doc.sliceString(from - 1, from);
-        if (!/\s/.test(prevChar) && !insertText.startsWith(" ")) {
-          insertText = " " + insertText;
-        }
+    const doc = editorView.state.doc;
+    if (from > 0) {
+      const prevChar = doc.sliceString(from - 1, from);
+      if (!/\s/.test(prevChar) && !insertText.startsWith(" ")) {
+        insertText = " " + insertText;
       }
     }
 
@@ -384,7 +403,6 @@ export default class DiaryCopilotPlugin extends Plugin {
     this.data.adoptions[todayDate].push({
       text: insertText.trim(),
       kind,
-      source: sourceRange ? editorView.state.doc.sliceString(sourceRange.from, sourceRange.to) : undefined,
       timestamp: Date.now(),
     });
     this.saveData(this.data);
