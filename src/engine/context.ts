@@ -76,50 +76,85 @@ export function extractContextFromDoc(docText: string, cursorOffset: number): Ex
 export function extractSentenceToPolish(docText: string, cursorOffset: number): SentenceToPolish | null {
   if (!docText || docText.trim().length === 0) return null;
 
-  let searchPos = Math.min(cursorOffset, docText.length);
-  while (searchPos > 0 && /\s/.test(docText[searchPos - 1])) {
-    searchPos--;
+  const len = docText.length;
+  const clampedCursor = Math.max(0, Math.min(cursorOffset, len));
+
+  // 1. Find line boundaries around the cursor
+  let lineStart = docText.lastIndexOf("\n", Math.max(0, clampedCursor - 1));
+  lineStart = lineStart === -1 ? 0 : lineStart + 1;
+
+  let lineEnd = docText.indexOf("\n", clampedCursor);
+  lineEnd = lineEnd === -1 ? len : lineEnd;
+
+  let currentLine = docText.slice(lineStart, lineEnd);
+
+  // If current line is completely empty or only whitespace, fallback to the previous non-empty line
+  if (!currentLine.trim()) {
+    let prevPos = lineStart - 1;
+    while (prevPos >= 0 && /\s/.test(docText[prevPos])) {
+      prevPos--;
+    }
+    if (prevPos < 0) return null;
+    let prevLineStart = docText.lastIndexOf("\n", Math.max(0, prevPos - 1));
+    prevLineStart = prevLineStart === -1 ? 0 : prevLineStart + 1;
+    let prevLineEnd = docText.indexOf("\n", prevPos);
+    prevLineEnd = prevLineEnd === -1 ? len : prevLineEnd;
+
+    const prevLineText = docText.slice(prevLineStart, prevLineEnd).trim();
+    if (!prevLineText) return null;
+
+    const contextStart = Math.max(0, prevLineStart - 250);
+    const contextEnd = Math.min(len, prevLineEnd + 250);
+    return {
+      sentence: prevLineText,
+      from: prevLineStart,
+      to: prevLineEnd,
+      surroundingContext: docText.slice(contextStart, contextEnd),
+    };
   }
 
-  if (searchPos <= 0) return null;
+  // 2. We have a non-empty line. Look for sentence boundaries within the line around cursor
+  const relCursor = Math.max(0, Math.min(clampedCursor - lineStart, currentLine.length));
 
-  let from = 0;
-  for (let i = searchPos - 1; i >= 0; i--) {
-    const ch = docText[i];
-    if (/[.!?。！？\n]/.test(ch)) {
-      from = i + 1;
+  let sentStartRel = 0;
+  for (let i = relCursor - 1; i >= 0; i--) {
+    if (/[.!?。！？]/.test(currentLine[i])) {
+      sentStartRel = i + 1;
+      break;
+    }
+  }
+  while (sentStartRel < currentLine.length && /\s/.test(currentLine[sentStartRel])) {
+    sentStartRel++;
+  }
+
+  let sentEndRel = currentLine.length;
+  for (let i = Math.max(sentStartRel, relCursor); i < currentLine.length; i++) {
+    if (/[.!?。！？]/.test(currentLine[i])) {
+      sentEndRel = i + 1;
       break;
     }
   }
 
-  while (from < docText.length && /\s/.test(docText[from])) {
-    from++;
+  const rawSentence = currentLine.slice(sentStartRel, sentEndRel).trim();
+  const from = lineStart + sentStartRel;
+  const to = lineStart + sentEndRel;
+
+  if (rawSentence.length > 0) {
+    const contextStart = Math.max(0, from - 250);
+    const contextEnd = Math.min(len, to + 250);
+    return {
+      sentence: rawSentence,
+      from,
+      to,
+      surroundingContext: docText.slice(contextStart, contextEnd),
+    };
   }
 
-  let to = docText.length;
-  for (let i = searchPos; i < docText.length; i++) {
-    const ch = docText[i];
-    if (/[.!?。！？\n]/.test(ch)) {
-      to = i + 1;
-      break;
-    }
-  }
-
-  if (to > cursorOffset && !/[.!?。！？]/.test(docText.slice(from, to))) {
-    to = cursorOffset;
-  }
-
-  const sentence = docText.slice(from, to).trim();
-  if (!sentence) return null;
-
-  const contextStart = Math.max(0, from - 250);
-  const contextEnd = Math.min(docText.length, to + 250);
-  const surroundingContext = docText.slice(contextStart, contextEnd);
-
+  // Fallback to the whole line
   return {
-    sentence,
-    from,
-    to,
-    surroundingContext,
+    sentence: currentLine.trim(),
+    from: lineStart,
+    to: lineEnd,
+    surroundingContext: docText.slice(Math.max(0, lineStart - 250), Math.min(len, lineEnd + 250)),
   };
 }

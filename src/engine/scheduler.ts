@@ -224,7 +224,15 @@ export class SuggestionScheduler {
       context.currentSentence.trim().length === 0 &&
       (!context.chineseSegment || context.chineseSegment.trim().length === 0)
     ) {
-      this.callbacks.onError();
+      this.lastActiveSuggestion = null;
+      this.callbacks.onSuggestion({
+        card1: "",
+        card2: "",
+        card3: "",
+        card4: "",
+        continueText: "",
+        alternativeText: "",
+      }, false);
       return;
     }
 

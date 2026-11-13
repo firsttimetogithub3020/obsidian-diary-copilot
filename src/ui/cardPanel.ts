@@ -30,7 +30,7 @@ export class CardPanel {
   }
 
   private render() {
-    this.panelEl = this.containerEl.createDiv({ cls: "diary-copilot-panel is-hidden" });
+    this.panelEl = this.containerEl.createDiv({ cls: "diary-copilot-panel" });
     if (Platform.isMobile) {
       this.panelEl.addClass("is-mobile");
     }
@@ -83,6 +83,7 @@ export class CardPanel {
 
     // Cards row (4 columns)
     this.cardsRowEl = this.panelEl.createDiv({ cls: "diary-copilot-cards-row" });
+    this.renderIdleState();
   }
 
   private setupResizeListeners() {
@@ -129,6 +130,22 @@ export class CardPanel {
     });
   }
 
+  renderIdleState(message?: string) {
+    if (!this.cardsRowEl) return;
+    this.panelEl?.removeClass("is-loading");
+    if (this.statusDotEl) {
+      this.statusDotEl.className = "diary-copilot-status-dot";
+    }
+    const defaultMsg = message || "✍️ 請開始書寫，AI 將在此即時提供 4 種道地英文建議...";
+    if (this.headerHintEl) {
+      this.headerHintEl.setText(Platform.isMobile ? "開始書寫即可獲得建議" : "開始書寫即可獲得建議 · F3 潤飾句型");
+    }
+    this.cardsRowEl.empty();
+    this.cardsRowEl.removeClass("is-shadow-typing");
+    const emptyBox = this.cardsRowEl.createDiv({ cls: "diary-copilot-empty-state" });
+    emptyBox.setText(defaultMsg);
+  }
+
   setLoading(message?: string) {
     if (!this.panelEl) return;
     this.panelEl.removeClass("is-hidden");
@@ -141,11 +158,17 @@ export class CardPanel {
     }
   }
 
-  setError() {
+  setError(message = "⚠️ 連線異常或尚未設定 API Key") {
     if (!this.panelEl) return;
-    this.panelEl.addClass("is-hidden");
+    this.panelEl.removeClass("is-loading");
     if (this.statusDotEl) {
       this.statusDotEl.className = "diary-copilot-status-dot error";
+    }
+    if (this.headerHintEl) {
+      this.headerHintEl.setText(message);
+    }
+    if (!this.currentItem) {
+      this.renderIdleState(message);
     }
   }
 
@@ -164,7 +187,7 @@ export class CardPanel {
     if (!this.panelEl || !this.cardsRowEl) return;
 
     if (!item || (!item.card1 && !item.card2 && !item.card3 && !item.card4 && !item.continueText)) {
-      this.panelEl.addClass("is-hidden");
+      this.renderIdleState();
       return;
     }
 

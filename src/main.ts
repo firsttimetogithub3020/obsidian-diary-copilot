@@ -57,7 +57,8 @@ export default class DiaryCopilotPlugin extends Plugin {
         },
         onError: () => {
           if (!this.isPolishMode) {
-            this.cardPanel?.setError();
+            const hasKey = !!this.settings.geminiApiKey;
+            this.cardPanel?.setError(hasKey ? "⚠️ 連線異常，請檢查網路或模型" : "⚠️ 請先在 Diary Copilot 外掛設定中填入 Gemini API Key");
             this.clearGhostText();
           }
         },
@@ -205,9 +206,45 @@ export default class DiaryCopilotPlugin extends Plugin {
     document.body.style.removeProperty("--diary-copilot-panel-height");
   }
 
+  getEffectiveFontSize(): number {
+    try {
+      const local = localStorage.getItem("diary-copilot-font-size");
+      if (local) {
+        const parsed = parseFloat(local);
+        if (!isNaN(parsed) && parsed >= 10 && parsed <= 24) return parsed;
+      }
+    } catch {}
+    return this.settings.cardFontSize || 13.5;
+  }
+
+  setEffectiveFontSize(size: number) {
+    try {
+      localStorage.setItem("diary-copilot-font-size", size.toString());
+    } catch {}
+    this.settings.cardFontSize = size;
+  }
+
+  getEffectivePanelHeight(): number {
+    try {
+      const local = localStorage.getItem("diary-copilot-panel-height");
+      if (local) {
+        const parsed = parseInt(local, 10);
+        if (!isNaN(parsed) && parsed >= 80 && parsed <= 500) return parsed;
+      }
+    } catch {}
+    return this.settings.panelMinHeight || 160;
+  }
+
+  setEffectivePanelHeight(height: number) {
+    try {
+      localStorage.setItem("diary-copilot-panel-height", height.toString());
+    } catch {}
+    this.settings.panelMinHeight = height;
+  }
+
   applyAppearanceSettings() {
-    const fontSize = this.settings.cardFontSize || 13.5;
-    const panelHeight = this.settings.panelMinHeight || 160;
+    const fontSize = this.getEffectiveFontSize();
+    const panelHeight = this.getEffectivePanelHeight();
     document.body.style.setProperty("--diary-copilot-font-size", `${fontSize}px`);
     document.body.style.setProperty("--diary-copilot-panel-height", `${panelHeight}px`);
   }
@@ -248,8 +285,13 @@ export default class DiaryCopilotPlugin extends Plugin {
     // 1. Manually invoked by user in this note
     if (this.manuallyEnabledNotes.has(file.path)) return true;
 
+    if (this.settings.enableInAllFolders) return true;
+
     // 2. Only the configured Diary folder (default "Diary") is automatically enabled
-    const targetFolder = (this.settings.diaryFolder || "Diary").replace(/^\/+|\/+$/g, "").toLowerCase();
+    const targetFolder = (this.settings.diaryFolder || "Diary")
+      .replace(/[\[\]]/g, "")
+      .replace(/^\/+|\/+$/g, "")
+      .toLowerCase();
     const filePathLower = file.path.toLowerCase();
     return filePathLower.startsWith(targetFolder + "/");
   }
@@ -301,7 +343,8 @@ export default class DiaryCopilotPlugin extends Plugin {
             this.handleDismiss();
           },
           onHeightResize: async (newHeight: number) => {
-            this.settings.panelMinHeight = newHeight;
+            this.setEffectivePanelHeight(newHeight);
+            this.applyAppearanceSettings();
             await this.saveSettings();
           },
           getTone: () => this.settings.diaryTone,
@@ -314,6 +357,13 @@ export default class DiaryCopilotPlugin extends Plugin {
         this.currentFilePath = activeMarkdownView.file?.path || "";
         this.scheduler.clear();
         this.clearGhostText();
+        this.cardPanel?.renderIdleState();
+      }
+
+      // Check if API key is configured
+      if (!this.settings.geminiApiKey) {
+        this.cardPanel?.setError("⚠️ 請先在 Diary Copilot 外掛設定中填入 Gemini API Key");
+        return;
       }
 
       // If document already has content upon opening/switching, auto-trigger suggestions for current position
@@ -327,6 +377,8 @@ export default class DiaryCopilotPlugin extends Plugin {
           const paragraphSummary = this.summaryManager.getParagraphSummary(filePath);
           const styleSummary = this.data.styleSummary?.summary;
           this.scheduler.handleDocChange(context, styleSummary, paragraphSummary);
+        } else {
+          this.cardPanel?.renderIdleState();
         }
       }
     } else {
@@ -361,11 +413,11 @@ export default class DiaryCopilotPlugin extends Plugin {
       return;
     }
 
-    // Normal mode: dismisses / hides panel
+    // Normal mode: reset cards to idle state, but KEEP PANEL DOCKED in eligible notes!
     this.isPolishMode = false;
     this.currentPolishItem = null;
     this.scheduler.clear();
-    this.cardPanel?.hide();
+    this.cardPanel?.renderIdleState();
     this.clearGhostText();
   }
 
@@ -442,9 +494,9 @@ export default class DiaryCopilotPlugin extends Plugin {
       this.syncActiveView();
     }
 
-    const editorView = this.currentActiveEditorView;
-    const docText = editorView.state.doc.toString();
-    const cursor = editorView.state.selection.main.head;
+    const editor = activeMarkdownView.editor;
+    const docText = editor.getValue();
+    const cursor = editor.posToOffset(editor.getCursor());
 
     const target = extractSentenceToPolish(docText, cursor);
     if (!target || target.sentence.length === 0) {
@@ -469,7 +521,7 @@ export default class DiaryCopilotPlugin extends Plugin {
         systemPrompt,
         userPrompt,
         temperature: 0.7,
-        maxOutputTokens: 350,
+        maxOutputTokens: 400,
       });
 
       let cleaned = responseText.trim();
@@ -494,12 +546,12 @@ export default class DiaryCopilotPlugin extends Plugin {
       this.cardPanel?.updateSuggestions(polishItem, true);
 
       if (this.settings.showGhostText && !Platform.isMobile && polishItem.card1) {
-        this.setGhostText(polishItem.card1);
+        this.setGhostText(polishItem.card1, target.from);
       }
     } catch (e: any) {
       this.isPolishMode = false;
       this.currentPolishItem = null;
-      this.cardPanel?.setError();
+      this.cardPanel?.setError("⚠️ 潤飾失敗，請檢查 API Key 或網路");
       new Notice(`潤飾失敗：${e?.message || e}`);
     }
   }

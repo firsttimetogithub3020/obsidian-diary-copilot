@@ -230,14 +230,14 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("卡片文字大小 (Font Size)")
-      .setDesc("調整底部建議卡片內的英文文字大小（預設 13.5px，可微調至最舒適閱讀字級）")
+      .setDesc("調整底部建議卡片內的英文文字大小（本裝置獨立保存，預設 13.5px）")
       .addSlider((slider) => {
         slider
           .setLimits(11, 20, 0.5)
-          .setValue(this.plugin.settings.cardFontSize || 13.5)
+          .setValue(this.plugin.getEffectiveFontSize())
           .setDynamicTooltip()
           .onChange(async (val) => {
-            this.plugin.settings.cardFontSize = val;
+            this.plugin.setEffectiveFontSize(val);
             await this.plugin.saveSettings();
             this.plugin.applyAppearanceSettings();
           });
@@ -245,15 +245,15 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("面板高度手動調整說明")
-      .setDesc("面板高度支援直接滑鼠拖曳：在編輯日記時將滑鼠懸停於面板頂部水平手柄上，即可隨時拉高或縮小，外掛會自動持久化記憶高度。")
+      .setDesc("面板高度支援直接滑鼠拖曳：在編輯日記時將滑鼠懸停於面板頂部水平手柄上，即可隨時拉高或縮小（本裝置獨立記憶）。")
       .addButton((btn) => {
         btn
-          .setButtonText("重設面板高度為預設值 (160px)")
+          .setButtonText("重設本裝置面板高度為預設值 (160px)")
           .onClick(async () => {
-            this.plugin.settings.panelMinHeight = 160;
+            this.plugin.setEffectivePanelHeight(160);
             await this.plugin.saveSettings();
             this.plugin.applyAppearanceSettings();
-            new Notice("面板高度已恢復為預設 160px");
+            new Notice("本裝置面板高度已恢復為預設 160px");
           });
       });
 
