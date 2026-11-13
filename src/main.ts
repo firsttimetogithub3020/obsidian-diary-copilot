@@ -67,6 +67,10 @@ export default class DiaryCopilotPlugin extends Plugin {
           this.recordAdoption(completedText, "shadow");
           this.clearGhostText();
         },
+        onShadowAbandon: () => {
+          new Notice("已解鎖卡片", 1500);
+          this.clearGhostText();
+        },
       }
     );
 

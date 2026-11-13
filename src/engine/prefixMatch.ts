@@ -3,6 +3,14 @@ export interface PrefixMatchResult {
   remainingContinueText: string;
 }
 
+export function normalizeForComparison(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[\u00A0\u2000-\u200B]/g, " ");
+}
+
 export function tryMatchPrefix(typedDiff: string, fullContinueText: string): PrefixMatchResult {
   if (!fullContinueText || fullContinueText.trim().length === 0) {
     return { matched: false, remainingContinueText: "" };
@@ -24,10 +32,10 @@ export function tryMatchPrefix(typedDiff: string, fullContinueText: string): Pre
     };
   }
 
-  const typedLower = typedTrimmed.toLowerCase();
-  const targetLower = targetTrimmed.toLowerCase();
+  const typedNorm = normalizeForComparison(typedTrimmed);
+  const targetNorm = normalizeForComparison(targetTrimmed);
 
-  if (targetLower.startsWith(typedLower)) {
+  if (targetNorm.startsWith(typedNorm)) {
     const remaining = targetTrimmed.slice(typedTrimmed.length);
     return {
       matched: true,

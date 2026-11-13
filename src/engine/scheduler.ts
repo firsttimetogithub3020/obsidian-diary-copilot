@@ -14,6 +14,7 @@ export interface SchedulerCallbacks {
   onError: () => void;
   onUsageIncrement?: (inputTokens: number, outputTokens: number) => void;
   onShadowComplete?: (completedText: string) => void;
+  onShadowAbandon?: () => void;
 }
 
 const PUNCTUATION_OR_SPACE_REGEX = /[,.?!;:，。？！、\s]$/;
@@ -102,7 +103,55 @@ export class SuggestionScheduler {
   ) {
     const settings = this.getSettings();
 
-    // Check if doc change satisfies active shadow typing
+    // 1. Deliberate Shadow-Typing Mode (user explicitly selected a card)
+    if (this.isShadowTypingMode) {
+      // If cursor moved before the anchor position (user deleted past beginning)
+      if (context.cursorOffset < this.anchorPos) {
+        this.clear();
+        this.callbacks.onShadowAbandon?.();
+        // Fall through to normal suggestion flow
+      } else {
+        const typedDiff = context.fullDocText.slice(this.anchorPos, context.cursorOffset);
+
+        // Trigger 2: User pressed Enter (newline) -> Abandon shadow-typing!
+        if (typedDiff.includes("\n")) {
+          this.clear();
+          this.callbacks.onShadowAbandon?.();
+          // Fall through to normal suggestion flow for the new paragraph / line
+        } else {
+          const match = tryMatchPrefix(typedDiff, this.originalContinueText);
+
+          if (match.matched) {
+            if (match.remainingContinueText.length > 0) {
+              // Actively matching! Ghost text is rendered in CodeMirror state field synchronously.
+              return;
+            } else {
+              // Trigger 1: Completed typing the entire target sentence!
+              const completedText = this.originalContinueText;
+              this.clear();
+              this.callbacks.onShadowComplete?.(completedText);
+
+              // Immediately schedule next suggestions after completing sentence
+              this.callbacks.onLoading();
+              this.timer = window.setTimeout(() => {
+                this.triggerFetch(context, styleSummary, paragraphSummary);
+              }, settings.debounceMs);
+              return;
+            }
+          } else {
+            // Mismatched / Typo!
+            // CRITICAL: Stay locked in shadow-typing mode!
+            // Do NOT overwrite lastActiveSuggestion!
+            // Do NOT trigger Gemini fetch!
+            // Do NOT call onLoading!
+            // The user can press Backspace to fix typo and ghost text will resume!
+            return;
+          }
+        }
+      }
+    }
+
+    // 2. Normal Suggestion Mode (free writing)
     if (
       this.lastActiveSuggestion &&
       this.originalContinueText &&
@@ -113,20 +162,21 @@ export class SuggestionScheduler {
 
       if (match.matched) {
         if (match.remainingContinueText.length > 0) {
-          // User is actively shadow-typing; ghostTextField renders remaining synchronously!
+          // Free writing matches Card 1; ghost text advances
           return;
         } else {
-          // Finished typing the entire shadow text!
-          if (this.isShadowTypingMode) {
-            this.callbacks.onShadowComplete?.(this.originalContinueText);
-          }
+          // Finished typing Card 1
           this.clear();
+          this.callbacks.onLoading();
+          this.timer = window.setTimeout(() => {
+            this.triggerFetch(context, styleSummary, paragraphSummary);
+          }, settings.debounceMs);
           return;
         }
       }
     }
 
-    // Reset prefix tracking when not matched or typing new thought
+    // Reset prefix tracking when not matched in free writing mode
     this.originalContinueText = "";
     this.anchorPos = context.cursorOffset;
     this.isShadowTypingMode = false;

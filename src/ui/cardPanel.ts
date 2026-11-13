@@ -172,7 +172,7 @@ export class CardPanel {
 
     if (this.headerHintEl) {
       if (isShadowTyping) {
-        this.headerHintEl.setText("跟寫練習中：請跟著灰字輸入 · Esc 取消");
+        this.headerHintEl.setText("跟寫練習中：打錯可 ⌫ 修正 · Enter 放棄 · Esc 取消");
       } else if (isPolishMode) {
         this.headerHintEl.setText("F3 潤飾：按 Alt+1/2/3/4 或點擊卡片跟寫 · Esc 關閉");
       } else if (hasChineseSource) {
@@ -188,11 +188,11 @@ export class CardPanel {
       this.cardsRowEl.addClass("is-shadow-typing");
       this.renderCard(
         this.cardsRowEl,
-        "跟寫練習中 (目標句子)",
-        "跟寫中",
+        "🔒 跟寫練習中 (目標句子已鎖定)",
+        "鎖定中",
         c1,
         () => {},
-        "直接在編輯器輸入英文字母，灰字會同步推進"
+        "灰字同步推進 · 打錯按 ⌫ 倒退修正 · 換行 Enter 放棄解鎖"
       );
       return;
     }

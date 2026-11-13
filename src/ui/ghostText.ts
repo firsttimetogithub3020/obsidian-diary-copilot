@@ -1,9 +1,6 @@
 import { EditorView, WidgetType, Decoration, DecorationSet } from "@codemirror/view";
 import { StateField, StateEffect } from "@codemirror/state";
 
-import { EditorView, WidgetType, Decoration, DecorationSet } from "@codemirror/view";
-import { StateField, StateEffect } from "@codemirror/state";
-
 export interface GhostTextPayload {
   targetText: string;
   anchorPos: number;
@@ -30,6 +27,14 @@ export interface GhostTextState {
   deco: DecorationSet;
 }
 
+export function normalizeForComparison(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[\u00A0\u2000-\u200B]/g, " ");
+}
+
 export const ghostTextField = StateField.define<GhostTextState>({
   create() {
     return { targetText: null, anchorPos: 0, deco: Decoration.none };
@@ -54,12 +59,18 @@ export const ghostTextField = StateField.define<GhostTextState>({
 
     const cursor = tr.state.selection.main.head;
 
-    // If cursor moved before the anchor position, user moved away
+    // If cursor moved before the anchor position, user backspaced or clicked away
     if (cursor < anchorPos) {
       return { targetText: null, anchorPos: 0, deco: Decoration.none };
     }
 
     const typed = tr.state.doc.sliceString(anchorPos, cursor);
+
+    // Trigger 2: If newline is entered (Enter key), abandon ghost text immediately
+    if (typed.includes("\n")) {
+      return { targetText: null, anchorPos: 0, deco: Decoration.none };
+    }
+
     const targetTrimmed = targetText.trimStart();
     const typedTrimmed = typed.trimStart();
 
@@ -91,15 +102,15 @@ export const ghostTextField = StateField.define<GhostTextState>({
       };
     }
 
-    // Compare prefix case-insensitively
-    const targetLower = targetTrimmed.toLowerCase();
-    const typedLower = typedTrimmed.toLowerCase();
+    // Compare prefix case-insensitively & quote-normalized
+    const targetNorm = normalizeForComparison(targetTrimmed);
+    const typedNorm = normalizeForComparison(typedTrimmed);
 
-    if (targetLower.startsWith(typedLower)) {
+    if (targetNorm.startsWith(typedNorm)) {
       const remaining = targetTrimmed.slice(typedTrimmed.length);
 
       if (remaining.length === 0) {
-        // Complete! Finished typing entire ghost text
+        // Trigger 1: Completed typing entire ghost text
         return { targetText: null, anchorPos: 0, deco: Decoration.none };
       }
 
@@ -115,8 +126,10 @@ export const ghostTextField = StateField.define<GhostTextState>({
       };
     }
 
-    // Typed something different (user deviated)
-    return { targetText: null, anchorPos: 0, deco: Decoration.none };
+    // Typo / Mismatched characters:
+    // Retain targetText & anchorPos so Backspace immediately brings ghost text back!
+    // Hide decoration while mismatched so it doesn't collide with the typo.
+    return { targetText, anchorPos, deco: Decoration.none };
   },
   provide: (f) => EditorView.decorations.from(f, (val) => val.deco),
 });
