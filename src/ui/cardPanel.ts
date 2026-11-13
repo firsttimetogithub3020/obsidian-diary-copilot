@@ -172,13 +172,13 @@ export class CardPanel {
 
     if (this.headerHintEl) {
       if (isShadowTyping) {
-        this.headerHintEl.setText("✍️ 跟寫練習中：請跟著編輯器內的灰字輸入，按 Esc 可取消");
+        this.headerHintEl.setText("跟寫練習中：請跟著灰字輸入 · Esc 取消");
       } else if (isPolishMode) {
-        this.headerHintEl.setText("✨ F3 潤飾模式：按 Alt+1 / Alt+2 / Alt+3 / Alt+4 或點擊卡片跟寫");
+        this.headerHintEl.setText("F3 潤飾：按 Alt+1/2/3/4 或點擊卡片跟寫 · Esc 關閉");
       } else if (hasChineseSource) {
-        this.headerHintEl.setText(`💡 中翻英：按 Alt+1/2/3/4 或點擊卡片，消除【${item.translationSource}】並變灰字跟寫`);
+        this.headerHintEl.setText(`中翻英：按 Alt+1/2/3/4 消除【${item.translationSource}】並跟寫 · Esc 關閉`);
       } else {
-        this.headerHintEl.setText(Platform.isMobile ? "點擊卡片跟寫" : "F3 潤飾 · Alt+1/2/3/4 或點擊卡片跟寫 · Esc 關閉");
+        this.headerHintEl.setText(Platform.isMobile ? "點擊卡片跟寫" : "F3 潤飾 · Alt+1/2/3/4 跟寫 · Esc 關閉");
       }
     }
 
@@ -188,11 +188,11 @@ export class CardPanel {
       this.cardsRowEl.addClass("is-shadow-typing");
       this.renderCard(
         this.cardsRowEl,
-        "✍️ 跟寫練習中 (目標句子)",
+        "跟寫練習中 (目標句子)",
         "跟寫中",
         c1,
         () => {},
-        "直接在編輯器輸入英文字母，灰字會同步匹配"
+        "直接在編輯器輸入英文字母，灰字會同步推進"
       );
       return;
     }
@@ -203,7 +203,7 @@ export class CardPanel {
       if (c1) {
         this.renderCard(
           this.cardsRowEl,
-          "💡 潤飾 1 · 自然口語",
+          "潤飾 1 · 自然口語",
           Platform.isMobile ? "" : "Alt+1",
           c1,
           () => this.callbacks.onAdopt(c1, "translation", item.sourceRange),
@@ -213,7 +213,7 @@ export class CardPanel {
       if (c2) {
         this.renderCard(
           this.cardsRowEl,
-          "✨ 潤飾 2 · 地道生動",
+          "潤飾 2 · 地道生動",
           Platform.isMobile ? "" : "Alt+2",
           c2,
           () => this.callbacks.onAdopt(c2, "translation", item.sourceRange),
@@ -223,7 +223,7 @@ export class CardPanel {
       if (c3) {
         this.renderCard(
           this.cardsRowEl,
-          "⚡ 潤飾 3 · 精煉有力",
+          "潤飾 3 · 精煉有力",
           Platform.isMobile ? "" : "Alt+3",
           c3,
           () => this.callbacks.onAdopt(c3, "translation", item.sourceRange),
@@ -233,7 +233,7 @@ export class CardPanel {
       if (c4) {
         this.renderCard(
           this.cardsRowEl,
-          "🎯 潤飾 4 · 優雅反思",
+          "潤飾 4 · 換種句式",
           Platform.isMobile ? "" : "Alt+4",
           c4,
           () => this.callbacks.onAdopt(c4, "translation", item.sourceRange),
@@ -248,7 +248,7 @@ export class CardPanel {
       if (c1) {
         this.renderCard(
           this.cardsRowEl,
-          "💡 卡 1 · 自然口語",
+          "卡 1 · 自然口語",
           Platform.isMobile ? "" : "Alt+1",
           c1,
           () => this.callbacks.onAdopt(c1, "translation", item.sourceRange),
@@ -259,7 +259,7 @@ export class CardPanel {
       if (c2) {
         this.renderCard(
           this.cardsRowEl,
-          "✨ 卡 2 · 地道片語",
+          "卡 2 · 地道片語",
           Platform.isMobile ? "" : "Alt+2",
           c2,
           () => this.callbacks.onAdopt(c2, "translation", item.sourceRange),
@@ -270,7 +270,7 @@ export class CardPanel {
       if (c3) {
         this.renderCard(
           this.cardsRowEl,
-          "⚡ 卡 3 · 精煉簡潔",
+          "卡 3 · 精煉簡潔",
           Platform.isMobile ? "" : "Alt+3",
           c3,
           () => this.callbacks.onAdopt(c3, "translation", item.sourceRange),
@@ -281,7 +281,7 @@ export class CardPanel {
       if (c4) {
         this.renderCard(
           this.cardsRowEl,
-          "🎯 卡 4 · 換種句式",
+          "卡 4 · 換種句式",
           Platform.isMobile ? "" : "Alt+4",
           c4,
           () => this.callbacks.onAdopt(c4, "translation", item.sourceRange),

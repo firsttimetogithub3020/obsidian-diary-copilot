@@ -21,8 +21,7 @@ export interface PluginSettings {
   guidanceDelaySec: number;
   showGhostText: boolean;
   dailyRequestLimit: number;
-  cardMinHeight: number;
-  cardMaxLines: number;
+  cardFontSize: number;
   panelMinHeight: number;
 }
 

@@ -2,31 +2,66 @@ import { requestUrl } from "obsidian";
 import { LLMProvider, LLMRequest } from "./provider";
 
 export const FALLBACK_MODELS = [
-  "gemini-3.5-flash-lite",
   "gemini-flash-lite-latest",
-  "gemini-3.8-flash",
+  "gemini-3.5-flash-lite",
   "gemini-flash-latest",
+  "gemini-3.8-flash",
+  "gemini-2.0-flash",
 ];
 
 export class GeminiProvider implements LLMProvider {
   private apiKey: string;
   private primaryModel: string;
   private activeWorkingModel: string;
+  private discoveredModels: string[] = [];
 
   constructor(apiKey: string, primaryModel: string) {
     this.apiKey = apiKey;
-    this.primaryModel = primaryModel || "gemini-3.5-flash-lite";
+    this.primaryModel = primaryModel || "gemini-flash-lite-latest";
     this.activeWorkingModel = this.primaryModel;
   }
 
   updateConfig(apiKey: string, primaryModel: string) {
     this.apiKey = apiKey;
-    this.primaryModel = primaryModel || "gemini-3.5-flash-lite";
+    this.primaryModel = primaryModel || "gemini-flash-lite-latest";
     this.activeWorkingModel = this.primaryModel;
   }
 
   getActiveModel(): string {
     return this.activeWorkingModel;
+  }
+
+  async discoverAvailableModels(): Promise<string[]> {
+    if (!this.apiKey) return [];
+    if (this.discoveredModels.length > 0) return this.discoveredModels;
+
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(this.apiKey)}`;
+      const resp = await requestUrl({ url, method: "GET" });
+      if (resp.status === 200 && resp.json?.models) {
+        const found: string[] = [];
+        for (const m of resp.json.models) {
+          const name = (m.name || "").replace(/^models\//, "");
+          const methods = m.supportedGenerationMethods || [];
+          if (methods.includes("generateContent") && (name.includes("flash") || name.includes("gemini"))) {
+            found.push(name);
+          }
+        }
+        // Prioritize lightweight/fast models: flash-lite, then flash, then latest
+        found.sort((a, b) => {
+          if (a.includes("flash-lite") && !b.includes("flash-lite")) return -1;
+          if (!a.includes("flash-lite") && b.includes("flash-lite")) return 1;
+          if (a.includes("latest") && !b.includes("latest")) return -1;
+          if (!a.includes("latest") && b.includes("latest")) return 1;
+          return 0;
+        });
+        this.discoveredModels = found;
+        return found;
+      }
+    } catch {
+      // Discovery failed or offline
+    }
+    return [];
   }
 
   async testConnection(): Promise<boolean> {
@@ -38,30 +73,42 @@ export class GeminiProvider implements LLMProvider {
     ];
 
     for (const model of modelsToTry) {
-      try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(this.apiKey)}`;
-        const resp = await requestUrl({
-          url,
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: "ping" }] }],
-            generationConfig: { maxOutputTokens: 5 },
-          }),
-        });
+      if (await this.pingModel(model)) {
+        this.activeWorkingModel = model;
+        return true;
+      }
+    }
 
-        if (resp.status === 200) {
+    // Dynamic discovery fallback if all hardcoded models fail
+    const discovered = await this.discoverAvailableModels();
+    for (const model of discovered) {
+      if (!modelsToTry.includes(model)) {
+        if (await this.pingModel(model)) {
           this.activeWorkingModel = model;
           return true;
         }
-      } catch (e: any) {
-        // Continue to try fallback model
       }
     }
 
     return false;
+  }
+
+  private async pingModel(model: string): Promise<boolean> {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(this.apiKey)}`;
+      const resp = await requestUrl({
+        url,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: "ping" }] }],
+          generationConfig: { maxOutputTokens: 5 },
+        }),
+      });
+      return resp.status === 200;
+    } catch {
+      return false;
+    }
   }
 
   private buildPayload(req: LLMRequest) {
@@ -123,6 +170,23 @@ export class GeminiProvider implements LLMProvider {
           lastError = completeErr;
         }
       }
+    }
+
+    // Dynamic discovery fallback if all standard fallback models fail
+    try {
+      const discovered = await this.discoverAvailableModels();
+      for (const currentModel of discovered) {
+        if (modelsToTry.includes(currentModel)) continue;
+        try {
+          const result = await this.streamWithModel(currentModel, req, onChunk);
+          this.activeWorkingModel = currentModel;
+          return result;
+        } catch {
+          // Continue trying discovered models
+        }
+      }
+    } catch {
+      // Ignored
     }
 
     throw lastError || new Error("Failed to get suggestion from Gemini API.");
@@ -228,6 +292,23 @@ export class GeminiProvider implements LLMProvider {
           continue;
         }
       }
+    }
+
+    // Dynamic discovery fallback
+    try {
+      const discovered = await this.discoverAvailableModels();
+      for (const currentModel of discovered) {
+        if (modelsToTry.includes(currentModel)) continue;
+        try {
+          const res = await this.completeWithModel(currentModel, req);
+          this.activeWorkingModel = currentModel;
+          return res;
+        } catch {
+          // Continue
+        }
+      }
+    } catch {
+      // Ignored
     }
 
     throw lastError || new Error("Failed to complete request with Gemini API.");

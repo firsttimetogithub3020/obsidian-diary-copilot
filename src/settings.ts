@@ -4,8 +4,8 @@ import { PluginSettings, DiaryTone } from "./types";
 
 export const DEFAULT_SETTINGS: PluginSettings = {
   geminiApiKey: "",
-  model: "gemini-3.5-flash-lite",
-  tidyModel: "gemini-3.5-flash-lite",
+  model: "gemini-flash-lite-latest",
+  tidyModel: "gemini-flash-lite-latest",
   diaryFolder: "Diary",
   englishLevel: "upper-intermediate",
   diaryTone: "casual",
@@ -14,9 +14,8 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   guidanceDelaySec: 20,
   showGhostText: true,
   dailyRequestLimit: 1500,
-  cardMinHeight: 64,
-  cardMaxLines: 3,
-  panelMinHeight: 115,
+  cardFontSize: 13.5,
+  panelMinHeight: 160,
 };
 
 export const DIARY_TONE_OPTIONS: { id: DiaryTone; label: string; desc: string }[] = [
@@ -30,10 +29,10 @@ export const DIARY_TONE_OPTIONS: { id: DiaryTone; label: string; desc: string }[
 ];
 
 export const RECOMMENDED_MODELS = [
-  { id: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash-Lite（最快、超低延遲，推薦）" },
-  { id: "gemini-flash-lite-latest", label: "Gemini Flash-Lite Latest（自動保持最新 Flash-Lite）" },
-  { id: "gemini-3.8-flash", label: "Gemini 3.8 Flash（高智能、快速）" },
-  { id: "gemini-flash-latest", label: "Gemini Flash Latest（自動保持最新 Flash）" },
+  { id: "gemini-flash-lite-latest", label: "Gemini Flash-Lite Latest（官方永久別名，永不過期，強烈推薦）" },
+  { id: "gemini-flash-latest", label: "Gemini Flash Latest（官方永久別名，最新標準 Flash，永不過期）" },
+  { id: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash-Lite（指定版本號）" },
+  { id: "gemini-3.8-flash", label: "Gemini 3.8 Flash（高智能指定版本號）" },
 ];
 
 export class DiaryCopilotSettingTab extends PluginSettingTab {
@@ -212,50 +211,34 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
       });
 
     // UI Appearance Customization
-    containerEl.createEl("h3", { text: "卡片外觀與版面設定" });
+    containerEl.createEl("h3", { text: "卡片文字與版面設定" });
 
     new Setting(containerEl)
-      .setName("底部面板整體高度 (像素)")
-      .setDesc("編輯區底部整塊建議卡片面板的最小高度（預設 115px）")
+      .setName("卡片文字大小 (Font Size)")
+      .setDesc("調整底部建議卡片內的英文文字大小（預設 13.5px，可微調至最舒適閱讀字級）")
       .addSlider((slider) => {
         slider
-          .setLimits(70, 220, 5)
-          .setValue(this.plugin.settings.panelMinHeight || 115)
+          .setLimits(11, 20, 0.5)
+          .setValue(this.plugin.settings.cardFontSize || 13.5)
           .setDynamicTooltip()
           .onChange(async (val) => {
-            this.plugin.settings.panelMinHeight = val;
+            this.plugin.settings.cardFontSize = val;
             await this.plugin.saveSettings();
             this.plugin.applyAppearanceSettings();
           });
       });
 
     new Setting(containerEl)
-      .setName("建議卡片高度 (像素)")
-      .setDesc("每張建議卡片的最小高度（預設 64px）")
-      .addSlider((slider) => {
-        slider
-          .setLimits(40, 140, 4)
-          .setValue(this.plugin.settings.cardMinHeight || 64)
-          .setDynamicTooltip()
-          .onChange(async (val) => {
-            this.plugin.settings.cardMinHeight = val;
+      .setName("面板高度手動調整說明")
+      .setDesc("面板高度支援直接滑鼠拖曳：在編輯日記時將滑鼠懸停於面板頂部水平手柄上，即可隨時拉高或縮小，外掛會自動持久化記憶高度。")
+      .addButton((btn) => {
+        btn
+          .setButtonText("重設面板高度為預設值 (160px)")
+          .onClick(async () => {
+            this.plugin.settings.panelMinHeight = 160;
             await this.plugin.saveSettings();
             this.plugin.applyAppearanceSettings();
-          });
-      });
-
-    new Setting(containerEl)
-      .setName("卡片文字最多顯示行數")
-      .setDesc("卡片文字在展開前最多折行顯示的行數（預設 3 行）")
-      .addSlider((slider) => {
-        slider
-          .setLimits(1, 6, 1)
-          .setValue(this.plugin.settings.cardMaxLines || 3)
-          .setDynamicTooltip()
-          .onChange(async (val) => {
-            this.plugin.settings.cardMaxLines = val;
-            await this.plugin.saveSettings();
-            this.plugin.applyAppearanceSettings();
+            new Notice("面板高度已恢復為預設 160px");
           });
       });
 
