@@ -49,6 +49,10 @@ export class SuggestionScheduler {
     return this.lastActiveSuggestion;
   }
 
+  isShadowMode(): boolean {
+    return this.isShadowTypingMode;
+  }
+
   startShadowTyping(targetText: string, anchorPosition: number) {
     if (this.timer !== null) {
       window.clearTimeout(this.timer);

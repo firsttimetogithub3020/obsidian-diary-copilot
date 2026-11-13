@@ -85,11 +85,7 @@ export default class DiaryCopilotPlugin extends Plugin {
         },
         onAdopt: (text, kind, sourceRange) => this.adoptSuggestion(text, kind, sourceRange),
         onDismiss: () => {
-          this.isPolishMode = false;
-          this.currentPolishItem = null;
-          this.scheduler.clear();
-          this.cardPanel?.hide();
-          this.clearGhostText();
+          this.handleDismiss();
         },
         onPolishRequest: () => {
           this.handlePolishSentence();
@@ -100,8 +96,15 @@ export default class DiaryCopilotPlugin extends Plugin {
       }),
     ]);
 
-    // Global Key Listener for Alt+1/2/3/4 card selection across all layouts & IMEs
+    // Global Key Listener for Alt+1/2/3/4 card selection across all layouts & IMEs, and Escape unlock
     this.registerDomEvent(window, "keydown", (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (this.scheduler.isShadowMode()) {
+          this.handleDismiss();
+          e.preventDefault();
+          return;
+        }
+      }
       if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
         if (e.code === "Digit1" || e.key === "1") {
           if (this.triggerCardAdopt(1)) {
@@ -239,11 +242,7 @@ export default class DiaryCopilotPlugin extends Plugin {
         this.cardPanel = new CardPanel(activeMarkdownView.contentEl, {
           onAdopt: (text, kind, sourceRange) => this.adoptSuggestion(text, kind, sourceRange),
           onDismiss: () => {
-            this.isPolishMode = false;
-            this.currentPolishItem = null;
-            this.scheduler.clear();
-            this.cardPanel?.hide();
-            this.clearGhostText();
+            this.handleDismiss();
           },
           onHeightResize: async (newHeight: number) => {
             this.settings.panelMinHeight = newHeight;
@@ -262,6 +261,34 @@ export default class DiaryCopilotPlugin extends Plugin {
       this.scheduler.clear();
       this.clearGhostText();
     }
+  }
+
+  handleDismiss() {
+    if (this.scheduler.isShadowMode()) {
+      // Trigger 3: ESC unlocks shadow-typing and immediately 0ms refetches 4 fresh cards!
+      this.scheduler.clear();
+      this.clearGhostText();
+      new Notice("已解鎖卡片", 1500);
+
+      if (this.currentActiveEditorView && this.activeView && this.isDiaryFile(this.activeView.file)) {
+        const docText = this.currentActiveEditorView.state.doc.toString();
+        const cursor = this.currentActiveEditorView.state.selection.main.head;
+        const context = extractContextFromDoc(docText, cursor);
+        const filePath = this.activeView.file.path;
+        const paragraphSummary = this.summaryManager.getParagraphSummary(filePath);
+        const styleSummary = this.data.styleSummary?.summary;
+
+        this.scheduler.refetch(context, styleSummary, paragraphSummary);
+      }
+      return;
+    }
+
+    // Normal mode: dismisses / hides panel
+    this.isPolishMode = false;
+    this.currentPolishItem = null;
+    this.scheduler.clear();
+    this.cardPanel?.hide();
+    this.clearGhostText();
   }
 
   async handleToneChange(tone: DiaryTone) {
