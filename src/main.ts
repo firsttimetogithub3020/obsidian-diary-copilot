@@ -550,11 +550,13 @@ export default class DiaryCopilotPlugin extends Plugin {
     const cleanText = text.trim();
 
     let targetPos = editorView.state.selection.main.head;
+    let replacedText = "";
 
     // IF sourceRange exists (Chinese replacement OR F3 polish):
     if (sourceRange) {
       const from = sourceRange.from;
       const to = sourceRange.to;
+      replacedText = editorView.state.doc.sliceString(from, to);
 
       // Delete the original Chinese or English sentence
       editorView.dispatch({
@@ -572,10 +574,13 @@ export default class DiaryCopilotPlugin extends Plugin {
     this.scheduler.startShadowTyping(cleanText, targetPos);
     this.setGhostText(cleanText, targetPos);
 
+    // Record adoption along with the original replaced text
+    this.recordAdoption(cleanText, kind, replacedText);
+
     new Notice(sourceRange ? "✍️ 已消除原文字，請跟寫練習！" : "✍️ 已套用建議，請跟寫練習！", 2000);
   }
 
-  recordAdoption(text: string, kind: string) {
+  recordAdoption(text: string, kind: string, sourceText?: string) {
     if (!text || text.trim().length === 0) return;
     const todayDate = this.activeView?.file ? this.activeView.file.basename : new Date().toISOString().slice(0, 10);
     if (!this.data.adoptions[todayDate]) {
@@ -584,6 +589,7 @@ export default class DiaryCopilotPlugin extends Plugin {
     this.data.adoptions[todayDate].push({
       text: text.trim(),
       kind: kind as any,
+      source: sourceText && sourceText.trim().length > 0 ? sourceText.trim() : undefined,
       timestamp: Date.now(),
     });
     this.saveData(this.data);

@@ -11,7 +11,13 @@ export async function tidyUpTodayDiary(app: App, plugin: DiaryCopilotPlugin) {
 
   const file = activeView.file;
   const diaryFolder = plugin.settings.diaryFolder || "Diary";
-  if (!file.path.startsWith(diaryFolder + "/")) {
+  const parentFolder = file.parent ? file.parent.path : "";
+  const isMatchFolder =
+    !parentFolder ||
+    parentFolder.toLowerCase() === diaryFolder.toLowerCase() ||
+    parentFolder.toLowerCase().startsWith(diaryFolder.toLowerCase() + "/");
+
+  if (!isMatchFolder && !plugin.settings.enableInAllFolders) {
     new Notice(`當前檔案不在日記資料夾（${diaryFolder}）內。`);
     return;
   }
@@ -25,8 +31,10 @@ export async function tidyUpTodayDiary(app: App, plugin: DiaryCopilotPlugin) {
   const notice = new Notice("正在備份原稿並呼叫 AI 整理今日日記...", 0);
 
   try {
+    const targetFolder = parentFolder || diaryFolder;
+
     // 1. Ensure .drafts folder exists and backup raw draft
-    const draftsFolder = `${diaryFolder}/.drafts`;
+    const draftsFolder = targetFolder ? `${targetFolder}/.drafts` : ".drafts";
     if (!app.vault.getAbstractFileByPath(draftsFolder)) {
       try {
         await app.vault.createFolder(draftsFolder);
@@ -43,34 +51,44 @@ export async function tidyUpTodayDiary(app: App, plugin: DiaryCopilotPlugin) {
       await app.vault.create(backupPath, rawDoc);
     }
 
-    // 2. Extract previously saved raw Chinese section if already tidied before
+    // 2. Extract previously saved draft sections if already tidied before
     let draftTextToProcess = rawDoc;
-    const existingOriginalMatch = rawDoc.match(/## 中文原稿\s*\n([\s\S]*?)(?=\n## |$)/);
-    let originalChineseDraft = rawDoc;
+    let originalDraftText = rawDoc;
 
-    if (existingOriginalMatch && existingOriginalMatch[1].trim()) {
-      originalChineseDraft = existingOriginalMatch[1].trim();
-      draftTextToProcess = originalChineseDraft;
+    const existingDraftMatch = rawDoc.match(/## (?:撰寫初稿|中文原稿)\s*\n([\s\S]*?)(?=\n## |$)/);
+    if (existingDraftMatch && existingDraftMatch[1].trim()) {
+      originalDraftText = existingDraftMatch[1].trim();
+      draftTextToProcess = originalDraftText;
+    } else {
+      const existingEnglishMatch = rawDoc.match(/## English\s*\n([\s\S]*?)(?=\n## |$)/);
+      if (existingEnglishMatch && existingEnglishMatch[1].trim()) {
+        draftTextToProcess = existingEnglishMatch[1].trim();
+      }
     }
 
-    // 3. Gather today's adoptions
+    // 3. Gather today's adoptions and draft snippets
     const todayDate = file.basename; // e.g. 2026-11-13
     const todayAdoptions = plugin.data.adoptions[todayDate] || [];
     const adoptedExpressions = todayAdoptions.map((a) => a.text);
+    const replacedDraftSnippets = todayAdoptions
+      .map((a) => a.source)
+      .filter((s): s is string => !!s && s.trim().length > 0);
 
     // 4. Call LLM
-    const systemPrompt = buildTidySystemPrompt(plugin.settings.englishLevel);
+    const systemPrompt = buildTidySystemPrompt(plugin.settings.englishLevel, plugin.settings.diaryTone);
     const userPrompt = buildTidyUserPrompt({
       rawContent: draftTextToProcess,
       adoptedExpressions,
+      replacedDraftSnippets,
       englishLevel: plugin.settings.englishLevel,
+      diaryTone: plugin.settings.diaryTone,
     });
 
     const responseText = await plugin.llm.complete({
       systemPrompt,
       userPrompt,
       temperature: 0.3,
-      maxOutputTokens: 1200,
+      maxOutputTokens: 1600,
       modelOverride: plugin.settings.tidyModel || plugin.settings.model,
     });
 
@@ -100,16 +118,19 @@ export async function tidyUpTodayDiary(app: App, plugin: DiaryCopilotPlugin) {
       }
     }
 
-    // 6. Format Markdown according to SPEC §5.1
+    // 6. Format Markdown according to unified bilingual template
     const moodList = Array.isArray(result.mood) ? result.mood.join(", ") : "reflective";
     const topicList = topics.join(", ");
     const relatedStr = relatedLinks.length > 0 ? `[${relatedLinks.join(", ")}]` : `[]`;
 
     let expressionsMd = "";
+    const expressionsList: Array<{ phrase: string; meaning: string }> = [];
+
     if (Array.isArray(result.expressions) && result.expressions.length > 0) {
       for (const exp of result.expressions) {
         if (exp.phrase) {
-          expressionsMd += `- ${exp.phrase} — ${exp.meaning || ""}\n`;
+          expressionsList.push({ phrase: exp.phrase, meaning: exp.meaning || "" });
+          expressionsMd += `- **${exp.phrase}** — ${exp.meaning || ""}\n`;
         }
       }
     } else {
@@ -117,6 +138,15 @@ export async function tidyUpTodayDiary(app: App, plugin: DiaryCopilotPlugin) {
     }
 
     const finalEnglish = (result.english || "").trim();
+    const chineseTranslation = (result.chinese_translation || result.chinese_original || "").trim();
+
+    // Prepare original draft content
+    let draftSectionContent = originalDraftText.trim();
+    if (replacedDraftSnippets.length > 0) {
+      const uniqueSnippets = Array.from(new Set(replacedDraftSnippets));
+      draftSectionContent += `\n\n> 💡 寫作時替換之初稿片段：${uniqueSnippets.join(" · ")}`;
+    }
+
     const finalContent = `---
 date: ${todayDate}
 type: english-diary
@@ -129,18 +159,84 @@ related: ${relatedStr}
 ## English
 ${finalEnglish}
 
-## 中文原稿
-${originalChineseDraft.trim()}
+## 撰寫初稿
+${draftSectionContent}
+
+## 中文對照
+${chineseTranslation}
 
 ## Today's expressions
 ${expressionsMd.trim()}
+
+> 📖 查看歷史累積的全部表達：[[Expressions|📚 點此一次瀏覽全部表達庫]]
 `;
 
     await app.vault.modify(file, finalContent);
+
+    // 7. Update central Expressions.md hub
+    await updateExpressionsHub(app, targetFolder, todayDate, expressionsList);
+
     notice.hide();
-    new Notice("🎉 今日日記整理完成！原稿已備份至 .drafts/。");
+    new Notice("🎉 今日日記整理完成！已自動同步至 Expressions 表達庫。");
   } catch (err: any) {
     notice.hide();
     new Notice(`整理失敗：${err?.message || err}`);
+  }
+}
+
+async function updateExpressionsHub(
+  app: App,
+  targetFolder: string,
+  todayDate: string,
+  expressions: Array<{ phrase: string; meaning: string }>
+) {
+  if (!expressions || expressions.length === 0) return;
+
+  const hubPath = targetFolder ? `${targetFolder}/Expressions.md` : "Expressions.md";
+  let expressionsLines = "";
+  for (const exp of expressions) {
+    if (exp.phrase) {
+      expressionsLines += `- **${exp.phrase}** — ${exp.meaning || ""}\n`;
+    }
+  }
+  if (!expressionsLines.trim()) return;
+
+  const newSection = `## [[${todayDate}]]\n${expressionsLines.trim()}`;
+
+  const hubFile = app.vault.getAbstractFileByPath(hubPath);
+  if (hubFile instanceof TFile) {
+    const existingContent = await app.vault.read(hubFile);
+    // Regex for matching existing date section: e.g. "## [[2026-11-13]]" or "## 2026-11-13"
+    const sectionPattern = new RegExp(`##\\s+(\\[\\[)?${todayDate}(\\]\\])?[\\s\\S]*?(?=\\n##\\s+|$)`, "i");
+
+    if (sectionPattern.test(existingContent)) {
+      const updatedContent = existingContent.replace(sectionPattern, newSection);
+      await app.vault.modify(hubFile, updatedContent);
+    } else {
+      // Find divider "---" to insert right below header
+      const dividerIndex = existingContent.indexOf("---");
+      if (dividerIndex !== -1) {
+        const afterDivider = dividerIndex + 3;
+        const updatedContent =
+          existingContent.slice(0, afterDivider) +
+          `\n\n${newSection}\n` +
+          existingContent.slice(afterDivider);
+        await app.vault.modify(hubFile, updatedContent);
+      } else {
+        const updatedContent = `${existingContent.trim()}\n\n---\n\n${newSection}\n`;
+        await app.vault.modify(hubFile, updatedContent);
+      }
+    }
+  } else {
+    // Create new Expressions.md
+    const initialContent = `# 📚 英文日記核心表達庫 (Expressions Hub)
+
+本筆記由「整理今日日記」自動彙總每天學到的核心表達、單字與道地片語。點擊日期標題即可跳轉至當日完整日記。
+
+---
+
+${newSection}
+`;
+    await app.vault.create(hubPath, initialContent);
   }
 }
