@@ -87,35 +87,33 @@ export class CardPanel {
   }
 
   private setupResizeListeners() {
-    if (!this.resizeHandleEl || Platform.isMobile) return;
+    if (!this.resizeHandleEl) return;
 
-    this.resizeHandleEl.addEventListener("mousedown", (e: MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-
+    const startResize = (clientY: number) => {
       if (!this.panelEl) return;
       this.isResizing = true;
       this.panelEl.addClass("is-resizing");
 
-      const startY = e.clientY;
+      const startY = clientY;
       const startHeight = this.panelEl.getBoundingClientRect().height;
 
-      const onMouseMove = (moveEvent: MouseEvent) => {
+      const doResize = (currentY: number) => {
         if (!this.isResizing || !this.panelEl) return;
-        const diffY = startY - moveEvent.clientY; // Dragging UP increases height
-        const newHeight = Math.round(Math.max(80, Math.min(window.innerHeight * 0.7, startHeight + diffY)));
+        const diffY = startY - currentY; // Dragging UP increases height
+        const minH = Platform.isMobile ? 70 : 80;
+        const maxH = window.innerHeight * 0.75;
+        const newHeight = Math.round(Math.max(minH, Math.min(maxH, startHeight + diffY)));
 
         this.panelEl.style.height = `${newHeight}px`;
         document.body.style.setProperty("--diary-copilot-panel-height", `${newHeight}px`);
       };
 
-      const onMouseUp = () => {
+      const endResize = () => {
         if (!this.isResizing) return;
         this.isResizing = false;
         this.panelEl?.removeClass("is-resizing");
 
-        window.removeEventListener("mousemove", onMouseMove);
-        window.removeEventListener("mouseup", onMouseUp);
+        cleanup();
 
         if (this.panelEl) {
           const finalHeight = Math.round(this.panelEl.getBoundingClientRect().height);
@@ -125,9 +123,60 @@ export class CardPanel {
         }
       };
 
+      const onMouseMove = (e: MouseEvent) => {
+        e.preventDefault();
+        doResize(e.clientY);
+      };
+
+      const onMouseUp = () => {
+        endResize();
+      };
+
+      const onTouchMove = (e: TouchEvent) => {
+        if (e.touches.length > 0) {
+          e.preventDefault(); // Prevent viewport scrolling during drag
+          doResize(e.touches[0].clientY);
+        }
+      };
+
+      const onTouchEnd = () => {
+        endResize();
+      };
+
+      const cleanup = () => {
+        window.removeEventListener("mousemove", onMouseMove);
+        window.removeEventListener("mouseup", onMouseUp);
+        window.removeEventListener("touchmove", onTouchMove);
+        window.removeEventListener("touchend", onTouchEnd);
+        window.removeEventListener("touchcancel", onTouchEnd);
+      };
+
       window.addEventListener("mousemove", onMouseMove);
       window.addEventListener("mouseup", onMouseUp);
+      window.addEventListener("touchmove", onTouchMove, { passive: false });
+      window.addEventListener("touchend", onTouchEnd);
+      window.addEventListener("touchcancel", onTouchEnd);
+    };
+
+    // Mouse drag listener (Desktop & Mac)
+    this.resizeHandleEl.addEventListener("mousedown", (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      startResize(e.clientY);
     });
+
+    // Touch drag listener (iPhone, iPad, Android)
+    this.resizeHandleEl.addEventListener(
+      "touchstart",
+      (e: TouchEvent) => {
+        if (e.touches.length > 0) {
+          e.preventDefault();
+          e.stopPropagation();
+          startResize(e.touches[0].clientY);
+        }
+      },
+      { passive: false }
+    );
   }
 
   renderIdleState(message?: string) {

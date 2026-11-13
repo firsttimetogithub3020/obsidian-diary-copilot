@@ -23,24 +23,25 @@
 /* Resize Handle on top of panel */
 .diary-copilot-resize-handle {
   position: absolute;
-  top: -6px;
+  top: -8px;
   left: 0;
   right: 0;
-  height: 12px;
+  height: 16px;
   cursor: ns-resize;
   z-index: 25;
   display: flex;
   justify-content: center;
   align-items: center;
+  touch-action: none;
 }
 
 .diary-copilot-resize-handle::after {
   content: "";
-  width: 44px;
+  width: 48px;
   height: 4px;
   border-radius: 2px;
   background-color: var(--text-faint);
-  opacity: 0.5;
+  opacity: 0.6;
   transition: opacity 0.15s ease, background-color 0.15s ease, height 0.15s ease;
 }
 
@@ -49,6 +50,26 @@
   opacity: 1;
   background-color: var(--interactive-accent);
   height: 5px;
+}
+
+/* Touch-friendly Mobile Resize Handle (Android, iPad, iPhone) */
+.diary-copilot-panel.is-mobile .diary-copilot-resize-handle {
+  top: -14px;
+  height: 26px;
+  touch-action: none;
+}
+
+.diary-copilot-panel.is-mobile .diary-copilot-resize-handle::after {
+  width: 56px;
+  height: 5px;
+  border-radius: 3px;
+  background-color: var(--text-muted);
+  opacity: 0.75;
+}
+
+.diary-copilot-panel.is-mobile.is-resizing .diary-copilot-resize-handle::after {
+  background-color: var(--interactive-accent);
+  opacity: 1;
 }
 
 /* Ensure editor content scroller reserves space above the card panel */
