@@ -10,9 +10,10 @@ import { SuggestionItem, PluginSettings } from "../types";
 
 export interface SchedulerCallbacks {
   onLoading: () => void;
-  onSuggestion: (item: SuggestionItem, isStreaming: boolean) => void;
+  onSuggestion: (item: SuggestionItem, isStreaming: boolean, isChinesePractice: boolean) => void;
   onError: () => void;
   onUsageIncrement?: (inputTokens: number, outputTokens: number) => void;
+  onChinesePracticeComplete?: () => void;
 }
 
 const PUNCTUATION_OR_SPACE_REGEX = /[,.?!;:，。？！、\s]$/;
@@ -31,6 +32,7 @@ export class SuggestionScheduler {
   private lastActiveSuggestion: SuggestionItem | null = null;
   private originalContinueText = "";
   private anchorPos = 0;
+  private isChinesePracticeMode = false;
 
   constructor(
     llm: LLMProvider,
@@ -46,6 +48,10 @@ export class SuggestionScheduler {
     return this.lastActiveSuggestion;
   }
 
+  isCurrentlyPracticingChinese(): boolean {
+    return this.isChinesePracticeMode;
+  }
+
   clear() {
     if (this.timer !== null) {
       window.clearTimeout(this.timer);
@@ -58,6 +64,7 @@ export class SuggestionScheduler {
     this.lastActiveSuggestion = null;
     this.originalContinueText = "";
     this.anchorPos = 0;
+    this.isChinesePracticeMode = false;
   }
 
   handleDocChange(
@@ -71,7 +78,6 @@ export class SuggestionScheduler {
     if (
       this.lastActiveSuggestion &&
       this.originalContinueText &&
-      !context.chineseSegment &&
       context.cursorOffset >= this.anchorPos
     ) {
       const typedDiff = context.fullDocText.slice(this.anchorPos, context.cursorOffset);
@@ -84,8 +90,15 @@ export class SuggestionScheduler {
             continueText: match.remainingContinueText,
           };
           this.lastActiveSuggestion = updatedSuggestion;
-          this.callbacks.onSuggestion(updatedSuggestion, false);
+          this.callbacks.onSuggestion(updatedSuggestion, false, this.isChinesePracticeMode);
           return;
+        } else {
+          // Completed typing the full sentence!
+          if (this.isChinesePracticeMode) {
+            this.callbacks.onChinesePracticeComplete?.();
+            this.clear();
+            return;
+          }
         }
       }
     }
@@ -93,6 +106,7 @@ export class SuggestionScheduler {
     // Reset prefix tracking when not matched or typing new thought
     this.originalContinueText = "";
     this.anchorPos = context.cursorOffset;
+    this.isChinesePracticeMode = false;
 
     // Clear previous timer & cancel active request
     if (this.timer !== null) {
@@ -141,7 +155,7 @@ export class SuggestionScheduler {
     // Context deduplication hash
     const contextHash = `${context.currentSentence}__${context.chineseSegment || ""}`;
     if (contextHash === this.lastContextHash && this.lastActiveSuggestion) {
-      this.callbacks.onSuggestion(this.lastActiveSuggestion, false);
+      this.callbacks.onSuggestion(this.lastActiveSuggestion, false, this.isChinesePracticeMode);
       return;
     }
 
@@ -161,6 +175,7 @@ export class SuggestionScheduler {
 
     try {
       let latestSuggestion: SuggestionItem | null = null;
+      const hasChinese = !!(context.chineseSegment && context.chineseSegment.trim().length > 0);
 
       await this.llm.stream(
         {
@@ -171,17 +186,21 @@ export class SuggestionScheduler {
           signal: abortController.signal,
         },
         (chunkText) => {
-          // If a newer request has started, discard this stream
           if (requestId !== this.currentRequestId) return;
 
           const parsed = parsePartialSuggestion(chunkText);
           if (parsed && (parsed.continueText || parsed.alternativeText || parsed.translationText)) {
-            // Attach sourceRange for Chinese translation replacement
             if (context.chineseRange) {
               parsed.sourceRange = context.chineseRange;
             }
+
+            // If Chinese was entered and translation is available, promote translation for practice
+            if (hasChinese && parsed.translationText) {
+              parsed.continueText = parsed.translationText;
+            }
+
             latestSuggestion = parsed;
-            this.callbacks.onSuggestion(parsed, true);
+            this.callbacks.onSuggestion(parsed, true, hasChinese && !!parsed.translationText);
           }
         }
       );
@@ -189,9 +208,16 @@ export class SuggestionScheduler {
       if (requestId === this.currentRequestId && latestSuggestion) {
         this.lastContextHash = contextHash;
         this.lastActiveSuggestion = latestSuggestion;
-        this.originalContinueText = (latestSuggestion as SuggestionItem).continueText;
+        this.isChinesePracticeMode = hasChinese && !!(latestSuggestion as SuggestionItem).translationText;
+
+        // The target to shadow-type
+        const practiceTarget = this.isChinesePracticeMode
+          ? (latestSuggestion as SuggestionItem).translationText!
+          : (latestSuggestion as SuggestionItem).continueText;
+
+        this.originalContinueText = practiceTarget;
         this.anchorPos = context.cursorOffset;
-        this.callbacks.onSuggestion(latestSuggestion, false);
+        this.callbacks.onSuggestion(latestSuggestion, false, this.isChinesePracticeMode);
       }
     } catch (e: any) {
       if (abortController.signal.aborted) {
