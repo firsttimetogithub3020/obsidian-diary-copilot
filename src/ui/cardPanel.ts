@@ -141,7 +141,10 @@ export class CardPanel {
       }
     }
 
+    this.cardsRowEl.empty();
+
     if (isShadowTyping) {
+      this.cardsRowEl.addClass("is-shadow-typing");
       this.renderCard(
         this.cardsRowEl,
         "✍️ 跟寫練習中 (目標句子)",
@@ -153,7 +156,7 @@ export class CardPanel {
       return;
     }
 
-    this.cardsRowEl.empty();
+    this.cardsRowEl.removeClass("is-shadow-typing");
 
     const c1 = item.card1 || item.continueText || "";
     const c2 = item.card2 || item.alternativeText || "";
