@@ -48,8 +48,9 @@ export default class DiaryCopilotPlugin extends Plugin {
           this.cardPanel?.updateSuggestions(item, false);
 
           const ghostStr = item?.card1 || item?.continueText;
-          if (this.settings.showGhostText && !Platform.isMobile && ghostStr) {
-            this.setGhostText(ghostStr);
+          if (this.settings.showGhostText && !Platform.isMobile && ghostStr && this.currentActiveEditorView) {
+            const cursor = this.currentActiveEditorView.state.selection.main.head;
+            this.setGhostText(ghostStr, cursor);
           }
         },
         onError: () => {
@@ -74,7 +75,9 @@ export default class DiaryCopilotPlugin extends Plugin {
       ghostTextField,
       createDiaryKeymap({
         getCurrentSuggestion: () => {
-          return this.isPolishMode ? this.currentPolishItem : this.scheduler.getCurrentSuggestion();
+          return this.isPolishMode
+            ? this.currentPolishItem
+            : (this.cardPanel?.getCurrentItem() || this.scheduler.getCurrentSuggestion());
         },
         onAdopt: (text, kind, sourceRange) => this.adoptSuggestion(text, kind, sourceRange),
         onDismiss: () => {
@@ -92,6 +95,33 @@ export default class DiaryCopilotPlugin extends Plugin {
         this.handleEditorUpdate(update);
       }),
     ]);
+
+    // Global Key Listener for Alt+1/2/3/4 card selection across all layouts & IMEs
+    this.registerDomEvent(window, "keydown", (e: KeyboardEvent) => {
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        if (e.code === "Digit1" || e.key === "1") {
+          if (this.triggerCardAdopt(1)) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        } else if (e.code === "Digit2" || e.key === "2") {
+          if (this.triggerCardAdopt(2)) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        } else if (e.code === "Digit3" || e.key === "3") {
+          if (this.triggerCardAdopt(3)) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        } else if (e.code === "Digit4" || e.key === "4") {
+          if (this.triggerCardAdopt(4)) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }
+      }
+    });
 
     // Register Commands
     this.addCommand({
@@ -332,10 +362,15 @@ export default class DiaryCopilotPlugin extends Plugin {
     }
   }
 
-  private setGhostText(text: string) {
+  private setGhostText(text: string | null, anchorPos?: number) {
     if (!this.currentActiveEditorView) return;
+    if (!text) {
+      this.clearGhostText();
+      return;
+    }
+    const pos = anchorPos ?? this.currentActiveEditorView.state.selection.main.head;
     this.currentActiveEditorView.dispatch({
-      effects: setGhostTextEffect.of(text),
+      effects: setGhostTextEffect.of({ targetText: text, anchorPos: pos }),
     });
   }
 
@@ -346,52 +381,56 @@ export default class DiaryCopilotPlugin extends Plugin {
     });
   }
 
+  triggerCardAdopt(cardNumber: 1 | 2 | 3 | 4): boolean {
+    const item = this.isPolishMode
+      ? this.currentPolishItem
+      : (this.cardPanel?.getCurrentItem() || this.scheduler.getCurrentSuggestion());
+
+    if (!item) return false;
+
+    let text = "";
+    if (cardNumber === 1) text = item.card1 || item.continueText || "";
+    else if (cardNumber === 2) text = item.card2 || item.alternativeText || "";
+    else if (cardNumber === 3) text = item.card3 || item.translationText || "";
+    else if (cardNumber === 4) text = item.card4 || "";
+
+    if (!text || text.trim().length === 0) return false;
+
+    const kind = item.sourceRange ? "translation" : (cardNumber === 1 ? "continue" : "alternative");
+    this.adoptSuggestion(text, kind, item.sourceRange);
+    return true;
+  }
+
   adoptSuggestion(text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }) {
     if (!this.activeView || !this.currentActiveEditorView) return;
 
     const editorView = this.currentActiveEditorView;
     const cleanText = text.trim();
 
+    let targetPos = editorView.state.selection.main.head;
+
     // IF sourceRange exists (Chinese replacement OR F3 polish):
-    // 1. DELETE the original text immediately!
-    // 2. TURN the chosen text into GHOST TEXT so the user can SHADOW-WRITE it!
     if (sourceRange) {
       const from = sourceRange.from;
       const to = sourceRange.to;
 
+      // Delete the original Chinese or English sentence
       editorView.dispatch({
         changes: { from, to, insert: "" },
         selection: { anchor: from },
         userEvent: "delete",
       });
 
+      targetPos = from;
       this.isPolishMode = false;
       this.currentPolishItem = null;
-
-      // Start shadow typing session for this chosen text at `from`
-      this.scheduler.startShadowTyping(cleanText, from);
-      this.setGhostText(cleanText);
-
-      new Notice(kind === "translation" ? "✍️ 已消除原文字，請跟寫練習！" : "✍️ 已清除原句，請跟寫潤飾！", 2500);
-      return;
     }
 
-    // Normal continuation mode (Card 1, 2, 3, or 4 chosen)
-    // Turn chosen text into ghost text for shadow-typing!
-    const cursor = editorView.state.selection.main.head;
-    let targetText = cleanText;
+    // Start shadow typing session for this chosen text at `targetPos`
+    this.scheduler.startShadowTyping(cleanText, targetPos);
+    this.setGhostText(cleanText, targetPos);
 
-    const doc = editorView.state.doc;
-    if (cursor > 0) {
-      const prevChar = doc.sliceString(cursor - 1, cursor);
-      if (!/\s/.test(prevChar) && !targetText.startsWith(" ")) {
-        targetText = " " + targetText;
-      }
-    }
-
-    this.scheduler.startShadowTyping(targetText, cursor);
-    this.setGhostText(targetText);
-    new Notice("✍️ 已切換建議，請跟寫練習！", 2000);
+    new Notice(sourceRange ? "✍️ 已消除原文字，請跟寫練習！" : "✍️ 已套用建議，請跟寫練習！", 2000);
   }
 
   recordAdoption(text: string, kind: string) {

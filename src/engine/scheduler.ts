@@ -108,13 +108,7 @@ export class SuggestionScheduler {
 
       if (match.matched) {
         if (match.remainingContinueText.length > 0) {
-          const updatedSuggestion: SuggestionItem = {
-            ...this.lastActiveSuggestion,
-            card1: match.remainingContinueText,
-            continueText: match.remainingContinueText,
-          };
-          this.lastActiveSuggestion = updatedSuggestion;
-          this.callbacks.onSuggestion(updatedSuggestion, false);
+          // User is actively shadow-typing; ghostTextField renders remaining synchronously!
           return;
         } else {
           // Finished typing the entire shadow text!
@@ -218,6 +212,7 @@ export class SuggestionScheduler {
             }
 
             latestSuggestion = parsed;
+            this.lastActiveSuggestion = parsed;
             this.callbacks.onSuggestion(parsed, true);
           }
         }

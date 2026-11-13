@@ -1,7 +1,15 @@
 import { EditorView, WidgetType, Decoration, DecorationSet } from "@codemirror/view";
 import { StateField, StateEffect } from "@codemirror/state";
 
-export const setGhostTextEffect = StateEffect.define<string | null>();
+import { EditorView, WidgetType, Decoration, DecorationSet } from "@codemirror/view";
+import { StateField, StateEffect } from "@codemirror/state";
+
+export interface GhostTextPayload {
+  targetText: string;
+  anchorPos: number;
+}
+
+export const setGhostTextEffect = StateEffect.define<GhostTextPayload | null>();
 
 class GhostTextWidget extends WidgetType {
   constructor(readonly text: string) {
@@ -16,51 +24,99 @@ class GhostTextWidget extends WidgetType {
   }
 }
 
-export const ghostTextField = StateField.define<{ text: string | null; deco: DecorationSet }>({
+export interface GhostTextState {
+  targetText: string | null;
+  anchorPos: number;
+  deco: DecorationSet;
+}
+
+export const ghostTextField = StateField.define<GhostTextState>({
   create() {
-    return { text: null, deco: Decoration.none };
+    return { targetText: null, anchorPos: 0, deco: Decoration.none };
   },
   update(state, tr) {
-    let currentText = state.text;
+    let targetText = state.targetText;
+    let anchorPos = state.anchorPos;
 
     for (const e of tr.effects) {
       if (e.is(setGhostTextEffect)) {
-        currentText = e.value;
+        if (e.value === null) {
+          return { targetText: null, anchorPos: 0, deco: Decoration.none };
+        }
+        targetText = e.value.targetText;
+        anchorPos = e.value.anchorPos;
       }
     }
 
-    if (!currentText || currentText.trim().length === 0) {
-      return { text: null, deco: Decoration.none };
+    if (!targetText || targetText.length === 0) {
+      return { targetText: null, anchorPos: 0, deco: Decoration.none };
     }
 
-    // Place widget at current cursor head
-    const pos = tr.state.selection.main.head;
-    const doc = tr.state.doc;
+    const cursor = tr.state.selection.main.head;
 
-    // Check if leading space is needed
-    let displayText = currentText;
-    if (pos > 0) {
-      const prevChar = doc.sliceString(pos - 1, pos);
-      if (!/\s/.test(prevChar) && !displayText.startsWith(" ") && !displayText.startsWith("\n")) {
-        displayText = " " + displayText;
-      } else if (/\s/.test(prevChar) && displayText.startsWith(" ")) {
-        displayText = displayText.trimStart();
+    // If cursor moved before the anchor position, user moved away
+    if (cursor < anchorPos) {
+      return { targetText: null, anchorPos: 0, deco: Decoration.none };
+    }
+
+    const typed = tr.state.doc.sliceString(anchorPos, cursor);
+    const targetTrimmed = targetText.trimStart();
+    const typedTrimmed = typed.trimStart();
+
+    // User hasn't typed non-whitespace characters yet
+    if (typedTrimmed.length === 0) {
+      let displayText = targetText;
+      if (cursor > 0) {
+        const prevChar = tr.state.doc.sliceString(cursor - 1, cursor);
+        if (!/\s/.test(prevChar) && !displayText.startsWith(" ") && !displayText.startsWith("\n")) {
+          displayText = " " + displayText;
+        } else if (/\s/.test(prevChar) && displayText.startsWith(" ")) {
+          displayText = displayText.trimStart();
+        }
       }
+
+      if (displayText.length === 0) {
+        return { targetText: null, anchorPos: 0, deco: Decoration.none };
+      }
+
+      const widget = Decoration.widget({
+        widget: new GhostTextWidget(displayText),
+        side: 1,
+      });
+
+      return {
+        targetText,
+        anchorPos,
+        deco: Decoration.set([widget.range(cursor)]),
+      };
     }
 
-    if (displayText.length === 0) {
-      return { text: null, deco: Decoration.none };
+    // Compare prefix case-insensitively
+    const targetLower = targetTrimmed.toLowerCase();
+    const typedLower = typedTrimmed.toLowerCase();
+
+    if (targetLower.startsWith(typedLower)) {
+      const remaining = targetTrimmed.slice(typedTrimmed.length);
+
+      if (remaining.length === 0) {
+        // Complete! Finished typing entire ghost text
+        return { targetText: null, anchorPos: 0, deco: Decoration.none };
+      }
+
+      const widget = Decoration.widget({
+        widget: new GhostTextWidget(remaining),
+        side: 1,
+      });
+
+      return {
+        targetText,
+        anchorPos,
+        deco: Decoration.set([widget.range(cursor)]),
+      };
     }
 
-    const widget = Decoration.widget({
-      widget: new GhostTextWidget(displayText),
-      side: 1,
-    });
-
-    return {
-      text: currentText,
-      deco: Decoration.set([widget.range(pos)]),
-    };
+    // Typed something different (user deviated)
+    return { targetText: null, anchorPos: 0, deco: Decoration.none };
   },
   provide: (f) => EditorView.decorations.from(f, (val) => val.deco),
 });

@@ -111,6 +111,10 @@ export class CardPanel {
     }
   }
 
+  getCurrentItem(): SuggestionItem | null {
+    return this.currentItem;
+  }
+
   updateSuggestions(item: SuggestionItem | null, isPolishMode = false) {
     this.currentItem = item;
     if (!this.panelEl || !this.cardsRowEl) return;
@@ -125,6 +129,11 @@ export class CardPanel {
     if (this.statusDotEl) {
       this.statusDotEl.className = "diary-copilot-status-dot";
     }
+
+    const c1 = item.card1 || item.continueText || "";
+    const c2 = item.card2 || item.alternativeText || "";
+    const c3 = item.card3 || item.translationText || "";
+    const c4 = item.card4 || "";
 
     const hasChineseSource = !!(item.sourceRange && item.translationSource);
     const isShadowTyping = !isPolishMode && !hasChineseSource && !c2 && !c3 && !c4 && !!c1;
@@ -157,11 +166,6 @@ export class CardPanel {
     }
 
     this.cardsRowEl.removeClass("is-shadow-typing");
-
-    const c1 = item.card1 || item.continueText || "";
-    const c2 = item.card2 || item.alternativeText || "";
-    const c3 = item.card3 || item.translationText || "";
-    const c4 = item.card4 || "";
 
     if (isPolishMode) {
       if (c1) {
