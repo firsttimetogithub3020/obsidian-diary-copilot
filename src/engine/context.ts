@@ -51,8 +51,12 @@ export function extractContextFromDoc(docText: string, cursorOffset: number): Ex
         if (textAfterChinese.length < 80) {
           chineseSegment = chineseStr;
           const from = lineStartPos + matchIndex;
-          // to covers all the way to current cursor if only spaces or partial typing occurred!
-          const to = cursorOffset;
+          let matchEnd = matchIndex + lastMatch[0].length;
+          // Include immediately following spaces up to cursor
+          while (matchEnd < currentLineBeforeCursor.length && /\s/.test(currentLineBeforeCursor[matchEnd])) {
+            matchEnd++;
+          }
+          const to = lineStartPos + matchEnd;
           chineseRange = { from, to };
         }
       }

@@ -41,7 +41,7 @@ export class CardPanel {
     brand.createSpan({ text: "Diary Copilot" });
 
     this.headerHintEl = header.createSpan({ cls: "diary-copilot-hint" });
-    this.headerHintEl.setText(Platform.isMobile ? "點擊卡片採納" : "4張建議卡 · Tab / Alt+1/2/3/4 採納 · Esc 關閉");
+    this.headerHintEl.setText(Platform.isMobile ? "點擊卡片採納" : "Alt+1/2/3/4 或點擊卡片採納 · Esc 關閉");
 
     // Cards row (4 columns)
     this.cardsRowEl = this.panelEl.createDiv({ cls: "diary-copilot-cards-row" });
@@ -127,15 +127,30 @@ export class CardPanel {
     }
 
     const hasChineseSource = !!(item.sourceRange && item.translationSource);
+    const isShadowTyping = !isPolishMode && !hasChineseSource && !c2 && !c3 && !c4 && !!c1;
 
     if (this.headerHintEl) {
-      if (isPolishMode) {
-        this.headerHintEl.setText("✨ F3 潤飾模式：按 Tab / Alt+2 / Alt+3 / Alt+4 替換為更佳表達");
+      if (isShadowTyping) {
+        this.headerHintEl.setText("✍️ 跟寫練習中：請跟著編輯器內的灰字輸入，按 Esc 可取消");
+      } else if (isPolishMode) {
+        this.headerHintEl.setText("✨ F3 潤飾模式：按 Alt+1 / Alt+2 / Alt+3 / Alt+4 或點擊卡片跟寫");
       } else if (hasChineseSource) {
-        this.headerHintEl.setText(`💡 中翻英模式：點擊任一卡或按 Tab/Alt+2/3/4 直接「取代」【${item.translationSource}】`);
+        this.headerHintEl.setText(`💡 中翻英：按 Alt+1/2/3/4 或點擊卡片，消除【${item.translationSource}】並變灰字跟寫`);
       } else {
-        this.headerHintEl.setText(Platform.isMobile ? "點擊卡片採納" : "F3 潤飾前句 · Tab 採納卡1 · Alt+2/3/4 · Esc 關閉");
+        this.headerHintEl.setText(Platform.isMobile ? "點擊卡片跟寫" : "F3 潤飾 · Alt+1/2/3/4 或點擊卡片跟寫 · Esc 關閉");
       }
+    }
+
+    if (isShadowTyping) {
+      this.renderCard(
+        this.cardsRowEl,
+        "✍️ 跟寫練習中 (目標句子)",
+        "跟寫中",
+        c1,
+        () => {},
+        "直接在編輯器輸入英文字母，灰字會同步匹配"
+      );
+      return;
     }
 
     this.cardsRowEl.empty();
@@ -150,7 +165,7 @@ export class CardPanel {
         this.renderCard(
           this.cardsRowEl,
           "💡 潤飾 1 · 自然口語",
-          Platform.isMobile ? "" : "Tab",
+          Platform.isMobile ? "" : "Alt+1",
           c1,
           () => this.callbacks.onAdopt(c1, "translation", item.sourceRange),
           `原句：${item.translationSource}`
@@ -195,10 +210,10 @@ export class CardPanel {
         this.renderCard(
           this.cardsRowEl,
           "💡 卡 1 · 自然口語",
-          Platform.isMobile ? "" : "Tab",
+          Platform.isMobile ? "" : "Alt+1",
           c1,
           () => this.callbacks.onAdopt(c1, "translation", item.sourceRange),
-          `取代：${item.translationSource}`
+          `消除：${item.translationSource}`
         );
       }
 
@@ -209,7 +224,7 @@ export class CardPanel {
           Platform.isMobile ? "" : "Alt+2",
           c2,
           () => this.callbacks.onAdopt(c2, "translation", item.sourceRange),
-          `取代：${item.translationSource}`
+          `消除：${item.translationSource}`
         );
       }
 
@@ -220,7 +235,7 @@ export class CardPanel {
           Platform.isMobile ? "" : "Alt+3",
           c3,
           () => this.callbacks.onAdopt(c3, "translation", item.sourceRange),
-          `取代：${item.translationSource}`
+          `消除：${item.translationSource}`
         );
       }
 
@@ -231,7 +246,7 @@ export class CardPanel {
           Platform.isMobile ? "" : "Alt+4",
           c4,
           () => this.callbacks.onAdopt(c4, "translation", item.sourceRange),
-          `取代：${item.translationSource}`
+          `消除：${item.translationSource}`
         );
       }
       return;
@@ -242,7 +257,7 @@ export class CardPanel {
       this.renderCard(
         this.cardsRowEl,
         "卡 1 · 猜下一句",
-        Platform.isMobile ? "" : "Tab",
+        Platform.isMobile ? "" : "Alt+1",
         c1,
         () => this.callbacks.onAdopt(c1, "continue", item.sourceRange)
       );

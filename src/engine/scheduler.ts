@@ -13,7 +13,7 @@ export interface SchedulerCallbacks {
   onSuggestion: (item: SuggestionItem, isStreaming: boolean) => void;
   onError: () => void;
   onUsageIncrement?: (inputTokens: number, outputTokens: number) => void;
-  onShadowComplete?: () => void;
+  onShadowComplete?: (completedText: string) => void;
 }
 
 const PUNCTUATION_OR_SPACE_REGEX = /[,.?!;:，。？！、\s]$/;
@@ -119,7 +119,7 @@ export class SuggestionScheduler {
         } else {
           // Finished typing the entire shadow text!
           if (this.isShadowTypingMode) {
-            this.callbacks.onShadowComplete?.();
+            this.callbacks.onShadowComplete?.(this.originalContinueText);
           }
           this.clear();
           return;
@@ -204,7 +204,7 @@ export class SuggestionScheduler {
           systemPrompt,
           userPrompt,
           temperature: 0.7,
-          maxOutputTokens: 180,
+          maxOutputTokens: 350,
           signal: abortController.signal,
         },
         (chunkText) => {

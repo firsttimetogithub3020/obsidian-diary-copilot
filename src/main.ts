@@ -61,8 +61,9 @@ export default class DiaryCopilotPlugin extends Plugin {
         onUsageIncrement: (inTokens, outTokens) => {
           this.recordUsage(inTokens, outTokens);
         },
-        onShadowComplete: () => {
+        onShadowComplete: (completedText: string) => {
           new Notice("🎉 跟寫練習完成！", 2000);
+          this.recordAdoption(completedText, "shadow");
           this.clearGhostText();
         },
       }
@@ -371,48 +372,40 @@ export default class DiaryCopilotPlugin extends Plugin {
       this.scheduler.startShadowTyping(cleanText, from);
       this.setGhostText(cleanText);
 
-      new Notice("✍️ 已消除原文字，請跟寫練習！", 2500);
+      new Notice(kind === "translation" ? "✍️ 已消除原文字，請跟寫練習！" : "✍️ 已清除原句，請跟寫潤飾！", 2500);
       return;
     }
 
-    // Normal insertion (e.g. Tab pressed during shadow typing to complete remaining tail)
+    // Normal continuation mode (Card 1, 2, 3, or 4 chosen)
+    // Turn chosen text into ghost text for shadow-typing!
     const cursor = editorView.state.selection.main.head;
-    let from = cursor;
-    let to = cursor;
-    let insertText = cleanText;
+    let targetText = cleanText;
 
     const doc = editorView.state.doc;
-    if (from > 0) {
-      const prevChar = doc.sliceString(from - 1, from);
-      if (!/\s/.test(prevChar) && !insertText.startsWith(" ")) {
-        insertText = " " + insertText;
+    if (cursor > 0) {
+      const prevChar = doc.sliceString(cursor - 1, cursor);
+      if (!/\s/.test(prevChar) && !targetText.startsWith(" ")) {
+        targetText = " " + targetText;
       }
     }
 
-    editorView.dispatch({
-      changes: { from, to, insert: insertText },
-      selection: { anchor: from + insertText.length },
-      userEvent: "input",
-    });
+    this.scheduler.startShadowTyping(targetText, cursor);
+    this.setGhostText(targetText);
+    new Notice("✍️ 已切換建議，請跟寫練習！", 2000);
+  }
 
-    // Record adoption
-    const todayDate = this.activeView.file ? this.activeView.file.basename : new Date().toISOString().slice(0, 10);
+  recordAdoption(text: string, kind: string) {
+    if (!text || text.trim().length === 0) return;
+    const todayDate = this.activeView?.file ? this.activeView.file.basename : new Date().toISOString().slice(0, 10);
     if (!this.data.adoptions[todayDate]) {
       this.data.adoptions[todayDate] = [];
     }
     this.data.adoptions[todayDate].push({
-      text: insertText.trim(),
-      kind,
+      text: text.trim(),
+      kind: kind as any,
       timestamp: Date.now(),
     });
     this.saveData(this.data);
-
-    // Clear active suggestions and ghost text
-    this.isPolishMode = false;
-    this.currentPolishItem = null;
-    this.scheduler.clear();
-    this.cardPanel?.hide();
-    this.clearGhostText();
   }
 
   private recordUsage(inTokens: number, outTokens: number) {

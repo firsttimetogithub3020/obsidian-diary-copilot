@@ -71,9 +71,10 @@ export function createDiaryKeymap(callbacks: KeymapCallbacks) {
     return false;
   };
 
+  // Strictly disengage Tab from cards to prevent Obsidian markdown indentation / code block issues!
+  // Use Alt+1, Alt+2, Alt+3, Alt+4
   return Prec.highest(
     keymap.of([
-      { key: "Tab", run: acceptCard1 },
       { key: "Alt-1", run: acceptCard1 },
       { key: "Alt-2", run: acceptCard2 },
       { key: "Alt-3", run: acceptCard3 },
