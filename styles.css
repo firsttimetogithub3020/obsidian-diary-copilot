@@ -392,3 +392,59 @@
   min-height: 52px;
   padding: 8px 10px;
 }
+
+/* Expand / Collapse Button */
+.diary-copilot-expand-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background-color: var(--interactive-normal);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.diary-copilot-expand-btn:hover {
+  background-color: var(--interactive-hover);
+  border-color: var(--interactive-accent);
+}
+
+.diary-copilot-expand-btn.is-active {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+
+/* Expanded Mode: Auto pull up to show all 4 cards simultaneously in 2x2 grid */
+.diary-copilot-panel.is-expanded {
+  height: 285px !important;
+  max-height: 70vh !important;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.22);
+}
+
+.diary-copilot-panel.is-expanded .diary-copilot-cards-row {
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr) !important;
+  grid-template-rows: repeat(2, 1fr) !important;
+  gap: 8px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  flex: 1 !important;
+  height: 100% !important;
+}
+
+.diary-copilot-panel.is-expanded .diary-copilot-card {
+  min-width: 0 !important;
+  width: 100% !important;
+  flex-shrink: 1 !important;
+  height: auto !important;
+  min-height: 75px !important;
+  padding: 8px 10px !important;
+}

@@ -22,6 +22,8 @@ export class CardPanel {
   private callbacks: CardPanelCallbacks;
   private currentItem: SuggestionItem | null = null;
   private isResizing = false;
+  private toggleExpandBtn: HTMLElement | null = null;
+  private isExpanded = false;
 
   constructor(containerEl: HTMLElement, callbacks: CardPanelCallbacks) {
     this.containerEl = containerEl;
@@ -76,6 +78,17 @@ export class CardPanel {
       e.stopPropagation();
       e.preventDefault();
       this.callbacks.onPolishRequest?.();
+    });
+
+    // Expand / Collapse toggle button (one-tap auto pull up to see all 4 cards)
+    this.toggleExpandBtn = header.createEl("button", {
+      cls: "diary-copilot-expand-btn",
+      text: "🔼 展開字卡",
+    });
+    this.toggleExpandBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.toggleExpandState();
     });
 
     this.headerHintEl = header.createSpan({ cls: "diary-copilot-hint" });
@@ -242,6 +255,24 @@ export class CardPanel {
     }
     if (!this.currentItem) {
       this.renderIdleState(message);
+    }
+  }
+
+  toggleExpandState() {
+    if (!this.panelEl || !this.toggleExpandBtn) return;
+    this.isExpanded = !this.isExpanded;
+
+    if (this.isExpanded) {
+      this.panelEl.addClass("is-expanded");
+      this.toggleExpandBtn.setText("🔽 收合");
+      this.toggleExpandBtn.addClass("is-active");
+      document.body.style.setProperty("--diary-copilot-panel-height", "285px");
+    } else {
+      this.panelEl.removeClass("is-expanded");
+      this.toggleExpandBtn.setText("🔼 展開字卡");
+      this.toggleExpandBtn.removeClass("is-active");
+      const baseHeight = this.panelEl.style.height || "160px";
+      document.body.style.setProperty("--diary-copilot-panel-height", baseHeight);
     }
   }
 
