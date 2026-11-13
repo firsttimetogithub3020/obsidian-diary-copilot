@@ -126,9 +126,13 @@ export class CardPanel {
       this.statusDotEl.className = "diary-copilot-status-dot";
     }
 
+    const hasChineseSource = !!(item.sourceRange && item.translationSource);
+
     if (this.headerHintEl) {
       if (isPolishMode) {
-        this.headerHintEl.setText("✨ F3 潤飾模式：點擊或按 Tab/Alt+2/Alt+3 替換為更佳表達");
+        this.headerHintEl.setText("✨ F3 潤飾模式：按 Tab / Alt+2 / Alt+3 替換為更佳表達");
+      } else if (hasChineseSource) {
+        this.headerHintEl.setText("💡 中翻英模式：按 Tab 直接將中文「替換」為道地英文");
       } else {
         this.headerHintEl.setText(Platform.isMobile ? "點擊卡片採納" : "F3 潤飾前句 · Tab 採納 · Esc 關閉");
       }
@@ -137,7 +141,6 @@ export class CardPanel {
     this.cardsRowEl.empty();
 
     if (isPolishMode) {
-      // Polish Mode: 3 better rewrite options
       if (item.continueText) {
         this.renderCard(
           this.cardsRowEl,
@@ -171,8 +174,43 @@ export class CardPanel {
       return;
     }
 
-    // Normal Suggestion Mode:
-    // Card 1: Continue / Predict Next
+    // Chinese Translation Mode (Option 1: 置頂中翻英，Tab 直接取代中文)
+    if (hasChineseSource) {
+      const card1Text = item.continueText || item.translationText || "";
+      this.renderCard(
+        this.cardsRowEl,
+        "💡 卡 1 · 中 → 英 (按 Tab 取代)",
+        Platform.isMobile ? "" : "Tab",
+        card1Text,
+        () => this.callbacks.onAdopt(card1Text, "translation", item.sourceRange),
+        `取代：${item.translationSource}`
+      );
+
+      if (item.alternativeText) {
+        this.renderCard(
+          this.cardsRowEl,
+          "✨ 卡 2 · 另種表達",
+          Platform.isMobile ? "" : "Alt+2",
+          item.alternativeText,
+          () => this.callbacks.onAdopt(item.alternativeText, "translation", item.sourceRange),
+          `取代：${item.translationSource}`
+        );
+      }
+
+      if (item.translationText && item.translationText !== card1Text) {
+        this.renderCard(
+          this.cardsRowEl,
+          "⚡ 卡 3 · 換個方向",
+          Platform.isMobile ? "" : "Alt+3",
+          item.translationText,
+          () => this.callbacks.onAdopt(item.translationText!, "translation", item.sourceRange),
+          `取代：${item.translationSource}`
+        );
+      }
+      return;
+    }
+
+    // Normal English Suggestion Mode
     if (item.continueText) {
       this.renderCard(
         this.cardsRowEl,
@@ -183,7 +221,6 @@ export class CardPanel {
       );
     }
 
-    // Card 2: Alternative direction / Splitting
     if (item.alternativeText) {
       this.renderCard(
         this.cardsRowEl,
@@ -194,15 +231,13 @@ export class CardPanel {
       );
     }
 
-    // Card 3: Chinese -> English
     if (item.translationText) {
       this.renderCard(
         this.cardsRowEl,
-        "卡 3 · 中 → 英",
+        "卡 3 · 參考表達",
         Platform.isMobile ? "" : "Alt+3",
         item.translationText,
-        () => this.callbacks.onAdopt(item.translationText!, "translation", item.sourceRange),
-        item.translationSource
+        () => this.callbacks.onAdopt(item.translationText!, "translation", item.sourceRange)
       );
     }
   }
@@ -232,7 +267,7 @@ export class CardPanel {
     if (subText) {
       card.createDiv({
         cls: "diary-copilot-card-translation-source",
-        text: `原文：${subText}`,
+        text: subText,
       });
     }
   }

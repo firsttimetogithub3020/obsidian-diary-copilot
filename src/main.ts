@@ -7,17 +7,11 @@ import { SummaryManager } from "./engine/summary";
 import { SuggestionScheduler } from "./engine/scheduler";
 import { extractContextFromDoc, extractSentenceToPolish } from "./engine/context";
 import { CardPanel } from "./ui/cardPanel";
-import { FloatingCapsule } from "./ui/floatingCapsule";
 import { ghostTextField, setGhostTextEffect } from "./ui/ghostText";
 import { createDiaryKeymap } from "./ui/keymap";
 import { openTodayDiary } from "./commands/openToday";
 import { tidyUpTodayDiary } from "./commands/tidyUp";
 import { buildPolishSystemPrompt, buildPolishUserPrompt } from "./llm/prompts";
-
-interface ActiveChineseSession {
-  chineseText: string;
-  sourceRange?: { from: number; to: number };
-}
 
 export default class DiaryCopilotPlugin extends Plugin {
   settings: PluginSettings;
@@ -29,11 +23,9 @@ export default class DiaryCopilotPlugin extends Plugin {
   // Active view tracking
   private activeView: MarkdownView | null = null;
   private cardPanel: CardPanel | null = null;
-  private floatingCapsule: FloatingCapsule | null = null;
   private currentActiveEditorView: EditorView | null = null;
   private isPolishMode = false;
   private currentPolishItem: SuggestionItem | null = null;
-  private activeChineseSession: ActiveChineseSession | null = null;
 
   async onload() {
     await this.loadPluginData();
@@ -51,49 +43,22 @@ export default class DiaryCopilotPlugin extends Plugin {
             this.cardPanel?.setLoading();
           }
         },
-        onSuggestion: (item: SuggestionItem, isStreaming: boolean, isChinesePractice: boolean) => {
+        onSuggestion: (item: SuggestionItem) => {
           if (this.isPolishMode) return;
           this.cardPanel?.updateSuggestions(item, false);
 
-          if (isChinesePractice && item.translationText) {
-            this.activeChineseSession = {
-              chineseText: item.translationSource || "",
-              sourceRange: item.sourceRange,
-            };
-
-            // Display floating capsule at cursor
-            if (this.currentActiveEditorView && this.floatingCapsule) {
-              const head = this.currentActiveEditorView.state.selection.main.head;
-              const coords = this.currentActiveEditorView.coordsAtPos(head);
-              if (coords) {
-                this.floatingCapsule.show(item.translationText, coords.left, coords.bottom);
-              }
-            }
-
-            // Display ghost text for practice
-            if (this.settings.showGhostText && !Platform.isMobile) {
-              this.setGhostText(item.continueText || item.translationText);
-            }
-          } else {
-            this.floatingCapsule?.hide();
-            this.activeChineseSession = null;
-            if (this.settings.showGhostText && !Platform.isMobile && item.continueText) {
-              this.setGhostText(item.continueText);
-            }
+          if (this.settings.showGhostText && !Platform.isMobile && item.continueText) {
+            this.setGhostText(item.continueText);
           }
         },
         onError: () => {
           if (!this.isPolishMode) {
             this.cardPanel?.setError();
-            this.floatingCapsule?.hide();
             this.clearGhostText();
           }
         },
         onUsageIncrement: (inTokens, outTokens) => {
           this.recordUsage(inTokens, outTokens);
-        },
-        onChinesePracticeComplete: () => {
-          this.cleanupChineseAfterPractice();
         },
       }
     );
@@ -109,8 +74,6 @@ export default class DiaryCopilotPlugin extends Plugin {
         onDismiss: () => {
           this.isPolishMode = false;
           this.currentPolishItem = null;
-          this.activeChineseSession = null;
-          this.floatingCapsule?.hide();
           this.scheduler.clear();
           this.cardPanel?.hide();
           this.clearGhostText();
@@ -158,7 +121,7 @@ export default class DiaryCopilotPlugin extends Plugin {
     // Register Setting Tab
     this.addSettingTab(new DiaryCopilotSettingTab(this.app, this));
 
-    // Listen to active leaf changes to mount/unmount CardPanel & FloatingCapsule
+    // Listen to active leaf changes to mount/unmount CardPanel
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", () => {
         this.syncActiveView();
@@ -176,8 +139,6 @@ export default class DiaryCopilotPlugin extends Plugin {
   onunload() {
     this.cardPanel?.destroy();
     this.cardPanel = null;
-    this.floatingCapsule?.destroy();
-    this.floatingCapsule = null;
     this.scheduler.clear();
     document.body.style.removeProperty("--diary-copilot-card-height");
     document.body.style.removeProperty("--diary-copilot-max-lines");
@@ -230,7 +191,6 @@ export default class DiaryCopilotPlugin extends Plugin {
     if (activeMarkdownView && this.isDiaryFile(activeMarkdownView.file)) {
       if (this.activeView !== activeMarkdownView) {
         this.cardPanel?.destroy();
-        this.floatingCapsule?.destroy();
 
         this.activeView = activeMarkdownView;
         this.cardPanel = new CardPanel(activeMarkdownView.contentEl, {
@@ -238,8 +198,6 @@ export default class DiaryCopilotPlugin extends Plugin {
           onDismiss: () => {
             this.isPolishMode = false;
             this.currentPolishItem = null;
-            this.activeChineseSession = null;
-            this.floatingCapsule?.hide();
             this.scheduler.clear();
             this.cardPanel?.hide();
             this.clearGhostText();
@@ -249,18 +207,13 @@ export default class DiaryCopilotPlugin extends Plugin {
             await this.saveSettings();
           },
         });
-
-        this.floatingCapsule = new FloatingCapsule(activeMarkdownView.contentEl);
       }
     } else {
       this.activeView = null;
       this.cardPanel?.destroy();
       this.cardPanel = null;
-      this.floatingCapsule?.destroy();
-      this.floatingCapsule = null;
       this.isPolishMode = false;
       this.currentPolishItem = null;
-      this.activeChineseSession = null;
       this.scheduler.clear();
       this.clearGhostText();
     }
@@ -291,7 +244,7 @@ export default class DiaryCopilotPlugin extends Plugin {
     const paragraphSummary = this.summaryManager.getParagraphSummary(filePath);
     const styleSummary = this.data.styleSummary?.summary;
 
-    // Trigger scheduler (with shadow-typing prefix retention & Chinese practice)
+    // Trigger scheduler
     this.scheduler.handleDocChange(context, styleSummary, paragraphSummary);
 
     // Update paragraph summary in background if newline was inserted
@@ -304,39 +257,6 @@ export default class DiaryCopilotPlugin extends Plugin {
         });
       }
     }
-  }
-
-  private cleanupChineseAfterPractice() {
-    if (!this.currentActiveEditorView || !this.activeChineseSession) return;
-
-    const editorView = this.currentActiveEditorView;
-    const doc = editorView.state.doc.toString();
-    const cursor = editorView.state.selection.main.head;
-    const session = this.activeChineseSession;
-
-    // Search backwards from cursor for the Chinese text
-    const textBefore = doc.slice(0, cursor);
-    const chinesePos = textBefore.lastIndexOf(session.chineseText);
-
-    if (chinesePos !== -1) {
-      let from = chinesePos;
-      let to = chinesePos + session.chineseText.length;
-
-      // Also clean up trailing space after Chinese if present
-      if (doc[to] === " ") {
-        to++;
-      }
-
-      editorView.dispatch({
-        changes: { from, to, insert: "" },
-        userEvent: "input",
-      });
-
-      new Notice("🎉 英文跟寫完成！中文已自動清除", 2500);
-    }
-
-    this.activeChineseSession = null;
-    this.floatingCapsule?.hide();
   }
 
   async handlePolishSentence() {
@@ -356,7 +276,6 @@ export default class DiaryCopilotPlugin extends Plugin {
     }
 
     this.isPolishMode = true;
-    this.floatingCapsule?.hide();
     this.cardPanel?.setLoading("✨ 正在為您構思 3 種更地道優雅的表達方式...");
     this.clearGhostText();
 
@@ -425,14 +344,21 @@ export default class DiaryCopilotPlugin extends Plugin {
 
     let from = cursor;
     let to = cursor;
-    let insertText = text;
+    let insertText = text.trim();
 
     if (sourceRange) {
-      // Direct replacement for Polish mode or specific target
+      // Direct replacement for Chinese or Polish mode
       from = sourceRange.from;
       to = sourceRange.to;
-      insertText = text;
-      new Notice("✨ 已替換為更佳表達！", 2000);
+
+      // Check if preceding character needs space
+      if (from > 0) {
+        const prevChar = editorView.state.doc.sliceString(from - 1, from);
+        if (!/\s/.test(prevChar)) {
+          insertText = " " + insertText;
+        }
+      }
+      new Notice("✨ 已將中文替換為道地英文！", 2000);
     } else {
       // Normal insert at cursor
       const doc = editorView.state.doc;
@@ -450,18 +376,13 @@ export default class DiaryCopilotPlugin extends Plugin {
       userEvent: "input",
     });
 
-    // If we were in Chinese practice session, clean up the Chinese text now!
-    if (this.activeChineseSession) {
-      this.cleanupChineseAfterPractice();
-    }
-
     // Record adoption
     const todayDate = this.activeView.file ? this.activeView.file.basename : new Date().toISOString().slice(0, 10);
     if (!this.data.adoptions[todayDate]) {
       this.data.adoptions[todayDate] = [];
     }
     this.data.adoptions[todayDate].push({
-      text,
+      text: insertText.trim(),
       kind,
       source: sourceRange ? editorView.state.doc.sliceString(sourceRange.from, sourceRange.to) : undefined,
       timestamp: Date.now(),
@@ -473,7 +394,6 @@ export default class DiaryCopilotPlugin extends Plugin {
     this.currentPolishItem = null;
     this.scheduler.clear();
     this.cardPanel?.hide();
-    this.floatingCapsule?.hide();
     this.clearGhostText();
   }
 

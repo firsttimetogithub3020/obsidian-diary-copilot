@@ -13,7 +13,8 @@ export function createDiaryKeymap(callbacks: KeymapCallbacks) {
   const acceptCard1: Command = () => {
     const item = callbacks.getCurrentSuggestion();
     if (item && item.continueText) {
-      callbacks.onAdopt(item.continueText, "continue", item.sourceRange);
+      const kind = item.sourceRange ? "translation" : "continue";
+      callbacks.onAdopt(item.continueText, kind, item.sourceRange);
       return true;
     }
     return false;
@@ -22,7 +23,8 @@ export function createDiaryKeymap(callbacks: KeymapCallbacks) {
   const acceptCard2: Command = () => {
     const item = callbacks.getCurrentSuggestion();
     if (item && item.alternativeText) {
-      callbacks.onAdopt(item.alternativeText, "alternative", item.sourceRange);
+      const kind = item.sourceRange ? "translation" : "alternative";
+      callbacks.onAdopt(item.alternativeText, kind, item.sourceRange);
       return true;
     }
     return false;
@@ -30,8 +32,9 @@ export function createDiaryKeymap(callbacks: KeymapCallbacks) {
 
   const acceptCard3: Command = () => {
     const item = callbacks.getCurrentSuggestion();
-    if (item && item.translationText) {
-      callbacks.onAdopt(item.translationText, "translation", item.sourceRange);
+    const text = item?.translationText || item?.alternativeText;
+    if (item && text) {
+      callbacks.onAdopt(text, "translation", item.sourceRange);
       return true;
     }
     return false;

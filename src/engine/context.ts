@@ -18,10 +18,8 @@ const SENTENCE_SPLIT_REGEX = /(?<=[.!?。！？\n])\s+/;
 const CHINESE_CHAR_REGEX = /[\u4e00-\u9fa5]/;
 
 export function extractContextFromDoc(docText: string, cursorOffset: number): ExtractedContext {
-  // Extract text up to cursor
   const textBeforeCursor = docText.slice(0, cursorOffset);
 
-  // Split into sentences
   const allSentences = textBeforeCursor
     .split(SENTENCE_SPLIT_REGEX)
     .map((s) => s.trim())
@@ -39,8 +37,8 @@ export function extractContextFromDoc(docText: string, cursorOffset: number): Ex
   let chineseRange: { from: number; to: number } | undefined = undefined;
 
   if (CHINESE_CHAR_REGEX.test(currentLineBeforeCursor)) {
-    // Find continuous Chinese (including punctuation)
-    const chineseMatch = currentLineBeforeCursor.match(/[\u4e00-\u9fa5，。！？、…\s]{2,}/g);
+    // Match the Chinese block immediately ending near cursor
+    const chineseMatch = currentLineBeforeCursor.match(/[\u4e00-\u9fa5，。！？、…\s]{1,}/g);
     if (chineseMatch && chineseMatch.length > 0) {
       const target = chineseMatch[chineseMatch.length - 1].trim();
       if (target.length > 0 && CHINESE_CHAR_REGEX.test(target)) {
@@ -48,7 +46,11 @@ export function extractContextFromDoc(docText: string, cursorOffset: number): Ex
         const relativeStart = currentLineBeforeCursor.lastIndexOf(target);
         if (relativeStart !== -1) {
           const from = lineStartPos + relativeStart;
-          const to = from + target.length;
+          let to = from + target.length;
+          // If there is trailing whitespace between Chinese and cursor, consume it into the range to replace cleanly
+          if (to < cursorOffset && docText.slice(to, cursorOffset).trim().length === 0) {
+            to = cursorOffset;
+          }
           chineseRange = { from, to };
         }
       }
@@ -68,16 +70,13 @@ export function extractContextFromDoc(docText: string, cursorOffset: number): Ex
 export function extractSentenceToPolish(docText: string, cursorOffset: number): SentenceToPolish | null {
   if (!docText || docText.trim().length === 0) return null;
 
-  // Search backwards from cursor for start of sentence
   let searchPos = Math.min(cursorOffset, docText.length);
-  // If cursor is at whitespace or newline, backtrack to last non-whitespace
   while (searchPos > 0 && /\s/.test(docText[searchPos - 1])) {
     searchPos--;
   }
 
   if (searchPos <= 0) return null;
 
-  // Find sentence start (after previous .!?\n)
   let from = 0;
   for (let i = searchPos - 1; i >= 0; i--) {
     const ch = docText[i];
@@ -87,12 +86,10 @@ export function extractSentenceToPolish(docText: string, cursorOffset: number): 
     }
   }
 
-  // Skip leading whitespace in sentence
   while (from < docText.length && /\s/.test(docText[from])) {
     from++;
   }
 
-  // Find sentence end (next .!?\n or doc end)
   let to = docText.length;
   for (let i = searchPos; i < docText.length; i++) {
     const ch = docText[i];
@@ -102,7 +99,6 @@ export function extractSentenceToPolish(docText: string, cursorOffset: number): 
     }
   }
 
-  // If sentence hasn't ended with punctuation yet, sentence ends at cursor or current line end
   if (to > cursorOffset && !/[.!?。！？]/.test(docText.slice(from, to))) {
     to = cursorOffset;
   }
