@@ -111,6 +111,7 @@ export default class DiaryCopilotPlugin extends Plugin {
     this.app.workspace.onLayoutReady(() => {
       this.syncActiveView();
       this.checkAndGenerateDailyStyleSummary();
+      this.applyAppearanceSettings();
     });
   }
 
@@ -118,6 +119,18 @@ export default class DiaryCopilotPlugin extends Plugin {
     this.cardPanel?.destroy();
     this.cardPanel = null;
     this.scheduler.clear();
+    document.body.style.removeProperty("--diary-copilot-card-height");
+    document.body.style.removeProperty("--diary-copilot-max-lines");
+    document.body.style.removeProperty("--diary-copilot-panel-height");
+  }
+
+  applyAppearanceSettings() {
+    const cardHeight = this.settings.cardMinHeight || 64;
+    const maxLines = this.settings.cardMaxLines || 3;
+    const panelHeight = this.settings.panelMinHeight || 115;
+    document.body.style.setProperty("--diary-copilot-card-height", `${cardHeight}px`);
+    document.body.style.setProperty("--diary-copilot-max-lines", `${maxLines}`);
+    document.body.style.setProperty("--diary-copilot-panel-height", `${panelHeight}px`);
   }
 
   async loadPluginData() {
@@ -137,6 +150,7 @@ export default class DiaryCopilotPlugin extends Plugin {
   async saveSettings() {
     this.data.settings = this.settings;
     this.llm.updateConfig(this.settings.geminiApiKey, this.settings.model);
+    this.applyAppearanceSettings();
     await this.saveData(this.data);
   }
 

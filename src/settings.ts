@@ -13,6 +13,9 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   guidanceDelaySec: 20,
   showGhostText: true,
   dailyRequestLimit: 1500,
+  cardMinHeight: 64,
+  cardMaxLines: 3,
+  panelMinHeight: 115,
 };
 
 export const RECOMMENDED_MODELS = [
@@ -52,7 +55,7 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
       .setDesc("請至 Google AI Studio 申請個人專用 API Key")
       .addText((text) => {
         text
-          .setPlaceholder("AIzaSy...")
+          .setPlaceholder("AQ.Ab8...")
           .setValue(this.plugin.settings.geminiApiKey)
           .onChange(async (value) => {
             this.plugin.settings.geminiApiKey = value.trim();
@@ -86,7 +89,7 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
     // Realtime Suggestion Model
     new Setting(containerEl)
       .setName("建議用模型")
-      .setDesc("用於打字時即時猜測與建議（建議選擇低延遲 Flash-Lite 模型）")
+      .setDesc("用於打字時即時猜測與建議（預設最新 Gemini 3.5 Flash-Lite）")
       .addDropdown((dropdown) => {
         for (const m of RECOMMENDED_MODELS) {
           dropdown.addOption(m.id, m.label);
@@ -100,7 +103,7 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
           if (val !== "custom") {
             this.plugin.settings.model = val;
             await this.plugin.saveSettings();
-            this.display(); // Refresh to update custom field
+            this.display();
           } else {
             this.display();
           }
@@ -112,7 +115,7 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
     if (isCustomModel) {
       new Setting(containerEl)
         .setName("自訂建議模型 ID")
-        .setDesc("輸入 Google Gemini API 支援的 Model ID（例如 gemini-2.5-flash-lite）")
+        .setDesc("輸入 Google Gemini API 支援的 Model ID（例如 gemini-3.5-flash-lite）")
         .addText((text) => {
           text
             .setValue(this.plugin.settings.model)
@@ -131,7 +134,7 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
         for (const m of RECOMMENDED_MODELS) {
           dropdown.addOption(m.id, m.label);
         }
-        dropdown.setValue(this.plugin.settings.tidyModel || "gemini-2.5-flash-lite");
+        dropdown.setValue(this.plugin.settings.tidyModel || "gemini-3.5-flash-lite");
         dropdown.onChange(async (val) => {
           this.plugin.settings.tidyModel = val;
           await this.plugin.saveSettings();
@@ -179,6 +182,54 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
           .onChange(async (val) => {
             this.plugin.settings.showGhostText = val;
             await this.plugin.saveSettings();
+          });
+      });
+
+    // UI Appearance Customization
+    containerEl.createEl("h3", { text: "卡片外觀與版面設定" });
+
+    new Setting(containerEl)
+      .setName("底部面板整體高度 (像素)")
+      .setDesc("編輯區底部整塊建議卡片面板的最小高度（預設 115px）")
+      .addSlider((slider) => {
+        slider
+          .setLimits(70, 220, 5)
+          .setValue(this.plugin.settings.panelMinHeight || 115)
+          .setDynamicTooltip()
+          .onChange(async (val) => {
+            this.plugin.settings.panelMinHeight = val;
+            await this.plugin.saveSettings();
+            this.plugin.applyAppearanceSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("建議卡片高度 (像素)")
+      .setDesc("每張建議卡片的最小高度（預設 64px）")
+      .addSlider((slider) => {
+        slider
+          .setLimits(40, 140, 4)
+          .setValue(this.plugin.settings.cardMinHeight || 64)
+          .setDynamicTooltip()
+          .onChange(async (val) => {
+            this.plugin.settings.cardMinHeight = val;
+            await this.plugin.saveSettings();
+            this.plugin.applyAppearanceSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("卡片文字最多顯示行數")
+      .setDesc("卡片文字在展開前最多折行顯示的行數（預設 3 行）")
+      .addSlider((slider) => {
+        slider
+          .setLimits(1, 6, 1)
+          .setValue(this.plugin.settings.cardMaxLines || 3)
+          .setDynamicTooltip()
+          .onChange(async (val) => {
+            this.plugin.settings.cardMaxLines = val;
+            await this.plugin.saveSettings();
+            this.plugin.applyAppearanceSettings();
           });
       });
 
@@ -236,7 +287,7 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
     usageBox.innerHTML = `
       <p>今日累計請求次數：<b>${dayUsage.requests}</b> / ${this.plugin.settings.dailyRequestLimit} 次</p>
       <p>今日 Token 用量：輸入約 <b>${dayUsage.inputTokens}</b> tokens，輸出約 <b>${dayUsage.outputTokens}</b> tokens</p>
-      <p style="color: var(--text-faint); font-size: 11px;">Gemini 2.5 Flash-Lite 免費層或極低費率（約百萬 token 幾美分），個人日記每日費用幾乎趨近於零。</p>
+      <p style="color: var(--text-faint); font-size: 11px;">Gemini 3.5 Flash-Lite 費率極低，個人日記每日費用幾乎趨近於零。</p>
     `;
   }
 }
