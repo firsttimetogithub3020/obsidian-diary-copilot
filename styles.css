@@ -289,11 +289,13 @@
 
 /* Ghost Text in CodeMirror 6 (Desktop only) */
 .diary-copilot-ghost-text {
-  color: var(--text-faint) !important;
-  opacity: 0.65;
+  color: var(--text-muted) !important;
+  opacity: 0.78;
   pointer-events: none;
   user-select: none;
   font-style: italic;
+  display: inline-block;
+  letter-spacing: normal;
 }
 
 /* Inline Floating Capsule (Option 2: 跟寫練習膠囊) */

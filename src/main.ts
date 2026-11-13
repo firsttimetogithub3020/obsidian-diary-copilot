@@ -99,7 +99,7 @@ export default class DiaryCopilotPlugin extends Plugin {
       }),
     ]);
 
-    // Global Key Listener for Alt+1/2/3/4 card selection across all layouts & IMEs, and Escape unlock
+    // Global Key Listener for Alt/Option+1/2/3/4 card selection across all layouts & IMEs, and Escape unlock
     this.registerDomEvent(window, "keydown", (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (this.scheduler.isShadowMode()) {
@@ -109,22 +109,22 @@ export default class DiaryCopilotPlugin extends Plugin {
         }
       }
       if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-        if (e.code === "Digit1" || e.key === "1") {
+        if (e.code === "Digit1" || e.key === "1" || e.key === "¡") {
           if (this.triggerCardAdopt(1)) {
             e.preventDefault();
             e.stopPropagation();
           }
-        } else if (e.code === "Digit2" || e.key === "2") {
+        } else if (e.code === "Digit2" || e.key === "2" || e.key === "™") {
           if (this.triggerCardAdopt(2)) {
             e.preventDefault();
             e.stopPropagation();
           }
-        } else if (e.code === "Digit3" || e.key === "3") {
+        } else if (e.code === "Digit3" || e.key === "3" || e.key === "£") {
           if (this.triggerCardAdopt(3)) {
             e.preventDefault();
             e.stopPropagation();
           }
-        } else if (e.code === "Digit4" || e.key === "4") {
+        } else if (e.code === "Digit4" || e.key === "4" || e.key === "¢") {
           if (this.triggerCardAdopt(4)) {
             e.preventDefault();
             e.stopPropagation();
@@ -556,21 +556,35 @@ export default class DiaryCopilotPlugin extends Plugin {
     }
   }
 
+  getEditorView(): EditorView | null {
+    const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!activeMarkdownView || !activeMarkdownView.editor) return null;
+    // @ts-ignore
+    const cm = (activeMarkdownView.editor as any).cm as EditorView;
+    if (cm) {
+      this.currentActiveEditorView = cm;
+      return cm;
+    }
+    return this.currentActiveEditorView || null;
+  }
+
   private setGhostText(text: string | null, anchorPos?: number) {
-    if (!this.currentActiveEditorView) return;
+    const editorView = this.getEditorView();
+    if (!editorView) return;
     if (!text) {
       this.clearGhostText();
       return;
     }
-    const pos = anchorPos ?? this.currentActiveEditorView.state.selection.main.head;
-    this.currentActiveEditorView.dispatch({
+    const pos = anchorPos ?? editorView.state.selection.main.head;
+    editorView.dispatch({
       effects: setGhostTextEffect.of({ targetText: text, anchorPos: pos }),
     });
   }
 
   private clearGhostText() {
-    if (!this.currentActiveEditorView) return;
-    this.currentActiveEditorView.dispatch({
+    const editorView = this.getEditorView();
+    if (!editorView) return;
+    editorView.dispatch({
       effects: setGhostTextEffect.of(null),
     });
   }
@@ -596,18 +610,26 @@ export default class DiaryCopilotPlugin extends Plugin {
   }
 
   adoptSuggestion(text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }) {
-    if (!this.activeView || !this.currentActiveEditorView) return;
+    const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!activeMarkdownView || !activeMarkdownView.file) return;
+    this.activeView = activeMarkdownView;
 
-    const editorView = this.currentActiveEditorView;
+    const editorView = this.getEditorView();
+    if (!editorView) return;
+
     const cleanText = text.trim();
+    const editor = activeMarkdownView.editor;
 
-    let targetPos = editorView.state.selection.main.head;
+    // Immediately focus back to editor so cursor & typing are active
+    editor.focus();
+
+    let targetPos = editor.posToOffset(editor.getCursor());
     let replacedText = "";
 
     // IF sourceRange exists (Chinese replacement OR F3 polish):
     if (sourceRange) {
-      const from = sourceRange.from;
-      const to = sourceRange.to;
+      const from = Math.min(sourceRange.from, sourceRange.to);
+      const to = Math.max(sourceRange.from, sourceRange.to);
       replacedText = editorView.state.doc.sliceString(from, to);
 
       // Delete the original Chinese or English sentence
@@ -621,6 +643,9 @@ export default class DiaryCopilotPlugin extends Plugin {
       this.isPolishMode = false;
       this.currentPolishItem = null;
     }
+
+    // Set cursor to target position
+    editor.setCursor(editor.offsetToPos(targetPos));
 
     // Start shadow typing session for this chosen text at `targetPos`
     this.scheduler.startShadowTyping(cleanText, targetPos);
