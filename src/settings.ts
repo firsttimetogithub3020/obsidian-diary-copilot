@@ -7,6 +7,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   model: "gemini-3.5-flash-lite",
   tidyModel: "gemini-3.5-flash-lite",
   diaryFolder: "Diary",
+  enableInAllFolders: true,
   englishLevel: "upper-intermediate",
   diaryTone: "casual",
   debounceMs: 180,
@@ -153,8 +154,8 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
 
     // Diary folder
     new Setting(containerEl)
-      .setName("日記資料夾")
-      .setDesc("外掛僅在此資料夾內的筆記觸發即時建議（預設 Diary）")
+      .setName("預設日記資料夾")
+      .setDesc("用於「開啟今日日記」指令建立新筆記的預設目錄（預設 Diary）")
       .addText((text) => {
         text
           .setPlaceholder("Diary")
@@ -162,6 +163,20 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.diaryFolder = value.trim() || "Diary";
             await this.plugin.saveSettings();
+          });
+      });
+
+    // Enable in all folders
+    new Setting(containerEl)
+      .setName("在所有資料夾啟用 (Enable in All Folders)")
+      .setDesc("開啟後，在筆記庫內任何資料夾書寫英文時，皆會自動呼叫 Copilot 靈感卡片與跟寫功能；關閉時僅在日記資料夾自動啟用，其他筆記可透過側邊欄或指令手動呼叫。")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.enableInAllFolders)
+          .onChange(async (val) => {
+            this.plugin.settings.enableInAllFolders = val;
+            await this.plugin.saveSettings();
+            this.plugin.syncActiveView();
           });
       });
 

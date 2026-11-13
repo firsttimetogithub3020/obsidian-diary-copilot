@@ -381,6 +381,16 @@ export class CardPanel {
     }
   }
 
+  show() {
+    if (this.panelEl) {
+      this.panelEl.removeClass("is-hidden");
+    }
+  }
+
+  isHidden(): boolean {
+    return !this.panelEl || this.panelEl.hasClass("is-hidden");
+  }
+
   destroy() {
     if (this.panelEl) {
       this.panelEl.remove();

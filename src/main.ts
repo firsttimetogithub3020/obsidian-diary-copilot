@@ -27,6 +27,7 @@ export default class DiaryCopilotPlugin extends Plugin {
   private currentActiveEditorView: EditorView | null = null;
   private isPolishMode = false;
   private currentPolishItem: SuggestionItem | null = null;
+  private manuallyEnabledNotes = new Set<string>();
 
   async onload() {
     await this.loadPluginData();
@@ -131,7 +132,18 @@ export default class DiaryCopilotPlugin extends Plugin {
       }
     });
 
+    // Ribbon Icon on Left Sidebar (One-click toggle Copilot for current note)
+    this.addRibbonIcon("sparkles", "Diary Copilot (切換此筆記開啟/關閉)", () => {
+      this.toggleCopilotInCurrentNote();
+    });
+
     // Register Commands
+    this.addCommand({
+      id: "toggle-copilot-current-note",
+      name: "在當前筆記開啟／關閉 Copilot (Toggle Copilot in Current Note)",
+      callback: () => this.toggleCopilotInCurrentNote(),
+    });
+
     this.addCommand({
       id: "open-today-diary",
       name: "開啟今日日記",
@@ -150,8 +162,7 @@ export default class DiaryCopilotPlugin extends Plugin {
       checkCallback: (checking: boolean) => {
         const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
         if (activeView && activeView.file) {
-          const folder = this.settings.diaryFolder || "Diary";
-          if (activeView.file.path.startsWith(folder + "/")) {
+          if (this.isEligibleNote(activeView.file)) {
             if (!checking) {
               tidyUpTodayDiary(this.app, this);
             }
@@ -232,21 +243,49 @@ export default class DiaryCopilotPlugin extends Plugin {
     return await this.llm.testConnection();
   }
 
-  private isDiaryFile(file: TFile | null): boolean {
+  private isEligibleNote(file: TFile | null): boolean {
     if (!file) return false;
+    // 1. Manually invoked by user in this note
+    if (this.manuallyEnabledNotes.has(file.path)) return true;
+
+    // 2. Only the configured Diary folder (default "Diary") is automatically enabled
     const targetFolder = (this.settings.diaryFolder || "Diary").replace(/^\/+|\/+$/g, "").toLowerCase();
     const filePathLower = file.path.toLowerCase();
-    return (
-      filePathLower.startsWith(targetFolder + "/") ||
-      filePathLower.startsWith("diary/") ||
-      filePathLower.startsWith("日記/")
-    );
+    return filePathLower.startsWith(targetFolder + "/");
   }
 
-  private syncActiveView() {
+  toggleCopilotInCurrentNote() {
+    const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!activeMarkdownView || !activeMarkdownView.file) {
+      new Notice("請先開啟一篇筆記");
+      return;
+    }
+
+    const filePath = activeMarkdownView.file.path;
+    const isCurrentlyEligible = this.isEligibleNote(activeMarkdownView.file);
+
+    if (isCurrentlyEligible && this.cardPanel && !this.cardPanel.isHidden()) {
+      // Hide / disable for this note
+      this.cardPanel.hide();
+      this.clearGhostText();
+      this.scheduler.clear();
+      this.manuallyEnabledNotes.delete(filePath);
+      new Notice("已關閉此筆記的 Copilot 面板");
+    } else {
+      // Enable & display for this note
+      this.manuallyEnabledNotes.add(filePath);
+      this.syncActiveView();
+      if (this.cardPanel) {
+        this.cardPanel.show();
+      }
+      new Notice("已在此筆記啟用 Copilot 面板");
+    }
+  }
+
+  syncActiveView() {
     const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
 
-    if (activeMarkdownView && this.isDiaryFile(activeMarkdownView.file)) {
+    if (activeMarkdownView && this.isEligibleNote(activeMarkdownView.file)) {
       const isNewView = this.activeView !== activeMarkdownView;
       const fileChanged = this.currentFilePath !== (activeMarkdownView.file?.path || "");
 
@@ -309,7 +348,7 @@ export default class DiaryCopilotPlugin extends Plugin {
       this.clearGhostText();
       new Notice("已解鎖卡片", 1500);
 
-      if (this.currentActiveEditorView && this.activeView && this.isDiaryFile(this.activeView.file)) {
+      if (this.currentActiveEditorView && this.activeView && this.isEligibleNote(this.activeView.file)) {
         const docText = this.currentActiveEditorView.state.doc.toString();
         const cursor = this.currentActiveEditorView.state.selection.main.head;
         const context = extractContextFromDoc(docText, cursor);
@@ -337,8 +376,8 @@ export default class DiaryCopilotPlugin extends Plugin {
     const option = DIARY_TONE_OPTIONS.find((t) => t.id === tone);
     new Notice(`🎭 語調切換為：${option?.label || tone}`, 2000);
 
-    // If active diary view exists, re-fetch suggestions with new tone immediately!
-    if (this.currentActiveEditorView && this.activeView && this.isDiaryFile(this.activeView.file)) {
+    // If active note is eligible, re-fetch suggestions with new tone immediately!
+    if (this.currentActiveEditorView && this.activeView && this.isEligibleNote(this.activeView.file)) {
       const docText = this.currentActiveEditorView.state.doc.toString();
       const cursor = this.currentActiveEditorView.state.selection.main.head;
       const context = extractContextFromDoc(docText, cursor);
@@ -353,7 +392,7 @@ export default class DiaryCopilotPlugin extends Plugin {
   private handleEditorUpdate(update: ViewUpdate) {
     this.currentActiveEditorView = update.view;
 
-    if (!this.activeView || !this.isDiaryFile(this.activeView.file)) {
+    if (!this.activeView || !this.isEligibleNote(this.activeView.file)) {
       return;
     }
 
@@ -391,9 +430,16 @@ export default class DiaryCopilotPlugin extends Plugin {
   }
 
   async handlePolishSentence() {
-    if (!this.activeView || !this.currentActiveEditorView) {
-      new Notice("請先在日記編輯器內操作");
+    const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!activeMarkdownView || !activeMarkdownView.file) {
+      new Notice("請先在筆記編輯器內操作");
       return;
+    }
+
+    // If note is in another folder (e.g. 日記 or 書摘), auto-invoke Copilot for this note
+    if (!this.isEligibleNote(activeMarkdownView.file)) {
+      this.manuallyEnabledNotes.add(activeMarkdownView.file.path);
+      this.syncActiveView();
     }
 
     const editorView = this.currentActiveEditorView;

@@ -14,6 +14,7 @@ export interface PluginSettings {
   model: string;
   tidyModel: string;
   diaryFolder: string;
+  enableInAllFolders: boolean;
   englishLevel: EnglishLevel;
   diaryTone: DiaryTone;
   debounceMs: number;
