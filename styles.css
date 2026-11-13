@@ -9,14 +9,19 @@
   z-index: 15;
   background-color: var(--background-secondary);
   border-top: 1px solid var(--background-modifier-border);
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.08);
-  padding: 8px 12px;
+  box-shadow: 0 -3px 12px rgba(0, 0, 0, 0.1);
+  padding: 10px 14px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   transition: opacity 0.2s ease-in-out;
   box-sizing: border-box;
-  min-height: 86px;
+  min-height: 115px;
+}
+
+/* Ensure editor content scroller reserves space above the card panel */
+.mod-root .workspace-leaf.mod-active .cm-scroller {
+  padding-bottom: 130px !important;
 }
 
 .diary-copilot-panel.is-loading {
@@ -32,7 +37,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--text-muted);
   user-select: none;
   margin-bottom: 2px;
@@ -41,13 +46,13 @@
 .diary-copilot-brand {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   font-weight: 500;
 }
 
 .diary-copilot-status-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   display: inline-block;
   background-color: var(--color-green, #4caf50);
@@ -62,7 +67,7 @@
 }
 
 .diary-copilot-hint {
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--text-faint);
 }
 
@@ -70,7 +75,7 @@
 .diary-copilot-cards-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 8px;
+  gap: 10px;
   width: 100%;
 }
 
@@ -79,15 +84,15 @@
   position: relative;
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
-  border-radius: 6px;
-  padding: 6px 10px;
+  border-radius: 8px;
+  padding: 8px 12px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   justify-content: center;
   transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
   user-select: none;
-  min-height: 48px;
+  min-height: 64px;
 }
 
 .diary-copilot-card:hover {
@@ -103,29 +108,29 @@
 .diary-copilot-card-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 10px;
+  gap: 5px;
+  font-size: 10.5px;
   font-weight: 600;
   text-transform: uppercase;
   color: var(--text-muted);
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 
 .diary-copilot-card-badge .key-hint {
   background: var(--background-secondary-alt, rgba(125, 125, 125, 0.2));
   border: 1px solid var(--background-modifier-border);
   border-radius: 3px;
-  padding: 1px 4px;
-  font-size: 9px;
+  padding: 1px 5px;
+  font-size: 9.5px;
   color: var(--text-normal);
 }
 
 .diary-copilot-card-text {
-  font-size: 13px;
-  line-height: 1.35;
+  font-size: 13.5px;
+  line-height: 1.4;
   color: var(--text-normal);
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -138,9 +143,9 @@
 }
 
 .diary-copilot-card-translation-source {
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--text-faint);
-  margin-top: 2px;
+  margin-top: 3px;
   font-style: italic;
   white-space: nowrap;
   overflow: hidden;
@@ -158,11 +163,11 @@
 
 /* Mobile specific adaptations */
 .is-mobile .diary-copilot-panel {
-  padding: 6px 8px;
-  min-height: 90px;
+  padding: 8px 10px;
+  min-height: 110px;
 }
 
 .is-mobile .diary-copilot-card {
-  min-height: 44px; /* Touch target size */
+  min-height: 52px; /* Touch target size */
   padding: 8px 10px;
 }
