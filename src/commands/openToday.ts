@@ -26,6 +26,7 @@ export async function openTodayDiary(app: App, plugin: DiaryCopilotPlugin) {
     const createdStr = `${todayStr} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
     const initialContent = `---
 title: ${todayStr}
+date: ${todayStr}
 created: ${createdStr}
 type: english-diary
 ---

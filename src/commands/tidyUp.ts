@@ -51,11 +51,29 @@ export async function tidyUpTodayDiary(app: App, plugin: DiaryCopilotPlugin) {
       await app.vault.create(backupPath, rawDoc);
     }
 
-    // Extract or retain title and creation date properties
+    // Extract or retain title, date, and creation date properties
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+
     let noteTitle = file.basename;
     const existingTitleMatch = rawDoc.match(/^title:\s*["']?(.*?)["']?\s*$/m);
     if (existingTitleMatch && existingTitleMatch[1].trim()) {
       noteTitle = existingTitleMatch[1].trim();
+    }
+
+    // Determine actual diary date (YYYY-MM-DD, never allow non-date strings here)
+    let entryDate = todayStr;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(file.basename)) {
+      entryDate = file.basename;
+    } else {
+      const existingDateMatch = rawDoc.match(/^date:\s*["']?(\d{4}-\d{2}-\d{2})["']?\s*$/m);
+      if (existingDateMatch && existingDateMatch[1]) {
+        entryDate = existingDateMatch[1];
+      } else if (file.stat?.ctime) {
+        const cDate = new Date(file.stat.ctime);
+        entryDate = `${cDate.getFullYear()}-${pad(cDate.getMonth() + 1)}-${pad(cDate.getDate())}`;
+      }
     }
 
     let createdDateStr = "";
@@ -63,8 +81,7 @@ export async function tidyUpTodayDiary(app: App, plugin: DiaryCopilotPlugin) {
     if (existingCreatedMatch && existingCreatedMatch[1].trim()) {
       createdDateStr = existingCreatedMatch[1].trim();
     } else {
-      const cDate = file.stat?.ctime ? new Date(file.stat.ctime) : new Date();
-      const pad = (n: number) => String(n).padStart(2, "0");
+      const cDate = file.stat?.ctime ? new Date(file.stat.ctime) : now;
       createdDateStr = `${cDate.getFullYear()}-${pad(cDate.getMonth() + 1)}-${pad(cDate.getDate())} ${pad(cDate.getHours())}:${pad(cDate.getMinutes())}`;
     }
 
@@ -174,6 +191,7 @@ export async function tidyUpTodayDiary(app: App, plugin: DiaryCopilotPlugin) {
 
     const finalContent = `---
 title: ${noteTitle}
+date: ${entryDate}
 created: ${createdDateStr}
 type: english-diary
 mood: [${moodList}]
