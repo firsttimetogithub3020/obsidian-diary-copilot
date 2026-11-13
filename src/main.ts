@@ -22,6 +22,7 @@ export default class DiaryCopilotPlugin extends Plugin {
 
   // Active view tracking
   private activeView: MarkdownView | null = null;
+  private currentFilePath = "";
   private cardPanel: CardPanel | null = null;
   private currentActiveEditorView: EditorView | null = null;
   private isPolishMode = false;
@@ -164,9 +165,15 @@ export default class DiaryCopilotPlugin extends Plugin {
     // Register Setting Tab
     this.addSettingTab(new DiaryCopilotSettingTab(this.app, this));
 
-    // Listen to active leaf changes to mount/unmount CardPanel
+    // Listen to active leaf and file changes to mount/unmount CardPanel
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", () => {
+        this.syncActiveView();
+      })
+    );
+
+    this.registerEvent(
+      this.app.workspace.on("file-open", () => {
         this.syncActiveView();
       })
     );
@@ -227,18 +234,28 @@ export default class DiaryCopilotPlugin extends Plugin {
 
   private isDiaryFile(file: TFile | null): boolean {
     if (!file) return false;
-    const folder = this.settings.diaryFolder || "Diary";
-    return file.path.startsWith(folder + "/");
+    const targetFolder = (this.settings.diaryFolder || "Diary").replace(/^\/+|\/+$/g, "").toLowerCase();
+    const filePathLower = file.path.toLowerCase();
+    return (
+      filePathLower.startsWith(targetFolder + "/") ||
+      filePathLower.startsWith("diary/") ||
+      filePathLower.startsWith("日記/")
+    );
   }
 
   private syncActiveView() {
     const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
 
     if (activeMarkdownView && this.isDiaryFile(activeMarkdownView.file)) {
-      if (this.activeView !== activeMarkdownView) {
+      const isNewView = this.activeView !== activeMarkdownView;
+      const fileChanged = this.currentFilePath !== (activeMarkdownView.file?.path || "");
+
+      if (isNewView || !this.cardPanel) {
         this.cardPanel?.destroy();
 
         this.activeView = activeMarkdownView;
+        this.currentFilePath = activeMarkdownView.file?.path || "";
+
         this.cardPanel = new CardPanel(activeMarkdownView.contentEl, {
           onAdopt: (text, kind, sourceRange) => this.adoptSuggestion(text, kind, sourceRange),
           onDismiss: () => {
@@ -250,10 +267,32 @@ export default class DiaryCopilotPlugin extends Plugin {
           },
           getTone: () => this.settings.diaryTone,
           onToneChange: (tone) => this.handleToneChange(tone),
+          onPolishRequest: () => {
+            this.handlePolishSentence();
+          },
         });
+      } else if (fileChanged) {
+        this.currentFilePath = activeMarkdownView.file?.path || "";
+        this.scheduler.clear();
+        this.clearGhostText();
+      }
+
+      // If document already has content upon opening/switching, auto-trigger suggestions for current position
+      const editor = activeMarkdownView.editor;
+      if (editor) {
+        const docText = editor.getValue();
+        const cursor = editor.posToOffset(editor.getCursor());
+        if (docText.trim().length > 0) {
+          const context = extractContextFromDoc(docText, cursor);
+          const filePath = activeMarkdownView.file?.path || "";
+          const paragraphSummary = this.summaryManager.getParagraphSummary(filePath);
+          const styleSummary = this.data.styleSummary?.summary;
+          this.scheduler.handleDocChange(context, styleSummary, paragraphSummary);
+        }
       }
     } else {
       this.activeView = null;
+      this.currentFilePath = "";
       this.cardPanel?.destroy();
       this.cardPanel = null;
       this.isPolishMode = false;

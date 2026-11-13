@@ -8,6 +8,7 @@ export interface CardPanelCallbacks {
   onHeightResize?: (newHeight: number) => void;
   onToneChange?: (tone: DiaryTone) => void;
   getTone?: () => DiaryTone;
+  onPolishRequest?: () => void;
 }
 
 export class CardPanel {
@@ -64,6 +65,17 @@ export class CardPanel {
     this.toneSelectEl.addEventListener("change", (e) => {
       const selectedTone = (e.target as HTMLSelectElement).value as DiaryTone;
       this.callbacks.onToneChange?.(selectedTone);
+    });
+
+    // Polish button (one-click F3 trigger, especially vital for Android & mobile!)
+    const polishBtn = header.createEl("button", {
+      cls: "diary-copilot-polish-btn",
+      text: Platform.isMobile ? "✨ 潤飾" : "✨ 潤飾 (F3)",
+    });
+    polishBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.callbacks.onPolishRequest?.();
     });
 
     this.headerHintEl = header.createSpan({ cls: "diary-copilot-hint" });

@@ -141,6 +141,35 @@
   border-color: var(--interactive-accent);
 }
 
+/* Polish Button in Header (One-click F3 trigger for Desktop and Android) */
+.diary-copilot-polish-btn {
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-normal);
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  line-height: 1.4;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.12s ease, background-color 0.12s ease, color 0.12s ease;
+  user-select: none;
+}
+
+.diary-copilot-polish-btn:hover {
+  border-color: var(--interactive-accent);
+  color: var(--interactive-accent);
+  background: var(--background-secondary-alt);
+}
+
+.diary-copilot-polish-btn:active {
+  transform: scale(0.97);
+}
+
 .diary-copilot-hint {
   font-size: 11px;
   color: var(--text-faint);
