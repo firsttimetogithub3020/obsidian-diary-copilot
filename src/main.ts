@@ -518,6 +518,9 @@ export default class DiaryCopilotPlugin extends Plugin {
           onFocusEditor: () => {
             activeMarkdownView.editor?.focus();
           },
+          onCardSelect: (text, kind, sourceRange) => {
+            this.adoptSuggestion(text, kind, sourceRange, false);
+          },
           onUnlock: () => {
             this.scheduler.clear();
             this.clearGhostText();

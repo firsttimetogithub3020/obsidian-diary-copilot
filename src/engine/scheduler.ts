@@ -76,17 +76,10 @@ export class SuggestionScheduler {
     this.originalContinueText = targetText.trim();
     this.anchorPos = anchorPosition;
 
-    const shadowItem: SuggestionItem = {
-      card1: this.originalContinueText,
-      card2: "",
-      card3: "",
-      card4: "",
-      continueText: this.originalContinueText,
-      alternativeText: "",
-    };
-
-    this.lastActiveSuggestion = shadowItem;
-    this.callbacks.onSuggestion(shadowItem, false);
+    // CRITICAL: Do NOT emit an artificial 1-card onSuggestion event!
+    // Emitting a 1-card event previously caused cardPanel to collapse the 2x2 grid into
+    // a single locked card, shrinking the panel height from ~180px to ~80px.
+    // By keeping the current UI intact, height remains 100% stable with zero jitter.
   }
 
   clear() {

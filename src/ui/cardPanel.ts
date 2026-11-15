@@ -19,6 +19,7 @@ export interface CardPanelCallbacks {
   onOralAdopt?: (text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }) => void;
   onOralInput?: (spokenText: string, targetText: string) => void;
   onFocusEditor?: () => void;
+  onCardSelect?: (text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }) => void;
 }
 
 interface CardDescriptor {
@@ -98,8 +99,9 @@ export class CardPanel {
     // Header bar (unified action bar across browse, locked, & oral modes)
     this.headerEl = this.panelEl.createDiv({ cls: "diary-copilot-panel-header" });
     
-    // 1. Brand Wrapper (Row 1 Left): Status Dot + Brand Text + Tone Selector
-    this.brandWrapperEl = this.headerEl.createDiv({ cls: "diary-copilot-brand-wrapper" });
+    // Row 1 (Top Row): Brand & Tone (Left) + System Actions (Right)
+    const row1 = this.headerEl.createDiv({ cls: "diary-copilot-header-row diary-copilot-header-row-1" });
+    this.brandWrapperEl = row1.createDiv({ cls: "diary-copilot-brand-wrapper" });
 
     const brand = this.brandWrapperEl.createDiv({ cls: "diary-copilot-brand" });
     this.statusDotEl = brand.createSpan({ cls: "diary-copilot-status-dot" });
@@ -127,17 +129,14 @@ export class CardPanel {
       this.callbacks.onToneChange?.(newTone);
     });
 
-    // 2. Audio Buttons container (Row 2 Left): 🔊 朗讀, 🎙️ 跟讀
-    this.headerAudioEl = this.headerEl.createDiv({ cls: "diary-copilot-header-audio" });
+    // System Actions Bar (Row 1 Right): 🔄 檢查更新, ✕ 關閉
+    this.headerSysEl = row1.createDiv({ cls: "diary-copilot-header-sys" });
 
-    // 3. Center dedicated space: completely empty, keeping resize handle clear!
-    this.headerCenterEl = this.headerEl.createDiv({ cls: "diary-copilot-header-center" });
-
-    // 4. Main Actions Bar (Row 2 Right): ⚡ 填入, ❓ 提問/✍️ 回續寫, ✨ 潤飾
-    this.headerActionsEl = this.headerEl.createDiv({ cls: "diary-copilot-header-actions" });
-
-    // 5. System Actions Bar (Row 1 Right): 🔄 檢查更新, ✕ 關閉
-    this.headerSysEl = this.headerEl.createDiv({ cls: "diary-copilot-header-sys" });
+    // Row 2 (Bottom Row): Audio (Left) + Center Space + Main Actions (Right)
+    const row2 = this.headerEl.createDiv({ cls: "diary-copilot-header-row diary-copilot-header-row-2" });
+    this.headerAudioEl = row2.createDiv({ cls: "diary-copilot-header-audio" });
+    this.headerCenterEl = row2.createDiv({ cls: "diary-copilot-header-center" });
+    this.headerActionsEl = row2.createDiv({ cls: "diary-copilot-header-actions" });
 
     // Content Area
     this.contentAreaEl = this.panelEl.createDiv({ cls: "diary-copilot-panel-content" });
@@ -269,11 +268,13 @@ export class CardPanel {
     if (!this.headerEl || !this.panelEl) return;
     const width = this.panelEl.clientWidth || window.innerWidth;
     const height = window.innerHeight;
-    const isPortrait = window.matchMedia?.("(orientation: portrait)").matches || (height > width);
-    const isNarrow = width < 720;
-    const isPhone = Platform.isPhone;
+    const screenW = window.screen?.width || window.innerWidth;
+    const screenH = window.screen?.height || window.innerHeight;
+    const isPortrait = window.matchMedia?.("(orientation: portrait)").matches || (screenH > screenW) || (height > width);
+    const isNarrow = width < 900;
+    const isMobile = Platform.isMobile;
 
-    const shouldBeTwoRow = isPhone || isPortrait || isNarrow;
+    const shouldBeTwoRow = isMobile || isPortrait || isNarrow;
 
     if (shouldBeTwoRow) {
       this.headerEl.addClass("is-two-row");
@@ -719,7 +720,8 @@ export class CardPanel {
         cardEl.createDiv({ cls: "diary-copilot-card-translation-source", text: card.subText });
       }
 
-      // Single click selects card and updates header actions to act on this card
+      // Single click selects card, highlights it, updates header actions, injects ghost text, and focuses editor!
+      // The 2x2 grid remains completely intact, ensuring panel height stays 100% stable with zero jitter!
       cardEl.addEventListener("click", (e) => {
         const sel = window.getSelection()?.toString().trim();
         if (sel && sel.length > 0) return;
@@ -729,11 +731,7 @@ export class CardPanel {
           else el.removeClass("is-selected");
         });
         this.renderHeaderActionsBrowse();
-      });
-
-      // Double-click starts shadow-typing drill
-      cardEl.addEventListener("dblclick", (e) => {
-        this.callbacks.onAdopt(card.text, card.kind, this.currentItem?.sourceRange, false);
+        this.callbacks.onCardSelect?.(card.text, card.kind, this.currentItem?.sourceRange);
       });
     });
   }
@@ -762,12 +760,11 @@ export class CardPanel {
       heroCard.createDiv({ cls: "diary-copilot-card-translation-source", text: activeCard.subText });
     }
 
-    // Tap on card shows locked target sentence for focused viewing WITHOUT mutating note document
+    // Tap on card injects ghost text into editor for shadow typing WITHOUT collapsing panel
     heroCard.addEventListener("click", (e) => {
       const sel = window.getSelection()?.toString().trim();
       if (sel && sel.length > 0) return;
-      this.resetToAutoFit();
-      this.renderLockedMode(activeCard.text);
+      this.callbacks.onCardSelect?.(activeCard.text, activeCard.kind, this.currentItem?.sourceRange);
     });
 
     // 2. Capsule Tabs Row below Hero Card (shows pagination pills)
@@ -787,6 +784,7 @@ export class CardPanel {
           this.resetToAutoFit();
           this.renderBrowseMode();
           this.callbacks.onFocusEditor?.();
+          this.callbacks.onCardSelect?.(card.text, card.kind, this.currentItem?.sourceRange);
         }, { passive: false });
 
         tabBtn.addEventListener("click", (e) => {
@@ -795,6 +793,7 @@ export class CardPanel {
           this.resetToAutoFit();
           this.renderBrowseMode();
           this.callbacks.onFocusEditor?.();
+          this.callbacks.onCardSelect?.(card.text, card.kind, this.currentItem?.sourceRange);
         });
       });
     }
