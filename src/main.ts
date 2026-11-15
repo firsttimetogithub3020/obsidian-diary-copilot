@@ -268,10 +268,23 @@ export default class DiaryCopilotPlugin extends Plugin {
       this.checkAndGenerateDailyStyleSummary();
       this.applyAppearanceSettings();
 
-      // Silent background update check 4 seconds after Obsidian is ready
-      window.setTimeout(() => {
-        this.checkForUpdates(false);
-      }, 4000);
+      // Background update check on startup:
+      // First attempt at 6 seconds; on mobile, retry at 20 seconds in case network needed time to wake up.
+      window.setTimeout(async () => {
+        const updated = await this.checkForUpdates(false);
+        if (!updated && (Platform.isMobile || Platform.isAndroidApp)) {
+          window.setTimeout(() => {
+            this.checkForUpdates(false);
+          }, 15000);
+        }
+      }, 6000);
+
+      // Periodic check every 60 minutes
+      this.registerInterval(
+        window.setInterval(() => {
+          this.checkForUpdates(false);
+        }, 60 * 60 * 1000)
+      );
     });
   }
 
