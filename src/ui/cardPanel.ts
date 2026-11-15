@@ -126,121 +126,54 @@ export class CardPanel {
   private setupResizeListeners() {
     if (!this.resizeHandleEl) return;
     const handleEl = this.resizeHandleEl;
-    handleEl.setAttribute("title", "拖曳調整高度 · 點擊快速切換標準/展開");
+    handleEl.setAttribute("title", "拖曳調整高度 · 點擊切換 90px / 140px / 210px");
 
-    let touchStartY = 0;
-    let touchStartTime = 0;
-    let hasMoved = false;
-
-    // --- Touch Event Handlers for Mobile (Android, iPad, iPhone) ---
-    // Using { capture: true, passive: false } prevents Obsidian's mobile Pull-Down gesture completely!
-    const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length !== 1) return;
-      // CRITICAL: Calling e.preventDefault() prevents losing focus on editor so soft keyboard never dismisses!
-      e.preventDefault();
-      this.isResizing = true;
-      hasMoved = false;
-      const touch = e.touches[0];
-      touchStartY = touch.clientY;
-      touchStartTime = Date.now();
-
-      this.panelEl?.addClass("is-resizing");
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-    };
-
-    const onTouchMove = (e: TouchEvent) => {
-      if (!this.isResizing || !this.panelEl || e.touches.length !== 1) return;
-      // CRITICAL: e.preventDefault() prevents browser/Obsidian mobile pull-down action!
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-
-      const touch = e.touches[0];
-      if (Math.abs(touch.clientY - touchStartY) > 4) {
-        hasMoved = true;
-      }
-
-      const containerRect = this.containerEl.getBoundingClientRect();
-      const newHeight = containerRect.bottom - touch.clientY;
-      const clampedHeight = Math.max(80, Math.min(newHeight, window.innerHeight * 0.75));
-
-      this.panelEl.style.height = `${clampedHeight}px`;
-      document.body.style.setProperty("--diary-copilot-panel-height", `${clampedHeight}px`);
-    };
-
-    const onTouchEnd = (e: TouchEvent) => {
-      if (!this.isResizing || !this.panelEl) return;
-      this.isResizing = false;
-      this.panelEl.removeClass("is-resizing");
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-
-      const elapsed = Date.now() - touchStartTime;
-      // If it was a quick tap (< 320ms without significant drag), toggle height preset
-      if (!hasMoved && elapsed < 320) {
-        this.toggleHeightPreset();
-        this.callbacks.onFocusEditor?.();
-        return;
-      }
-
-      const finalHeight = parseInt(this.panelEl.style.height, 10);
-      if (!isNaN(finalHeight) && finalHeight >= 80) {
-        this.callbacks.onHeightResize?.(finalHeight);
-      }
-      this.callbacks.onFocusEditor?.();
-    };
-
-    const onTouchCancel = (e: TouchEvent) => {
-      if (!this.isResizing || !this.panelEl) return;
-      this.isResizing = false;
-      this.panelEl.removeClass("is-resizing");
-      e.stopPropagation();
-    };
-
-    handleEl.addEventListener("touchstart", onTouchStart, { capture: true, passive: false });
-    handleEl.addEventListener("touchmove", onTouchMove, { capture: true, passive: false });
-    handleEl.addEventListener("touchend", onTouchEnd, { capture: true, passive: false });
-    handleEl.addEventListener("touchcancel", onTouchCancel, { capture: true, passive: false });
-
-    // --- Pointer Events for Desktop Mouse Dragging & Click Toggle ---
     let pointerStartY = 0;
     let pointerStartTime = 0;
+    let initialHeight = 125;
     let pointerMoved = false;
 
+    // Modern Unified Pointer Events: Works seamlessly across Mobile Touch (Android / iOS) and Desktop Mouse
     const onPointerDown = (e: PointerEvent) => {
-      if (e.pointerType === "touch") return; // Handled by touch listeners above
-      if (e.button !== 0) return;
+      if (e.button !== 0 && e.pointerType === "mouse") return;
       this.isResizing = true;
       pointerMoved = false;
       pointerStartY = e.clientY;
       pointerStartTime = Date.now();
+      initialHeight = this.panelEl ? this.panelEl.offsetHeight : 125;
+
       this.panelEl?.addClass("is-resizing");
-      handleEl.setPointerCapture(e.pointerId);
+      try {
+        handleEl.setPointerCapture(e.pointerId);
+      } catch {}
+
+      // CRITICAL: preventDefault keeps editor focused so soft keyboard never dismisses on mobile!
       e.preventDefault();
       e.stopPropagation();
     };
 
     const onPointerMove = (e: PointerEvent) => {
-      if (e.pointerType === "touch") return;
       if (!this.isResizing || !this.panelEl) return;
       e.preventDefault();
       e.stopPropagation();
 
-      if (Math.abs(e.clientY - pointerStartY) > 3) {
+      const deltaY = pointerStartY - e.clientY; // Upward drag increases height, downward decreases height
+      if (Math.abs(deltaY) > 3) {
         pointerMoved = true;
       }
 
-      const containerRect = this.containerEl.getBoundingClientRect();
-      const newHeight = containerRect.bottom - e.clientY;
-      const clampedHeight = Math.max(80, Math.min(newHeight, window.innerHeight * 0.75));
+      const clampedHeight = Math.max(75, Math.min(initialHeight + deltaY, window.innerHeight * 0.75));
 
       this.panelEl.style.height = `${clampedHeight}px`;
+      if (clampedHeight <= 105) {
+        this.panelEl.addClass("is-compact");
+      } else {
+        this.panelEl.removeClass("is-compact");
+      }
       document.body.style.setProperty("--diary-copilot-panel-height", `${clampedHeight}px`);
     };
 
     const onPointerUp = (e: PointerEvent) => {
-      if (e.pointerType === "touch") return;
       if (!this.isResizing || !this.panelEl) return;
       this.isResizing = false;
       this.panelEl.removeClass("is-resizing");
@@ -249,53 +182,61 @@ export class CardPanel {
       } catch {}
 
       const elapsed = Date.now() - pointerStartTime;
-      if (!pointerMoved && elapsed < 300) {
+      // Quick tap (< 350ms without moving) toggles height preset
+      if (!pointerMoved && elapsed < 350) {
         this.toggleHeightPreset();
+        this.callbacks.onFocusEditor?.();
         return;
       }
 
       const finalHeight = parseInt(this.panelEl.style.height, 10);
-      if (!isNaN(finalHeight) && finalHeight >= 80) {
+      if (!isNaN(finalHeight) && finalHeight >= 75) {
         this.callbacks.onHeightResize?.(finalHeight);
       }
+      this.callbacks.onFocusEditor?.();
     };
 
-    handleEl.addEventListener("pointerdown", onPointerDown);
-    handleEl.addEventListener("pointermove", onPointerMove);
-    handleEl.addEventListener("pointerup", onPointerUp);
+    handleEl.addEventListener("pointerdown", onPointerDown, { passive: false });
+    handleEl.addEventListener("pointermove", onPointerMove, { passive: false });
+    handleEl.addEventListener("pointerup", onPointerUp, { passive: false });
     handleEl.addEventListener("pointercancel", (e: PointerEvent) => {
-      if (e.pointerType === "touch") return;
       if (!this.isResizing || !this.panelEl) return;
       this.isResizing = false;
       this.panelEl.removeClass("is-resizing");
       try {
         handleEl.releasePointerCapture(e.pointerId);
       } catch {}
+      this.callbacks.onFocusEditor?.();
     });
   }
 
   /**
-   * Toggles panel height: on mobile cycles Compact (85px) / Standard (135px) / Expanded (220px)
+   * Toggles panel height: on mobile cycles Compact (90px) -> Standard (140px) -> Expanded (210px) -> Compact
    */
-  private toggleHeightPreset() {
+  public toggleHeightPreset() {
     if (!this.panelEl) return;
-    const currentHeight = parseInt(this.panelEl.style.height || getComputedStyle(this.panelEl).height, 10) || 125;
+    const currentHeight = this.panelEl.offsetHeight || 125;
     let targetHeight = 125;
 
     if (Platform.isMobile) {
-      if (currentHeight >= 180) {
-        targetHeight = 85; // Mini/Compact mode when keyboard is up!
-      } else if (currentHeight >= 110) {
-        targetHeight = 220; // Expanded mode
+      if (currentHeight <= 115) {
+        targetHeight = 140; // From compact (90px) to standard (140px)
+      } else if (currentHeight <= 175) {
+        targetHeight = 210; // From standard to expanded (210px)
       } else {
-        targetHeight = 135; // Standard mode
+        targetHeight = 90;  // From expanded back to compact (90px)
       }
     } else {
-      targetHeight = currentHeight >= 200 ? 125 : 240;
+      targetHeight = currentHeight >= 180 ? 125 : 240;
     }
 
     this.panelEl.addClass("is-animating");
     this.panelEl.style.height = `${targetHeight}px`;
+    if (targetHeight <= 105) {
+      this.panelEl.addClass("is-compact");
+    } else {
+      this.panelEl.removeClass("is-compact");
+    }
     document.body.style.setProperty("--diary-copilot-panel-height", `${targetHeight}px`);
 
     window.setTimeout(() => {
@@ -455,7 +396,7 @@ export class CardPanel {
     // 1. Update brand text & tone display
     if (this.pinnedInquiryItem) {
       if (this.brandTextEl) {
-        this.brandTextEl.setText("❓ 提問引導模式");
+        this.brandTextEl.setText(Platform.isMobile ? "❓ 提問" : "❓ 提問引導模式");
       }
       if (this.toneWrapperEl) {
         this.toneWrapperEl.style.display = "none";
@@ -563,7 +504,7 @@ export class CardPanel {
     const catGroup = ctrlRow.createDiv({ cls: "diary-copilot-pinned-cat-group" });
     const closedBtn = catGroup.createEl("button", {
       cls: `diary-copilot-pinned-cat-btn ${isClosed ? "is-active" : ""}`,
-      text: "❓ 是非 (Yes/No)",
+      text: Platform.isMobile ? "❓ 是非" : "❓ 是非 (Yes/No)",
     });
     closedBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -578,7 +519,7 @@ export class CardPanel {
 
     const openBtn = catGroup.createEl("button", {
       cls: `diary-copilot-pinned-cat-btn ${!isClosed ? "is-active" : ""}`,
-      text: "💭 開放 (Wh-)",
+      text: Platform.isMobile ? "💭 開放" : "💭 開放 (Wh-)",
     });
     openBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -595,7 +536,9 @@ export class CardPanel {
     const actionGroup = ctrlRow.createDiv({ cls: "diary-copilot-pinned-action-group" });
     const toggleAnswerBtn = actionGroup.createEl("button", {
       cls: `diary-copilot-pinned-toggle-btn ${this.isShowingInquiryAnswers ? "is-active" : ""}`,
-      text: this.isShowingInquiryAnswers ? "✍️ 顯示即時續寫" : "💡 查看建議回答",
+      text: this.isShowingInquiryAnswers
+        ? (Platform.isMobile ? "✍️ 續寫" : "✍️ 顯示即時續寫")
+        : (Platform.isMobile ? "💡 範例" : "💡 查看建議回答"),
       attr: { title: this.isShowingInquiryAnswers ? "換回根據您輸入即時產生的續寫句卡" : "查看 AI 針對此問題構思的範例回答" },
     });
     toggleAnswerBtn.addEventListener("click", (e) => {
@@ -780,7 +723,7 @@ export class CardPanel {
       // 1. 🔊 朗讀 (TTS)
       const ttsBtn = this.headerActionsEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-tts-btn",
-        text: "🔊 朗讀",
+        text: Platform.isMobile ? "🔊" : "🔊 朗讀",
         attr: { title: "聆聽標準美式發音" },
       });
       ttsBtn.addEventListener("click", (e) => {
@@ -792,7 +735,7 @@ export class CardPanel {
       // 2. 🎙️ 語音跟讀 (Starts Visual Oral Studio)
       const oralBtn = this.headerActionsEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-oral-btn",
-        text: "🎙️ 跟讀",
+        text: Platform.isMobile ? "🎙️" : "🎙️ 跟讀",
         attr: { title: "開口說英語，視覺化即時判讀並自動填入" },
       });
       oralBtn.addEventListener("click", (e) => {
@@ -818,7 +761,7 @@ export class CardPanel {
       // ✍️ 回續寫
       const resumeBtn = this.headerActionsEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-resume-btn",
-        text: "✍️ 回續寫",
+        text: Platform.isMobile ? "✍️ 續寫" : "✍️ 回續寫",
         attr: { title: "關閉提問引導，回到平日純續寫模式" },
       });
       resumeBtn.addEventListener("click", (e) => {
@@ -844,8 +787,8 @@ export class CardPanel {
     // 5. ✨ 潤飾
     const polishBtn = this.headerActionsEl.createEl("button", {
       cls: "diary-copilot-action-btn diary-copilot-polish-btn",
-      text: Platform.isMobile ? "✨ 潤飾" : "✨ 潤飾 (F3)",
-      attr: { title: "潤飾當前/前一句表達" },
+      text: Platform.isMobile ? "✨" : "✨ 潤飾 (F3)",
+      attr: { title: "潤飾當前/前一句表達 (F3)" },
     });
     polishBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -853,7 +796,19 @@ export class CardPanel {
       this.callbacks.onPolishRequest?.();
     });
 
-    // 5. ✕ 關閉
+    // 6. ↕️ 切換高度 (90px / 140px / 210px)
+    const heightBtn = this.headerActionsEl.createEl("button", {
+      cls: "diary-copilot-action-btn diary-copilot-height-btn",
+      text: "↕️",
+      attr: { title: "切換面板高度 (90px / 140px / 210px)" },
+    });
+    heightBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.toggleHeightPreset();
+    });
+
+    // 7. ✕ 關閉
     const closeBtn = this.headerActionsEl.createEl("button", {
       cls: "diary-copilot-action-btn diary-copilot-close-btn",
       text: "✕",
