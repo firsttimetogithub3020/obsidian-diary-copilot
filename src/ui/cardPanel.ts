@@ -46,11 +46,10 @@ export class CardPanel {
   private currentCards: CardDescriptor[] = [];
   private isShadowTyping = false;
 
-  // Inquiry Guided Mode State
-  private isInquiryMode = false;
-  private currentInquiryItem: InquiryItem | null = null;
-  private inquiryCategory: "closed" | "open" = "closed";
-  private isInquiryShowAnswers = false;
+  // Inquiry Guided Mode State (Pinned Question Strip + Real-time Continuation Cards)
+  private pinnedInquiryItem: InquiryItem | null = null;
+  private pinnedInquiryCategory: "closed" | "open" = "closed";
+  private isShowingInquiryAnswers = false;
 
   // Oral Shadowing Visual Studio State
   private isOralMode = false;
@@ -137,6 +136,8 @@ export class CardPanel {
     // Using { capture: true, passive: false } prevents Obsidian's mobile Pull-Down gesture completely!
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return;
+      // CRITICAL: Calling e.preventDefault() prevents losing focus on editor so soft keyboard never dismisses!
+      e.preventDefault();
       this.isResizing = true;
       hasMoved = false;
       const touch = e.touches[0];
@@ -176,9 +177,10 @@ export class CardPanel {
       e.stopImmediatePropagation();
 
       const elapsed = Date.now() - touchStartTime;
-      // If it was a quick tap (< 320ms without significant drag), toggle between Standard (125px) and Expanded (240px)
+      // If it was a quick tap (< 320ms without significant drag), toggle height preset
       if (!hasMoved && elapsed < 320) {
         this.toggleHeightPreset();
+        this.callbacks.onFocusEditor?.();
         return;
       }
 
@@ -186,6 +188,7 @@ export class CardPanel {
       if (!isNaN(finalHeight) && finalHeight >= 80) {
         this.callbacks.onHeightResize?.(finalHeight);
       }
+      this.callbacks.onFocusEditor?.();
     };
 
     const onTouchCancel = (e: TouchEvent) => {
@@ -272,13 +275,24 @@ export class CardPanel {
   }
 
   /**
-   * Toggles panel height between Standard (~125px) and Expanded (~240px)
+   * Toggles panel height: on mobile cycles Compact (85px) / Standard (135px) / Expanded (220px)
    */
   private toggleHeightPreset() {
     if (!this.panelEl) return;
     const currentHeight = parseInt(this.panelEl.style.height || getComputedStyle(this.panelEl).height, 10) || 125;
-    const isExpanded = currentHeight >= 200;
-    const targetHeight = isExpanded ? 125 : 240;
+    let targetHeight = 125;
+
+    if (Platform.isMobile) {
+      if (currentHeight >= 180) {
+        targetHeight = 85; // Mini/Compact mode when keyboard is up!
+      } else if (currentHeight >= 110) {
+        targetHeight = 220; // Expanded mode
+      } else {
+        targetHeight = 135; // Standard mode
+      }
+    } else {
+      targetHeight = currentHeight >= 200 ? 125 : 240;
+    }
 
     this.panelEl.addClass("is-animating");
     this.panelEl.style.height = `${targetHeight}px`;
@@ -289,6 +303,7 @@ export class CardPanel {
     }, 240);
 
     this.callbacks.onHeightResize?.(targetHeight);
+    this.callbacks.onFocusEditor?.();
   }
 
   renderIdleState(message?: string) {
@@ -357,15 +372,17 @@ export class CardPanel {
     this.currentItem = item;
     if (!this.panelEl || !this.contentAreaEl) return;
 
-    this.isInquiryMode = false;
-    this.currentInquiryItem = null;
+    // When user types in editor, switch inquiry answers view back to real-time continuations
+    if (!isPolishMode && this.isShowingInquiryAnswers) {
+      this.isShowingInquiryAnswers = false;
+    }
 
     // If currently actively in oral mode, don't clobber unless dismissed
     if (this.isOralMode) {
       return;
     }
 
-    if (!item || (!item.card1 && !item.card2 && !item.card3 && !item.card4 && !item.continueText)) {
+    if (!this.pinnedInquiryItem && (!item || (!item.card1 && !item.card2 && !item.card3 && !item.card4 && !item.continueText))) {
       this.renderIdleState();
       return;
     }
@@ -376,13 +393,13 @@ export class CardPanel {
       this.statusDotEl.className = "diary-copilot-status-dot";
     }
 
-    const c1 = item.card1 || item.continueText || "";
-    const c2 = item.card2 || item.alternativeText || "";
-    const c3 = item.card3 || item.translationText || "";
-    const c4 = item.card4 || "";
+    const c1 = item?.card1 || item?.continueText || "";
+    const c2 = item?.card2 || item?.alternativeText || "";
+    const c3 = item?.card3 || item?.translationText || "";
+    const c4 = item?.card4 || "";
 
-    const hasChineseSource = !!(item.sourceRange && item.translationSource);
-    const isShadow = !isPolishMode && !hasChineseSource && !c2 && !c3 && !c4 && !!c1;
+    const hasChineseSource = !!(item?.sourceRange && item?.translationSource);
+    const isShadow = !isPolishMode && !hasChineseSource && !c2 && !c3 && !c4 && !!c1 && !this.pinnedInquiryItem;
 
     this.isShadowTyping = isShadow;
 
@@ -392,39 +409,14 @@ export class CardPanel {
       return;
     }
 
-    // Browse Mode: Option A (Full-width Hero Card + Capsule Tabs)
-    this.currentCards = [];
-    if (isPolishMode) {
-      if (c1) this.currentCards.push({ title: "潤飾 1 · 自然口語", shortcut: "Alt+1", text: c1, kind: "translation", subText: `原句：${item.translationSource}` });
-      if (c2) this.currentCards.push({ title: "潤飾 2 · 地道生動", shortcut: "Alt+2", text: c2, kind: "translation", subText: `原句：${item.translationSource}` });
-      if (c3) this.currentCards.push({ title: "潤飾 3 · 精煉有力", shortcut: "Alt+3", text: c3, kind: "translation", subText: `原句：${item.translationSource}` });
-      if (c4) this.currentCards.push({ title: "潤飾 4 · 換種句式", shortcut: "Alt+4", text: c4, kind: "translation", subText: `原句：${item.translationSource}` });
-    } else if (hasChineseSource) {
-      if (c1) this.currentCards.push({ title: "卡 1 · 自然口語", shortcut: "Alt+1", text: c1, kind: "translation", subText: `消除：${item.translationSource}` });
-      if (c2) this.currentCards.push({ title: "卡 2 · 地道片語", shortcut: "Alt+2", text: c2, kind: "translation", subText: `消除：${item.translationSource}` });
-      if (c3) this.currentCards.push({ title: "卡 3 · 精煉簡潔", shortcut: "Alt+3", text: c3, kind: "translation", subText: `消除：${item.translationSource}` });
-      if (c4) this.currentCards.push({ title: "卡 4 · 換種句式", shortcut: "Alt+4", text: c4, kind: "translation", subText: `消除：${item.translationSource}` });
-    } else {
-      if (c1) this.currentCards.push({ title: "卡 1 · 自然口語", shortcut: "Alt+1", text: c1, kind: "continue" });
-      if (c2) this.currentCards.push({ title: "卡 2 · 內心感受", shortcut: "Alt+2", text: c2, kind: "alternative" });
-      if (c3) this.currentCards.push({ title: "卡 3 · 細節展開", shortcut: "Alt+3", text: c3, kind: "alternative" });
-      if (c4) this.currentCards.push({ title: "卡 4 · 地道片語", shortcut: "Alt+4", text: c4, kind: "alternative" });
-    }
-
-    if (this.activeTabIdx >= this.currentCards.length) {
-      this.activeTabIdx = 0;
-    }
-
     this.renderBrowseMode();
   }
 
-  updateInquiry(item: InquiryItem) {
+  setPinnedInquiry(item: InquiryItem) {
     if (!this.panelEl || !this.contentAreaEl) return;
-    this.isInquiryMode = true;
-    this.currentInquiryItem = item;
-    this.currentItem = null;
-    this.inquiryCategory = "closed";
-    this.isInquiryShowAnswers = false;
+    this.pinnedInquiryItem = item;
+    this.pinnedInquiryCategory = "closed";
+    this.isShowingInquiryAnswers = false;
     this.activeTabIdx = 0;
 
     this.panelEl.removeClass("is-hidden");
@@ -434,6 +426,20 @@ export class CardPanel {
     }
 
     this.renderBrowseMode();
+  }
+
+  updateInquiry(item: InquiryItem) {
+    this.setPinnedInquiry(item);
+  }
+
+  clearPinnedInquiry() {
+    this.pinnedInquiryItem = null;
+    this.isShowingInquiryAnswers = false;
+    this.renderBrowseMode();
+  }
+
+  getCardAt(idx: number): CardDescriptor | null {
+    return this.currentCards[idx] || null;
   }
 
   /**
@@ -446,37 +452,13 @@ export class CardPanel {
     this.isOralMode = false;
     this.isShadowTyping = false;
 
-    let qText = "";
-    let qZh = "";
-
-    if (this.isInquiryMode && this.currentInquiryItem) {
+    // 1. Update brand text & tone display
+    if (this.pinnedInquiryItem) {
       if (this.brandTextEl) {
         this.brandTextEl.setText("❓ 提問引導模式");
       }
       if (this.toneWrapperEl) {
         this.toneWrapperEl.style.display = "none";
-      }
-
-      const item = this.currentInquiryItem;
-      const isClosed = this.inquiryCategory === "closed";
-      qText = isClosed ? item.closedQuestion : item.openQuestion;
-      qZh = (isClosed ? item.closedChinese : item.openChinese) || "";
-
-      this.currentCards = [];
-      if (isClosed) {
-        if (item.yes1) this.currentCards.push({ title: "🟢 Yes · 自然口語", shortcut: "Alt+1", text: item.yes1, kind: "continue" });
-        if (item.yes2) this.currentCards.push({ title: "🟢 Yes · 細膩表達", shortcut: "Alt+2", text: item.yes2, kind: "continue" });
-        if (item.no1) this.currentCards.push({ title: "🔴 No · 自然口語", shortcut: "Alt+3", text: item.no1, kind: "continue" });
-        if (item.no2) this.currentCards.push({ title: "🔴 No · 細膩表達", shortcut: "Alt+4", text: item.no2, kind: "continue" });
-      } else {
-        if (item.openStyle1) this.currentCards.push({ title: "🌿 自然口語", shortcut: "Alt+1", text: item.openStyle1, kind: "continue" });
-        if (item.openStyle2) this.currentCards.push({ title: "💭 情感反思", shortcut: "Alt+2", text: item.openStyle2, kind: "continue" });
-        if (item.openStyle3) this.currentCards.push({ title: "💼 專業嚴謹", shortcut: "Alt+3", text: item.openStyle3, kind: "continue" });
-        if (item.openStyle4) this.currentCards.push({ title: "⚡ 精簡有力", shortcut: "Alt+4", text: item.openStyle4, kind: "continue" });
-      }
-
-      if (this.activeTabIdx >= this.currentCards.length) {
-        this.activeTabIdx = 0;
       }
     } else {
       if (this.brandTextEl) {
@@ -487,139 +469,182 @@ export class CardPanel {
       }
     }
 
+    // 2. Build currentCards
+    this.currentCards = [];
+    const item = this.currentItem;
+
+    if (this.isShowingInquiryAnswers && this.pinnedInquiryItem) {
+      // Show AI's 4 suggested answers for the pinned question
+      const inq = this.pinnedInquiryItem;
+      const isClosed = this.pinnedInquiryCategory === "closed";
+      if (isClosed) {
+        if (inq.yes1) this.currentCards.push({ title: "🟢 Yes · 自然口語", shortcut: "Alt+1", text: inq.yes1, kind: "continue" });
+        if (inq.yes2) this.currentCards.push({ title: "🟢 Yes · 細膩表達", shortcut: "Alt+2", text: inq.yes2, kind: "continue" });
+        if (inq.no1) this.currentCards.push({ title: "🔴 No · 自然口語", shortcut: "Alt+3", text: inq.no1, kind: "continue" });
+        if (inq.no2) this.currentCards.push({ title: "🔴 No · 細膩表達", shortcut: "Alt+4", text: inq.no2, kind: "continue" });
+      } else {
+        if (inq.openStyle1) this.currentCards.push({ title: "🌿 自然口語", shortcut: "Alt+1", text: inq.openStyle1, kind: "continue" });
+        if (inq.openStyle2) this.currentCards.push({ title: "💭 情感反思", shortcut: "Alt+2", text: inq.openStyle2, kind: "continue" });
+        if (inq.openStyle3) this.currentCards.push({ title: "💼 專業嚴謹", shortcut: "Alt+3", text: inq.openStyle3, kind: "continue" });
+        if (inq.openStyle4) this.currentCards.push({ title: "⚡ 精簡有力", shortcut: "Alt+4", text: inq.openStyle4, kind: "continue" });
+      }
+    } else if (item) {
+      // Show real-time continuation / translation / polish cards
+      const c1 = item.card1 || item.continueText || "";
+      const c2 = item.card2 || item.alternativeText || "";
+      const c3 = item.card3 || item.translationText || "";
+      const c4 = item.card4 || "";
+      const hasChineseSource = !!(item.sourceRange && item.translationSource);
+
+      if (hasChineseSource) {
+        if (c1) this.currentCards.push({ title: "卡 1 · 自然口語", shortcut: "Alt+1", text: c1, kind: "translation", subText: `消除：${item.translationSource}` });
+        if (c2) this.currentCards.push({ title: "卡 2 · 地道片語", shortcut: "Alt+2", text: c2, kind: "translation", subText: `消除：${item.translationSource}` });
+        if (c3) this.currentCards.push({ title: "卡 3 · 精煉簡潔", shortcut: "Alt+3", text: c3, kind: "translation", subText: `消除：${item.translationSource}` });
+        if (c4) this.currentCards.push({ title: "卡 4 · 換種句式", shortcut: "Alt+4", text: c4, kind: "translation", subText: `消除：${item.translationSource}` });
+      } else {
+        if (c1) this.currentCards.push({ title: "卡 1 · 自然口語", shortcut: "Alt+1", text: c1, kind: "continue" });
+        if (c2) this.currentCards.push({ title: "卡 2 · 內心感受", shortcut: "Alt+2", text: c2, kind: "alternative" });
+        if (c3) this.currentCards.push({ title: "卡 3 · 細節展開", shortcut: "Alt+3", text: c3, kind: "alternative" });
+        if (c4) this.currentCards.push({ title: "卡 4 · 地道片語", shortcut: "Alt+4", text: c4, kind: "alternative" });
+      }
+    }
+
+    if (this.activeTabIdx >= this.currentCards.length) {
+      this.activeTabIdx = 0;
+    }
+
+    // 3. Render Header Actions
     this.renderHeaderActionsBrowse();
 
-    if (this.currentCards.length === 0 && !this.isInquiryMode) {
+    if (!this.pinnedInquiryItem && this.currentCards.length === 0) {
       this.renderIdleState();
       return;
     }
 
-    // 1. If in Inquiry Mode: Category Tabs Row + Answer Toggle Button + Prominent Hero Question Box
-    if (this.isInquiryMode) {
-      const catRow = this.contentAreaEl.createDiv({ cls: "diary-copilot-capsule-tabs diary-copilot-inquiry-cat-tabs" });
-      const isClosed = this.inquiryCategory === "closed";
-
-      const closedTab = catRow.createEl("button", {
-        cls: `diary-copilot-capsule-tab ${isClosed ? "is-active" : ""}`,
-        text: "❓ 是非引導 (Yes/No)",
-      });
-      closedTab.addEventListener("click", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        if (this.inquiryCategory !== "closed") {
-          this.inquiryCategory = "closed";
-          this.activeTabIdx = 0;
-          this.isInquiryShowAnswers = false; // Reset to let user think about the new question first
-          this.renderBrowseMode();
-        }
-      });
-
-      const openTab = catRow.createEl("button", {
-        cls: `diary-copilot-capsule-tab ${!isClosed ? "is-active" : ""}`,
-        text: "💭 開放引導 (Wh-)",
-      });
-      openTab.addEventListener("click", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        if (this.inquiryCategory !== "open") {
-          this.inquiryCategory = "open";
-          this.activeTabIdx = 0;
-          this.isInquiryShowAnswers = false; // Reset to let user think about the new question first
-          this.renderBrowseMode();
-        }
-      });
-
-      // Toggle Answers Button right next to the category tabs!
-      const toggleAnswerBtn = catRow.createEl("button", {
-        cls: `diary-copilot-capsule-tab diary-copilot-toggle-answers-tab ${this.isInquiryShowAnswers ? "is-active" : ""}`,
-        text: this.isInquiryShowAnswers ? "🔼 隱藏建議回答" : "💡 查看建議回答",
-      });
-      toggleAnswerBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        this.isInquiryShowAnswers = !this.isInquiryShowAnswers;
-        this.renderBrowseMode();
-      });
-
-      // Prominent Hero Question Box
-      const qBox = this.contentAreaEl.createDiv({ cls: "diary-copilot-inquiry-hero-box" });
-      qBox.createDiv({ cls: "diary-copilot-inquiry-hero-q", text: `❓ ${qText}` });
-      if (qZh) {
-        qBox.createDiv({ cls: "diary-copilot-inquiry-hero-zh", text: qZh });
-      }
-
-      if (!this.isInquiryShowAnswers) {
-        qBox.createDiv({
-          cls: "diary-copilot-inquiry-hero-prompt",
-          text: "💭 先在心中構思或直接在上方筆記中寫下回答；若需要靈感，請點擊「💡 查看建議回答」展開參考語料。",
-        });
-        // Stop here! Only show the question, giving user pure thinking space
-        return;
-      }
+    // 4. If Pinned Inquiry exists, render the persistent question strip
+    if (this.pinnedInquiryItem) {
+      this.renderPinnedInquiryStrip();
     }
 
-    // 2. Answers are displayed (or in normal free-writing mode):
-    // Check if device is desktop with wide screen (>= 640px) or mobile/tablet (narrow screen)
+    // 5. Render Cards
+    if (this.currentCards.length === 0) {
+      const placeholder = this.contentAreaEl.createDiv({ cls: "diary-copilot-inquiry-hero-prompt" });
+      placeholder.setText("✍️ 根據上方問題，在筆記中寫下回答，即時續寫將在此呈現...（或點擊上方「💡 查看建議回答」展開範例）");
+      return;
+    }
+
     const isDesktopWide = !Platform.isMobile && ((this.contentAreaEl.clientWidth || window.innerWidth) >= 640);
 
     if (isDesktopWide && this.currentCards.length > 1) {
-      // DESKTOP: 2x2 Grid Layout with complete wrapped sentences!
+      // DESKTOP: 2x2 Clean Grid Layout with complete wrapped sentences!
       this.renderDesktop2x2Grid();
     } else {
-      // MOBILE / TABLET / NARROW: Single Card with Touch Swipe Gestures!
-      this.renderMobileSingleCardWithSwipe();
+      // MOBILE / TABLET / NARROW: Single Card with Bottom Capsule Tabs (NO swipe gestures!)
+      this.renderMobileSingleCard();
+    }
+  }
+
+  /**
+   * Pinned Question Strip: Keeps inquiry question anchored while user writes, with category & answer toggles
+   */
+  private renderPinnedInquiryStrip() {
+    if (!this.contentAreaEl || !this.pinnedInquiryItem) return;
+    const item = this.pinnedInquiryItem;
+    const isClosed = this.pinnedInquiryCategory === "closed";
+    const qText = isClosed ? item.closedQuestion : item.openQuestion;
+    const qZh = (isClosed ? item.closedChinese : item.openChinese) || "";
+
+    const stripEl = this.contentAreaEl.createDiv({ cls: "diary-copilot-pinned-inquiry-strip" });
+
+    // Top control row
+    const ctrlRow = stripEl.createDiv({ cls: "diary-copilot-pinned-inquiry-ctrls" });
+
+    // Left: Category switcher
+    const catGroup = ctrlRow.createDiv({ cls: "diary-copilot-pinned-cat-group" });
+    const closedBtn = catGroup.createEl("button", {
+      cls: `diary-copilot-pinned-cat-btn ${isClosed ? "is-active" : ""}`,
+      text: "❓ 是非 (Yes/No)",
+    });
+    closedBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (this.pinnedInquiryCategory !== "closed") {
+        this.pinnedInquiryCategory = "closed";
+        this.activeTabIdx = 0;
+        this.renderBrowseMode();
+        this.callbacks.onFocusEditor?.();
+      }
+    });
+
+    const openBtn = catGroup.createEl("button", {
+      cls: `diary-copilot-pinned-cat-btn ${!isClosed ? "is-active" : ""}`,
+      text: "💭 開放 (Wh-)",
+    });
+    openBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (this.pinnedInquiryCategory !== "open") {
+        this.pinnedInquiryCategory = "open";
+        this.activeTabIdx = 0;
+        this.renderBrowseMode();
+        this.callbacks.onFocusEditor?.();
+      }
+    });
+
+    // Right: Toggle answers & dismiss strip
+    const actionGroup = ctrlRow.createDiv({ cls: "diary-copilot-pinned-action-group" });
+    const toggleAnswerBtn = actionGroup.createEl("button", {
+      cls: `diary-copilot-pinned-toggle-btn ${this.isShowingInquiryAnswers ? "is-active" : ""}`,
+      text: this.isShowingInquiryAnswers ? "✍️ 顯示即時續寫" : "💡 查看建議回答",
+      attr: { title: this.isShowingInquiryAnswers ? "換回根據您輸入即時產生的續寫句卡" : "查看 AI 針對此問題構思的範例回答" },
+    });
+    toggleAnswerBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.isShowingInquiryAnswers = !this.isShowingInquiryAnswers;
+      this.activeTabIdx = 0;
+      this.renderBrowseMode();
+      this.callbacks.onFocusEditor?.();
+    });
+
+    const dismissBtn = actionGroup.createEl("button", {
+      cls: "diary-copilot-pinned-dismiss-btn",
+      text: "✕",
+      attr: { title: "結束此引導問句，回到平日純寫作模式" },
+    });
+    dismissBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.clearPinnedInquiry();
+      this.callbacks.onFocusEditor?.();
+    });
+
+    // Question body
+    const qBody = stripEl.createDiv({ cls: "diary-copilot-pinned-q-body" });
+    qBody.createSpan({ cls: "diary-copilot-pinned-q-text", text: `❓ ${qText}` });
+    if (qZh) {
+      qBody.createSpan({ cls: "diary-copilot-pinned-q-zh", text: ` (${qZh})` });
     }
   }
 
   /**
    * Desktop 2x2 Grid Layout: all 4 cards shown simultaneously with complete multi-line wrapped sentences
+   * No inner duplicate mini-buttons (clean design); top action bar operates on selected card
    */
   private renderDesktop2x2Grid() {
     if (!this.contentAreaEl) return;
     const gridEl = this.contentAreaEl.createDiv({ cls: "diary-copilot-inquiry-grid" });
 
     this.currentCards.forEach((card, idx) => {
-      const cardEl = gridEl.createDiv({ cls: "diary-copilot-inquiry-grid-card" });
+      const isSelected = idx === this.activeTabIdx;
+      const cardEl = gridEl.createDiv({
+        cls: `diary-copilot-inquiry-grid-card ${isSelected ? "is-selected" : ""}`,
+      });
       const headerEl = cardEl.createDiv({ cls: "diary-copilot-hero-header" });
       headerEl.createSpan({ cls: "diary-copilot-hero-badge", text: card.title });
       if (!Platform.isMobile && card.shortcut) {
         headerEl.createSpan({ cls: "key-hint", text: card.shortcut });
       }
-
-      // Quick mini actions in card header: ⚡ 填入, 🎙️ 跟讀, 🔊 朗讀
-      const miniActions = headerEl.createDiv({ cls: "diary-copilot-card-mini-actions" });
-      const pasteBtn = miniActions.createEl("button", {
-        cls: "diary-copilot-mini-btn",
-        text: "⚡ 填入",
-        attr: { title: "直接填入此句（正常黑字）" },
-      });
-      pasteBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        this.callbacks.onAdopt(card.text, card.kind, this.currentItem?.sourceRange, true);
-      });
-
-      const oralBtn = miniActions.createEl("button", {
-        cls: "diary-copilot-mini-btn",
-        text: "🎙️",
-        attr: { title: "開口跟讀評分" },
-      });
-      oralBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        this.startOralShadowing(card.text, card.kind, this.currentItem?.sourceRange);
-      });
-
-      const ttsBtn = miniActions.createEl("button", {
-        cls: "diary-copilot-mini-btn",
-        text: "🔊",
-        attr: { title: "聆聽發音" },
-      });
-      ttsBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        speakSentence(card.text);
-      });
 
       // Full multi-line wrapped text (shows complete sentence, no ellipsis)
       cardEl.createDiv({ cls: "diary-copilot-inquiry-grid-card-text", text: card.text });
@@ -628,19 +653,29 @@ export class CardPanel {
         cardEl.createDiv({ cls: "diary-copilot-card-translation-source", text: card.subText });
       }
 
-      // Click anywhere on card body starts shadow-typing drill
+      // Single click selects card and updates header actions to act on this card
       cardEl.addEventListener("click", (e) => {
         const sel = window.getSelection()?.toString().trim();
         if (sel && sel.length > 0) return;
+        this.activeTabIdx = idx;
+        gridEl.querySelectorAll(".diary-copilot-inquiry-grid-card").forEach((el, i) => {
+          if (i === idx) el.addClass("is-selected");
+          else el.removeClass("is-selected");
+        });
+        this.renderHeaderActionsBrowse();
+      });
+
+      // Double-click starts shadow-typing drill
+      cardEl.addEventListener("dblclick", (e) => {
         this.callbacks.onAdopt(card.text, card.kind, this.currentItem?.sourceRange, false);
       });
     });
   }
 
   /**
-   * Mobile / Tablet Layout: Single Card with Touch Swipe Gestures (Swipe Left -> Next, Swipe Right -> Prev)
+   * Mobile / Tablet Layout: Single Hero Card + Bottom Capsule Tabs (NO swipe gestures to prevent sidebar conflicts)
    */
-  private renderMobileSingleCardWithSwipe() {
+  private renderMobileSingleCard() {
     if (!this.contentAreaEl) return;
     const activeCard = this.currentCards[this.activeTabIdx] || this.currentCards[0];
     if (!activeCard) return;
@@ -653,10 +688,6 @@ export class CardPanel {
     if (!Platform.isMobile && activeCard.shortcut) {
       heroHeader.createSpan({ cls: "key-hint", text: activeCard.shortcut });
     }
-    heroHeader.createSpan({
-      cls: "diary-copilot-hero-action-hint",
-      text: Platform.isMobile ? "⚡填入 · 點擊跟寫 · 🎙️跟讀 · 👈👉左右滑動換卡" : "⚡上方直接填入 · 點擊卡片跟寫 · 🎙️跟讀",
-    });
 
     // Full multi-line wrapped text (shows complete sentence)
     heroCard.createDiv({ cls: "diary-copilot-hero-text", text: activeCard.text });
@@ -665,64 +696,8 @@ export class CardPanel {
       heroCard.createDiv({ cls: "diary-copilot-card-translation-source", text: activeCard.subText });
     }
 
-    // Touch Swipe Gesture (Swipe Left: Next Card; Swipe Right: Previous Card)
-    let touchStartX = 0;
-    let touchStartY = 0;
-    let touchStartTime = 0;
-
-    heroCard.addEventListener("touchstart", (e: TouchEvent) => {
-      if (e.touches.length === 1) {
-        touchStartX = e.touches[0].clientX;
-        touchStartY = e.touches[0].clientY;
-        touchStartTime = Date.now();
-      }
-    }, { passive: true });
-
-    heroCard.addEventListener("touchend", (e: TouchEvent) => {
-      if (e.changedTouches.length === 1) {
-        const deltaX = e.changedTouches[0].clientX - touchStartX;
-        const deltaY = e.changedTouches[0].clientY - touchStartY;
-        const duration = Date.now() - touchStartTime;
-
-        // Horizontal swipe detected: distance > 35px, ratio > 1.3, duration < 600ms
-        if (Math.abs(deltaX) > 35 && Math.abs(deltaX) > Math.abs(deltaY) * 1.3 && duration < 600) {
-          if (deltaX < 0) {
-            // Swipe Left -> Next Card (一滑就是下一頁)
-            if (this.activeTabIdx < this.currentCards.length - 1) {
-              this.activeTabIdx++;
-              this.renderBrowseMode();
-            }
-          } else {
-            // Swipe Right -> Previous Card (一滑就是上一頁)
-            if (this.activeTabIdx > 0) {
-              this.activeTabIdx--;
-              this.renderBrowseMode();
-            }
-          }
-          return;
-        }
-
-        // Tap click adoption
-        const dist = Math.hypot(deltaX, deltaY);
-        if (dist <= 5) {
-          const sel = window.getSelection()?.toString().trim();
-          if (sel && sel.length > 0) return;
-          this.callbacks.onAdopt(activeCard.text, activeCard.kind, this.currentItem?.sourceRange, false);
-        }
-      }
-    }, { passive: true });
-
-    // Desktop mouse click adoption
-    let mouseStartX = 0;
-    let mouseStartY = 0;
-    heroCard.addEventListener("mousedown", (e) => {
-      mouseStartX = e.clientX;
-      mouseStartY = e.clientY;
-    });
+    // Tap on card starts shadow-typing drill
     heroCard.addEventListener("click", (e) => {
-      if (Platform.isMobile) return;
-      const dist = Math.hypot(e.clientX - mouseStartX, e.clientY - mouseStartY);
-      if (dist > 5) return;
       const sel = window.getSelection()?.toString().trim();
       if (sel && sel.length > 0) return;
       this.callbacks.onAdopt(activeCard.text, activeCard.kind, this.currentItem?.sourceRange, false);
@@ -738,11 +713,19 @@ export class CardPanel {
           text: isSelected ? `● ${card.title}` : card.title,
         });
 
-        tabBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
+        // Use touchstart with preventDefault to avoid losing focus on mobile editor
+        tabBtn.addEventListener("touchstart", (e) => {
           e.preventDefault();
           this.activeTabIdx = idx;
           this.renderBrowseMode();
+          this.callbacks.onFocusEditor?.();
+        }, { passive: false });
+
+        tabBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          this.activeTabIdx = idx;
+          this.renderBrowseMode();
+          this.callbacks.onFocusEditor?.();
         });
       });
     }
@@ -831,26 +814,25 @@ export class CardPanel {
       });
     }
 
-    if (this.isInquiryMode) {
+    if (this.pinnedInquiryItem) {
       // ✍️ 回續寫
       const resumeBtn = this.headerActionsEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-resume-btn",
         text: "✍️ 回續寫",
-        attr: { title: "回到平日續寫模式" },
+        attr: { title: "關閉提問引導，回到平日純續寫模式" },
       });
       resumeBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         e.preventDefault();
-        this.isInquiryMode = false;
-        this.currentInquiryItem = null;
+        this.clearPinnedInquiry();
         this.callbacks.onDismiss?.();
       });
     } else {
-      // 4. ❓ 提問
+      // 4. ❓ 提問 (F5)
       const inquiryBtn = this.headerActionsEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-inquiry-btn",
-        text: Platform.isMobile ? "❓ 提問" : "❓ 提問 (F4)",
-        attr: { title: "根據日記內容產生是非或開放引導問句" },
+        text: Platform.isMobile ? "❓ 提問" : "❓ 提問 (F5)",
+        attr: { title: "根據日記內容產生是非或開放引導問句 (F5)" },
       });
       inquiryBtn.addEventListener("click", (e) => {
         e.stopPropagation();

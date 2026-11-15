@@ -56,7 +56,7 @@ export default class DiaryCopilotPlugin extends Plugin {
           }
         },
         onSuggestion: (item: SuggestionItem) => {
-          if (this.isPolishMode || this.isInquiryMode) return;
+          if (this.isPolishMode) return;
           this.cardPanel?.updateSuggestions(item, false);
 
           // Unified behavior: NEVER auto-inject ghost text into editor above!
@@ -228,7 +228,7 @@ export default class DiaryCopilotPlugin extends Plugin {
 
     this.addCommand({
       id: "inquiry-guided-prompt",
-      name: "提問引導：產生是非與開放式問句 (F4)",
+      name: "提問引導：產生是非與開放式問句 (F5)",
       callback: () => this.handleInquiryPrompt(),
     });
 
@@ -512,6 +512,9 @@ export default class DiaryCopilotPlugin extends Plugin {
           onOralAdopt: (text, kind, sourceRange) => {
             this.executeOralAdoption(text, kind, sourceRange);
           },
+          onFocusEditor: () => {
+            activeMarkdownView.editor?.focus();
+          },
           onUnlock: () => {
             this.scheduler.clear();
             this.clearGhostText();
@@ -524,10 +527,6 @@ export default class DiaryCopilotPlugin extends Plugin {
               this.handleDirectPaste();
               new Notice("🎉 口說跟讀成功！已自動填入標準句子", 2500);
             }
-          },
-          onFocusEditor: () => {
-            const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-            activeMarkdownView?.editor?.focus();
           },
         });
       } else if (fileChanged) {
@@ -657,12 +656,6 @@ export default class DiaryCopilotPlugin extends Plugin {
 
     if (!update.docChanged) {
       return;
-    }
-
-    // Typing exits inquiry mode back to prediction mode seamlessly
-    if (this.isInquiryMode) {
-      this.isInquiryMode = false;
-      this.currentInquiryItem = null;
     }
 
     // Typing exits polish mode back to prediction mode
@@ -818,7 +811,7 @@ export default class DiaryCopilotPlugin extends Plugin {
       }
 
       this.currentInquiryItem = parsed;
-      this.cardPanel?.updateInquiry(parsed);
+      this.cardPanel?.setPinnedInquiry(parsed);
       // NOTE: NEVER auto-display ghost text in editor! Keep editor 100% clean.
     } catch (e: any) {
       this.isInquiryMode = false;
@@ -862,6 +855,15 @@ export default class DiaryCopilotPlugin extends Plugin {
   }
 
   triggerCardAdopt(cardNumber: 1 | 2 | 3 | 4): boolean {
+    const card = this.cardPanel?.getCardAt(cardNumber - 1);
+    if (card && card.text) {
+      const item = this.isPolishMode
+        ? this.currentPolishItem
+        : (this.cardPanel?.getCurrentItem() || this.scheduler.getCurrentSuggestion());
+      this.adoptSuggestion(card.text, card.kind, item?.sourceRange, false);
+      return true;
+    }
+
     const item = this.isPolishMode
       ? this.currentPolishItem
       : (this.cardPanel?.getCurrentItem() || this.scheduler.getCurrentSuggestion());

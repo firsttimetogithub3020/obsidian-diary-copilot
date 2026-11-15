@@ -1135,11 +1135,124 @@
   padding: 2px 4px;
 }
 
-/* Inquiry Guided Mode Category Switcher */
-.diary-copilot-inquiry-cat-tabs {
-  margin-bottom: 4px;
-  padding-bottom: 4px;
-  border-bottom: 1px dashed var(--background-modifier-border);
+/* Pinned Inquiry Question Strip (Dual Mode Anchor) */
+.diary-copilot-pinned-inquiry-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: var(--background-secondary-alt);
+  border: 1px solid var(--interactive-accent);
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.diary-copilot-pinned-inquiry-ctrls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.diary-copilot-pinned-cat-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.diary-copilot-pinned-cat-btn {
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  outline: none;
+  font-family: inherit;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.diary-copilot-pinned-cat-btn:hover {
+  border-color: var(--interactive-accent);
+  color: var(--text-normal);
+}
+
+.diary-copilot-pinned-cat-btn.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.diary-copilot-pinned-action-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.diary-copilot-pinned-toggle-btn {
+  background: var(--background-primary);
+  border: 1px solid var(--interactive-accent);
+  color: var(--interactive-accent);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 12px;
+  cursor: pointer;
+  outline: none;
+  font-family: inherit;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.diary-copilot-pinned-toggle-btn:hover {
+  background: var(--background-secondary);
+}
+
+.diary-copilot-pinned-toggle-btn.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.diary-copilot-pinned-dismiss-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  outline: none;
+  transition: all 0.12s ease;
+}
+
+.diary-copilot-pinned-dismiss-btn:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.diary-copilot-pinned-q-body {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-normal);
+  word-break: break-word;
+}
+
+.diary-copilot-pinned-q-text {
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.diary-copilot-pinned-q-zh {
+  color: var(--text-muted);
+  font-size: 11.5px;
 }
 
 .diary-copilot-action-btn.diary-copilot-inquiry-btn {
@@ -1151,51 +1264,17 @@
   font-weight: 600;
 }
 
-/* Inquiry Hero Question Box */
-.diary-copilot-inquiry-hero-box {
-  width: 100%;
-  background: var(--background-secondary-alt);
-  border: 1px solid var(--interactive-accent);
-  border-radius: 8px;
-  padding: 10px 14px;
-  box-sizing: border-box;
-  margin-bottom: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.diary-copilot-inquiry-hero-q {
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.45;
-  color: var(--text-normal);
-  word-break: break-word;
-}
-
-.diary-copilot-inquiry-hero-zh {
-  font-size: 13.5px;
-  color: var(--text-muted);
-  line-height: 1.4;
-}
-
+/* Inquiry Prompt Placeholder */
 .diary-copilot-inquiry-hero-prompt {
   font-size: 12px;
   color: var(--interactive-accent);
-  margin-top: 4px;
-  padding-top: 4px;
-  border-top: 1px dashed var(--background-modifier-border);
-}
-
-.diary-copilot-toggle-answers-tab {
-  font-weight: 600;
-  border-color: var(--interactive-accent);
-  color: var(--text-accent);
-}
-
-.diary-copilot-toggle-answers-tab.is-active {
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
+  background: var(--background-secondary);
+  border: 1px dashed var(--interactive-accent);
+  border-radius: 6px;
+  padding: 10px 14px;
+  text-align: center;
+  margin: 6px 0;
+  line-height: 1.5;
 }
 
 /* Inquiry Desktop 2x2 Grid */
@@ -1218,7 +1297,7 @@
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
   cursor: pointer;
   transition: all 0.15s ease;
   min-height: 0;
@@ -1231,6 +1310,12 @@
   background: var(--background-secondary);
 }
 
+.diary-copilot-inquiry-grid-card.is-selected {
+  border-color: var(--interactive-accent) !important;
+  box-shadow: 0 0 0 1.5px var(--interactive-accent);
+  background: var(--background-secondary-alt);
+}
+
 .diary-copilot-inquiry-grid-card-text {
   font-size: var(--diary-copilot-font-size, 13px);
   color: var(--text-normal);
@@ -1239,28 +1324,6 @@
   word-break: break-word !important;
   flex: 1;
   margin: 4px 0;
-}
-
-.diary-copilot-card-mini-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-}
-
-.diary-copilot-mini-btn {
-  background: var(--background-secondary-alt);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 3px;
-  font-size: 10.5px;
-  padding: 1px 5px;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all 0.12s ease;
-}
-
-.diary-copilot-mini-btn:hover {
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
-  border-color: var(--interactive-accent);
+  user-select: text !important;
+  -webkit-user-select: text !important;
 }
