@@ -17,10 +17,10 @@
   flex-direction: column;
   gap: 4px;
   box-sizing: border-box;
-  height: var(--diary-copilot-panel-height, 125px);
-  min-height: 70px;
+  height: var(--diary-copilot-panel-height, auto);
+  min-height: 50px;
   max-height: 75vh;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .diary-copilot-panel.is-animating {
@@ -31,8 +31,9 @@
 .diary-copilot-resize-handle {
   position: absolute;
   top: -8px;
-  left: 0;
-  right: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 140px;
   height: 16px;
   cursor: ns-resize;
   z-index: 25;
@@ -63,8 +64,11 @@
 
 /* Touch-friendly Mobile Resize Handle (Android, iPad, iPhone) */
 .diary-copilot-panel.is-mobile .diary-copilot-resize-handle {
-  top: -16px;
-  height: 32px;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 130px;
+  height: 28px;
   touch-action: none !important;
   -webkit-user-select: none !important;
   user-select: none !important;
@@ -926,8 +930,8 @@
 /* Mobile specific adaptations */
 .is-mobile .diary-copilot-panel {
   padding: 3px 6px 3px;
-  height: var(--diary-copilot-panel-height, 125px);
-  min-height: 70px;
+  height: var(--diary-copilot-panel-height, auto);
+  min-height: 50px;
   max-height: 80vh;
   gap: 2px;
 }
@@ -935,6 +939,9 @@
 .is-mobile .diary-copilot-resize-handle {
   display: flex !important;
   top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 130px;
   height: 28px;
 }
 
@@ -955,11 +962,21 @@
 }
 
 .is-mobile .diary-copilot-action-btn {
+  position: relative;
   padding: 1px 4px;
   font-size: var(--diary-copilot-btn-font-size, 11px);
   border-radius: 3px;
   height: 22px;
   box-sizing: border-box;
+}
+
+.is-mobile .diary-copilot-action-btn::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  left: -3px;
+  right: -3px;
 }
 
 .is-mobile .diary-copilot-pinned-inquiry-strip {
@@ -1371,13 +1388,10 @@
 .diary-copilot-inquiry-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(0, 1fr));
+  grid-template-rows: auto auto;
   gap: 8px;
   width: 100%;
-  flex: 1;
-  min-height: 0;
   box-sizing: border-box;
-  overflow-y: auto;
 }
 
 .diary-copilot-inquiry-grid-card {
@@ -1391,7 +1405,7 @@
   cursor: pointer;
   transition: all 0.15s ease;
   min-height: 0;
-  overflow-y: auto;
+  height: auto;
   box-sizing: border-box;
 }
 

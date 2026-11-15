@@ -50,6 +50,8 @@ export class CardPanel {
   private pinnedInquiryItem: InquiryItem | null = null;
   private pinnedInquiryCategory: "closed" | "open" = "closed";
   private isShowingInquiryAnswers = false;
+  private hasUserManuallyResized = false;
+  private userManualHeight: number | null = null;
 
   // Oral Shadowing Visual Studio State
   private isOralMode = false;
@@ -126,7 +128,7 @@ export class CardPanel {
   private setupResizeListeners() {
     if (!this.resizeHandleEl) return;
     const handleEl = this.resizeHandleEl;
-    handleEl.setAttribute("title", "拖曳調整高度 · 點擊切換 80px / 125px / 190px");
+    handleEl.setAttribute("title", "拖曳自訂高度 · 雙擊恢復智慧自適應內容");
 
     let pointerStartY = 0;
     let pointerStartTime = 0;
@@ -160,9 +162,10 @@ export class CardPanel {
       const deltaY = pointerStartY - e.clientY; // Upward drag increases height, downward decreases height
       if (Math.abs(deltaY) > 3) {
         pointerMoved = true;
+        this.hasUserManuallyResized = true;
       }
 
-      const clampedHeight = Math.max(70, Math.min(initialHeight + deltaY, window.innerHeight * 0.75));
+      const clampedHeight = Math.max(50, Math.min(initialHeight + deltaY, window.innerHeight * 0.75));
 
       this.panelEl.style.height = `${clampedHeight}px`;
       if (clampedHeight <= 95) {
@@ -189,9 +192,13 @@ export class CardPanel {
         return;
       }
 
-      const finalHeight = parseInt(this.panelEl.style.height, 10);
-      if (!isNaN(finalHeight) && finalHeight >= 70) {
-        this.callbacks.onHeightResize?.(finalHeight);
+      if (pointerMoved) {
+        const finalHeight = parseInt(this.panelEl.style.height, 10);
+        if (!isNaN(finalHeight) && finalHeight >= 50) {
+          this.hasUserManuallyResized = true;
+          this.userManualHeight = finalHeight;
+          this.callbacks.onHeightResize?.(finalHeight);
+        }
       }
       this.callbacks.onFocusEditor?.();
     };
@@ -208,42 +215,111 @@ export class CardPanel {
       } catch {}
       this.callbacks.onFocusEditor?.();
     });
+
+    handleEl.addEventListener("dblclick", (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.resetToAutoHeight();
+    });
   }
 
   /**
-   * Toggles panel height: on mobile cycles Compact (80px) -> Standard (125px) -> Expanded (190px) -> Compact
+   * Applies either auto-fit height (hugs rendered content naturally) or manual lock height
+   */
+  public applyPanelHeight() {
+    if (!this.panelEl) return;
+
+    if (this.hasUserManuallyResized && this.userManualHeight) {
+      this.panelEl.style.height = `${this.userManualHeight}px`;
+      if (this.userManualHeight <= 95) {
+        this.panelEl.addClass("is-compact");
+      } else {
+        this.panelEl.removeClass("is-compact");
+      }
+      document.body.style.setProperty("--diary-copilot-panel-height", `${this.userManualHeight}px`);
+    } else {
+      this.panelEl.style.height = "auto";
+      requestAnimationFrame(() => {
+        if (!this.panelEl || this.hasUserManuallyResized) return;
+        const measured = this.panelEl.offsetHeight;
+        if (measured > 0) {
+          document.body.style.setProperty("--diary-copilot-panel-height", `${measured}px`);
+          if (measured <= 95) {
+            this.panelEl.addClass("is-compact");
+          } else {
+            this.panelEl.removeClass("is-compact");
+          }
+        }
+      });
+    }
+  }
+
+  /**
+   * Resets panel height back to smart auto-fit (content-driven)
+   */
+  public resetToAutoHeight() {
+    this.hasUserManuallyResized = false;
+    this.userManualHeight = null;
+    this.panelEl?.addClass("is-animating");
+    this.applyPanelHeight();
+    window.setTimeout(() => this.panelEl?.removeClass("is-animating"), 240);
+    this.callbacks.onFocusEditor?.();
+  }
+
+  /**
+   * Toggles panel height: cycles through preset heights or returns to smart auto-fit
    */
   public toggleHeightPreset() {
     if (!this.panelEl) return;
-    const currentHeight = this.panelEl.offsetHeight || 125;
-    let targetHeight = 125;
 
-    if (Platform.isMobile) {
-      if (currentHeight <= 105) {
-        targetHeight = 125; // From compact (80px) to standard (125px)
-      } else if (currentHeight <= 155) {
-        targetHeight = 190; // From standard (125px) to expanded (190px)
+    if (!this.hasUserManuallyResized) {
+      this.hasUserManuallyResized = true;
+      const targetHeight = Platform.isMobile ? 125 : 220;
+      this.userManualHeight = targetHeight;
+      this.panelEl.addClass("is-animating");
+      this.applyPanelHeight();
+      window.setTimeout(() => this.panelEl?.removeClass("is-animating"), 240);
+      this.callbacks.onHeightResize?.(targetHeight);
+    } else {
+      const currentHeight = this.userManualHeight || this.panelEl.offsetHeight || 125;
+      if (Platform.isMobile) {
+        if (currentHeight <= 95) {
+          this.userManualHeight = 125;
+          this.panelEl.addClass("is-animating");
+          this.applyPanelHeight();
+          window.setTimeout(() => this.panelEl?.removeClass("is-animating"), 240);
+          this.callbacks.onHeightResize?.(125);
+        } else if (currentHeight <= 150) {
+          this.userManualHeight = 190;
+          this.panelEl.addClass("is-animating");
+          this.applyPanelHeight();
+          window.setTimeout(() => this.panelEl?.removeClass("is-animating"), 240);
+          this.callbacks.onHeightResize?.(190);
+        } else {
+          // Cycle back to auto-fit
+          this.resetToAutoHeight();
+          return;
+        }
       } else {
-        targetHeight = 80;  // From expanded back to compact (80px)
+        if (currentHeight < 160) {
+          this.userManualHeight = 220;
+          this.panelEl.addClass("is-animating");
+          this.applyPanelHeight();
+          window.setTimeout(() => this.panelEl?.removeClass("is-animating"), 240);
+          this.callbacks.onHeightResize?.(220);
+        } else if (currentHeight < 280) {
+          this.userManualHeight = 320;
+          this.panelEl.addClass("is-animating");
+          this.applyPanelHeight();
+          window.setTimeout(() => this.panelEl?.removeClass("is-animating"), 240);
+          this.callbacks.onHeightResize?.(320);
+        } else {
+          // Cycle back to auto-fit
+          this.resetToAutoHeight();
+          return;
+        }
       }
-    } else {
-      targetHeight = currentHeight >= 180 ? 125 : 240;
     }
-
-    this.panelEl.addClass("is-animating");
-    this.panelEl.style.height = `${targetHeight}px`;
-    if (targetHeight <= 95) {
-      this.panelEl.addClass("is-compact");
-    } else {
-      this.panelEl.removeClass("is-compact");
-    }
-    document.body.style.setProperty("--diary-copilot-panel-height", `${targetHeight}px`);
-
-    window.setTimeout(() => {
-      this.panelEl?.removeClass("is-animating");
-    }, 240);
-
-    this.callbacks.onHeightResize?.(targetHeight);
     this.callbacks.onFocusEditor?.();
   }
 
@@ -270,6 +346,7 @@ export class CardPanel {
 
     const empty = this.contentAreaEl.createDiv({ cls: "diary-copilot-empty-state" });
     empty.createSpan({ text: message || "✍️ 在上方筆記開始書寫英語，Copilot 將即時提供地道建議與跟寫練習..." });
+    this.applyPanelHeight();
   }
 
   setLoading(message = "思考地道表達中...") {
@@ -283,6 +360,7 @@ export class CardPanel {
     if (this.brandTextEl) {
       this.brandTextEl.setText(message);
     }
+    this.applyPanelHeight();
   }
 
   setError(message = "⚠️ 連線異常或尚未設定 API Key") {
@@ -471,6 +549,7 @@ export class CardPanel {
     if (this.currentCards.length === 0) {
       const placeholder = this.contentAreaEl.createDiv({ cls: "diary-copilot-inquiry-hero-prompt" });
       placeholder.setText("✍️ 根據上方問題，在筆記中寫下回答，即時續寫將在此呈現...（或點擊上方「💡 查看建議回答」展開範例）");
+      this.applyPanelHeight();
       return;
     }
 
@@ -483,6 +562,8 @@ export class CardPanel {
       // MOBILE / TABLET / NARROW: Single Card with Bottom Capsule Tabs (NO swipe gestures!)
       this.renderMobileSingleCard();
     }
+
+    this.applyPanelHeight();
   }
 
   /**
@@ -708,6 +789,8 @@ export class CardPanel {
         ? "💡 提示：按上方 🎙️ 開始語音跟讀 · 或在鍵盤打字跟寫 · 點 ⚡ 填入跳過"
         : "💡 提示：按上方 🎙️ 語音跟讀 · 或直接打字跟寫 · 按 Tab 直接填入 · Esc 解鎖",
     });
+
+    this.applyPanelHeight();
   }
 
   /**
@@ -1210,6 +1293,8 @@ export class CardPanel {
         ? (Platform.isMobile ? "唸完點「⏹️ 說完了」或停頓後自動放入" : "唸完點「⏹️ 說完了」或停頓後自動放入")
         : (Platform.isMacOS ? "按兩次 Fn 語音聽寫 · 隨時可點「⏹️ 說完了」" : "按 Win+H 語音口說 · 隨時可點「⏹️ 說完了」"),
     });
+
+    this.applyPanelHeight();
   }
 
   /**
@@ -1416,6 +1501,7 @@ export class CardPanel {
   show() {
     if (this.panelEl) {
       this.panelEl.removeClass("is-hidden");
+      this.applyPanelHeight();
     }
   }
 
