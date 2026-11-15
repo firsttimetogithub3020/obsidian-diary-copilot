@@ -17,13 +17,14 @@ export interface OralMatchResult {
   matchedIndices: Set<number>;
   matchRatio: number;
   isPass: boolean;
+  isFailed: boolean;
 }
 
 /**
- * Evaluates spoken transcript against target text, providing word-level match details
- * and a forgiving threshold (>= 70%) for low-frustration English oral practice.
+ * Evaluates spoken transcript against target text, providing word-level match details,
+ * a forgiving threshold (>= 70%) for passing, and detects when recognition fails to reach 50%.
  */
-export function evaluateOralMatch(spoken: string, target: string): OralMatchResult {
+export function evaluateOralMatch(spoken: string, target: string, isFinal = false): OralMatchResult {
   const normalize = (s: string) =>
     s
       .toLowerCase()
@@ -52,6 +53,7 @@ export function evaluateOralMatch(spoken: string, target: string): OralMatchResu
       matchedIndices,
       matchRatio: 0,
       isPass: false,
+      isFailed: false,
     };
   }
 
@@ -71,6 +73,12 @@ export function evaluateOralMatch(spoken: string, target: string): OralMatchResu
   // Consider passed if >= 70% matched and spoken length is at least 45% of word count
   const isPass = matchRatio >= 0.70 && normSpokenWords.length >= Math.floor(rawTargetWords.length * 0.45);
 
+  // Confirmed unable to reach 50% if:
+  // 1. isFinal is true (sentence segment ended by recognizer) and matchRatio < 0.50
+  // 2. OR user has already spoken substantial words (>= target length or >= 4 words) and matchRatio < 0.50
+  const hasSpokenSubstantial = normSpokenWords.length >= Math.max(3, Math.floor(rawTargetWords.length * 0.75));
+  const isFailed = (isFinal || hasSpokenSubstantial) && matchRatio < 0.50 && normSpokenWords.length > 0;
+
   return {
     spokenText: spoken,
     targetText: target,
@@ -78,6 +86,7 @@ export function evaluateOralMatch(spoken: string, target: string): OralMatchResu
     matchedIndices,
     matchRatio: Math.min(1.0, matchRatio),
     isPass,
+    isFailed,
   };
 }
 

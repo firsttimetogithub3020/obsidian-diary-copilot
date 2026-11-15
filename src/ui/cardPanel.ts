@@ -647,7 +647,19 @@ export class CardPanel {
       speakSentence(this.oralTargetText);
     });
 
-    // 2. ⚡ 直接填入 (Skip Oral Drill)
+    // 2. 🔄 重試 (Retry)
+    const retryBtn = this.headerActionsEl.createEl("button", {
+      cls: "diary-copilot-action-btn diary-copilot-retry-btn",
+      text: "🔄 重試",
+      attr: { title: "重新開始語音跟讀" },
+    });
+    retryBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.restartOralShadowing();
+    });
+
+    // 3. ⚡ 直接填入 (Skip Oral Drill)
     const pasteBtn = this.headerActionsEl.createEl("button", {
       cls: "diary-copilot-action-btn diary-copilot-direct-paste-btn",
       text: "⚡ 直接填入",
@@ -785,9 +797,11 @@ export class CardPanel {
     const pct = Math.min(100, Math.round(match.matchRatio * 100));
     if (this.oralProgressFillEl) {
       this.oralProgressFillEl.style.width = `${pct}%`;
-      this.oralProgressFillEl.removeClass("is-warning", "is-success");
+      this.oralProgressFillEl.removeClass("is-warning", "is-success", "is-failed");
       if (pct >= 70) {
         this.oralProgressFillEl.addClass("is-success");
+      } else if (match.isFailed) {
+        this.oralProgressFillEl.addClass("is-failed");
       } else if (pct >= 40) {
         this.oralProgressFillEl.addClass("is-warning");
       }
@@ -795,14 +809,56 @@ export class CardPanel {
 
     // 4. Update Score Badge
     if (this.oralScoreBadgeEl) {
+      this.oralScoreBadgeEl.removeClass("is-success", "is-failed");
       if (pct >= 70) {
         this.oralScoreBadgeEl.setText(`🎉 辨識吻合度：${pct}%（已達標！）`);
         this.oralScoreBadgeEl.addClass("is-success");
+      } else if (match.isFailed) {
+        this.oralScoreBadgeEl.setText(`❌ 吻合度未達 50%（${pct}%），請重新跟讀`);
+        this.oralScoreBadgeEl.addClass("is-failed");
       } else {
         this.oralScoreBadgeEl.setText(`📊 吻合度：${pct}%（門檻 70%）`);
-        this.oralScoreBadgeEl.removeClass("is-success");
       }
     }
+  }
+
+  /**
+   * Resets and restarts oral shadowing session
+   */
+  restartOralShadowing() {
+    if (!this.isOralMode) return;
+    this.oralPassed = false;
+    if (this.oralPassTimeout) {
+      window.clearTimeout(this.oralPassTimeout);
+      this.oralPassTimeout = null;
+    }
+
+    this.renderOralWorkspace();
+
+    if (globalSpeechRecognizer.isSupported()) {
+      globalSpeechRecognizer.stop();
+      window.setTimeout(() => {
+        if (this.isOralMode) {
+          globalSpeechRecognizer.start("en-US", {
+            onResult: (transcript: string, isFinal: boolean) => {
+              if (!this.isOralMode || this.oralPassed) return;
+              const match = evaluateOralMatch(transcript, this.oralTargetText, isFinal);
+              this.updateOralVisuals(match);
+
+              if (match.isPass) {
+                this.handleOralPass(match);
+              }
+            },
+            onError: () => {},
+            onEnd: () => {},
+          });
+        }
+      }, 100);
+    } else if (this.desktopVoiceInputEl) {
+      this.desktopVoiceInputEl.value = "";
+      this.desktopVoiceInputEl.focus();
+    }
+    new Notice("🔄 已重設，請重新跟讀！", 1500);
   }
 
   /**
