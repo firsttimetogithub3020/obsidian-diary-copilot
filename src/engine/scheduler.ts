@@ -337,6 +337,10 @@ export class SuggestionScheduler {
     }
   }
 
+  checkOralMatch(typed: string, target: string): boolean {
+    return this.checkOralFuzzyMatch(typed, target);
+  }
+
   private checkOralFuzzyMatch(typed: string, target: string): boolean {
     const normalize = (s: string) =>
       s

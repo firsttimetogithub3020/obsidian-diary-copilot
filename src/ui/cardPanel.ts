@@ -1,7 +1,8 @@
-import { Platform } from "obsidian";
+import { Platform, Notice } from "obsidian";
 import { SuggestionItem, DiaryTone } from "../types";
 import { DIARY_TONE_OPTIONS } from "../settings";
 import { speakSentence } from "../services/tts";
+import { globalSpeechRecognizer } from "../services/speech";
 
 export interface CardPanelCallbacks {
   onAdopt: (text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }) => void;
@@ -13,6 +14,8 @@ export interface CardPanelCallbacks {
   onClose?: () => void;
   onDirectPaste?: () => void;
   onUnlock?: () => void;
+  onOralInput?: (spokenText: string, targetText: string) => void;
+  onFocusEditor?: () => void;
 }
 
 interface CardDescriptor {
@@ -448,7 +451,54 @@ export class CardPanel {
       speakSentence(targetText);
     });
 
-    // 2. ⚡ 填入 (Direct Paste / Skip Shadowing)
+    // 2. 🎙️ 跟讀 (Speech Recognition in en-US)
+    const oralBtn = this.headerActionsEl.createEl("button", {
+      cls: "diary-copilot-action-btn diary-copilot-oral-btn",
+      text: "🎙️ 跟讀",
+      attr: { title: "開口說英語，自動語音辨識與輸入" },
+    });
+    oralBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+
+      if (globalSpeechRecognizer.getIsListening()) {
+        globalSpeechRecognizer.stop();
+        oralBtn.setText("🎙️ 跟讀");
+        oralBtn.removeClass("is-recording");
+        return;
+      }
+
+      if (!globalSpeechRecognizer.isSupported()) {
+        this.callbacks.onFocusEditor?.();
+        new Notice("💡 請在鍵盤上點擊 🎤 麥克風圖示開始說英語跟讀", 3500);
+        return;
+      }
+
+      oralBtn.setText("🔴 聆聽中...");
+      oralBtn.addClass("is-recording");
+      new Notice("🎙️ 請對著手機唸出這句話（自動英語辨識）...", 2200);
+
+      globalSpeechRecognizer.start("en-US", {
+        onResult: (transcript, _isFinal) => {
+          if (this.callbacks.onOralInput) {
+            this.callbacks.onOralInput(transcript, targetText);
+          }
+        },
+        onError: (err) => {
+          oralBtn.setText("🎙️ 跟讀");
+          oralBtn.removeClass("is-recording");
+          if (err !== "no-speech") {
+            new Notice(`語音辨識提示：${err}`);
+          }
+        },
+        onEnd: () => {
+          oralBtn.setText("🎙️ 跟讀");
+          oralBtn.removeClass("is-recording");
+        },
+      });
+    });
+
+    // 3. ⚡ 填入 (Direct Paste / Skip Shadowing)
     const pasteBtn = this.headerActionsEl.createEl("button", {
       cls: "diary-copilot-action-btn diary-copilot-direct-paste-btn",
       text: Platform.isMobile ? "⚡ 填入" : "⚡ 填入 (Tab)",

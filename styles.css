@@ -240,6 +240,24 @@
   color: var(--text-normal);
 }
 
+.diary-copilot-oral-btn {
+  font-weight: 600;
+  color: var(--interactive-accent);
+}
+
+.diary-copilot-oral-btn.is-recording {
+  background-color: var(--text-error) !important;
+  color: white !important;
+  border-color: var(--text-error) !important;
+  animation: diary-copilot-pulse 1.2s infinite;
+}
+
+@keyframes diary-copilot-pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.85; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
 .diary-copilot-direct-paste-btn {
   background-color: var(--interactive-accent) !important;
   color: var(--text-on-accent) !important;
@@ -733,20 +751,22 @@
   animation: diary-copilot-fade-in 0.15s ease forwards;
 }
 
-/* Mobile docked mode (anchors directly above bottom Copilot cards) */
+/* Mobile docked mode (anchors cleanly at top of screen, never blocked by keyboard or cards) */
 .diary-copilot-selection-popover.is-mobile-docked {
   position: fixed !important;
   left: 10px !important;
   right: 10px !important;
+  top: 14px !important;
+  bottom: auto !important;
   margin: 0 auto !important;
   width: auto !important;
   max-width: 520px !important;
   border: 1px solid var(--interactive-accent) !important;
   background-color: var(--background-secondary-alt, var(--background-primary)) !important;
-  box-shadow: 0 -4px 22px rgba(0, 0, 0, 0.32) !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35) !important;
   padding: 8px 12px !important;
   border-radius: 10px !important;
-  z-index: 99999 !important;
+  z-index: 999999 !important;
 }
 
 .diary-copilot-selection-popover.is-mobile-docked .popover-term {

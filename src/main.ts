@@ -14,6 +14,7 @@ import { tidyUpTodayDiary } from "./commands/tidyUp";
 import { buildPolishSystemPrompt, buildPolishUserPrompt } from "./llm/prompts";
 import { SelectionPopover } from "./ui/selectionPopover";
 import { checkAndApplyPluginUpdate } from "./services/updater";
+import { globalSpeechRecognizer } from "./services/speech";
 
 export default class DiaryCopilotPlugin extends Plugin {
   settings: PluginSettings;
@@ -185,9 +186,7 @@ export default class DiaryCopilotPlugin extends Plugin {
           try {
             const range = sel.getRangeAt(0);
             const rect = range.getBoundingClientRect();
-            if (rect.width > 0 && rect.height > 0) {
-              this.selectionPopover?.handleSelection(text, rect);
-            }
+            this.selectionPopover?.handleSelection(text, rect);
           } catch {}
         }
       }, 40);
@@ -482,6 +481,17 @@ export default class DiaryCopilotPlugin extends Plugin {
             this.clearGhostText();
             this.cardPanel?.renderIdleState();
             new Notice("已解鎖卡片", 1200);
+          },
+          onOralInput: (spokenText: string, targetText: string) => {
+            if (this.scheduler.checkOralMatch(spokenText, targetText)) {
+              globalSpeechRecognizer.stop();
+              this.handleDirectPaste();
+              new Notice("🎉 口說跟讀成功！已自動填入標準句子", 2500);
+            }
+          },
+          onFocusEditor: () => {
+            const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+            activeMarkdownView?.editor?.focus();
           },
         });
       } else if (fileChanged) {
