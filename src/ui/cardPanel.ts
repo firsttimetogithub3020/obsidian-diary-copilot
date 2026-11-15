@@ -611,21 +611,29 @@ export class CardPanel {
           }
         },
         onEnd: () => {
-          // SpeechRecognizer auto-restarts persistently when shouldBeListening is true
+          // On mobile, session ends naturally after speaking. User can tap 🔄 重試 to re-record.
         },
       });
     } else {
       // Desktop / Windows Electron: Focus voice input & prompt Win+H
       new Notice(
         Platform.isMacOS
-          ? "🎙️ Mac 請連按兩次 Fn 或 Control 啟動聽寫"
-          : "🎙️ Windows 請按快捷鍵 [Win + H] 啟動系統語音輸入！",
-        4500
+          ? "🎙️ 已選取文字方塊！Mac 請連按兩次 Fn 啟動聽寫（亦可在此直接打字）"
+          : "🎙️ 已選取文字方塊！請按快捷鍵 [Win + H] 啟動語音輸入（亦可打字跟讀）！",
+        5000
       );
-      if (this.desktopVoiceInputEl) {
-        window.setTimeout(() => this.desktopVoiceInputEl?.focus(), 60);
-      }
+      this.focusDesktopVoiceInput();
     }
+  }
+
+  private focusDesktopVoiceInput() {
+    if (!this.desktopVoiceInputEl) return;
+    const el = this.desktopVoiceInputEl;
+    el.focus();
+    el.select();
+    window.setTimeout(() => el.focus(), 40);
+    window.setTimeout(() => el.focus(), 150);
+    window.setTimeout(() => el.focus(), 350);
   }
 
   /**
@@ -720,18 +728,35 @@ export class CardPanel {
       this.desktopVoiceInputEl = null;
     } else {
       const voiceWrapper = this.oralWorkspaceEl.createDiv({ cls: "diary-copilot-desktop-voice-wrapper" });
-      voiceWrapper.createSpan({ cls: "diary-copilot-desktop-voice-icon", text: "🎙️" });
-      this.desktopVoiceInputEl = voiceWrapper.createEl("input", {
+      
+      const banner = voiceWrapper.createDiv({ cls: "diary-copilot-desktop-voice-banner" });
+      banner.innerHTML = Platform.isMacOS
+        ? "💡 <b>已自動選取文字方塊</b>：連按兩次 <kbd>Fn</kbd> 啟動聽寫（或在此直接打字）"
+        : "💡 <b>已自動選取文字方塊</b>：請按鍵盤 <kbd>Win</kbd> + <kbd>H</kbd> 啟動語音輸入（或在此直接打字）";
+
+      const inputRow = voiceWrapper.createDiv({ cls: "diary-copilot-desktop-voice-input-row" });
+      inputRow.createSpan({ cls: "diary-copilot-desktop-voice-icon", text: "🎙️" });
+      this.desktopVoiceInputEl = inputRow.createEl("input", {
         cls: "diary-copilot-desktop-voice-input",
         type: "text",
         attr: {
           placeholder: Platform.isMacOS
-            ? "已選取文字方塊！連按兩次 Fn / Control 啟動聽寫（或打字跟讀）..."
-            : "已選取文字方塊！請按 Win+H 啟動語音輸入（或打字跟讀）...",
+            ? "已選取文字方塊！連按兩次 Fn 說話，或在此打字跟讀..."
+            : "已選取文字方塊！請按 Win+H 說話，或在此打字跟讀...",
         },
       });
 
+      this.desktopVoiceInputEl.addEventListener("focus", () => {
+        voiceWrapper.addClass("is-focused");
+      });
+      this.desktopVoiceInputEl.addEventListener("blur", () => {
+        voiceWrapper.removeClass("is-focused");
+      });
+
       voiceWrapper.addEventListener("click", () => {
+        this.desktopVoiceInputEl?.focus();
+      });
+      this.oralWorkspaceEl.addEventListener("click", () => {
         this.desktopVoiceInputEl?.focus();
       });
 
@@ -858,11 +883,14 @@ export class CardPanel {
           });
         }
       }, 100);
-    } else if (this.desktopVoiceInputEl) {
-      this.desktopVoiceInputEl.value = "";
-      this.desktopVoiceInputEl.focus();
+      new Notice("🔄 請對著麥克風重新開始跟讀！", 1500);
+    } else {
+      if (this.desktopVoiceInputEl) {
+        this.desktopVoiceInputEl.value = "";
+      }
+      this.focusDesktopVoiceInput();
+      new Notice("🔄 已為您清空並重新選取文字方塊！請按 Win+H 重新口說或打字跟讀", 2500);
     }
-    new Notice("🔄 已重設，請重新跟讀！", 1500);
   }
 
   /**

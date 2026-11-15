@@ -446,13 +446,20 @@ export default class DiaryCopilotPlugin extends Plugin {
       new Notice("已關閉此筆記的 Copilot 面板（開關指令優先，絕不自動重開）");
     } else {
       // User explicitly WANTS TO OPEN!
+      // If Copilot is currently globally muted, un-mute it so this explicit request takes effect!
+      if (this.isCopilotGloballyMuted) {
+        this.isCopilotGloballyMuted = false;
+        this.updateRibbonIconState();
+        new Notice("💡 已自動為您解除全域關閉，並在此筆記啟用 Copilot 面板");
+      } else {
+        new Notice("已在此筆記啟用 Copilot 面板");
+      }
       this.manuallyDisabledNotes.delete(filePath);
       this.manuallyEnabledNotes.add(filePath);
       this.syncActiveView();
       if (this.cardPanel) {
         this.cardPanel.show();
       }
-      new Notice("已在此筆記啟用 Copilot 面板");
     }
   }
 

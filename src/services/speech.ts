@@ -97,13 +97,12 @@ export class SpeechRecognizer {
   private shouldBeListening = false;
   private currentLang = "en-US";
   private currentHandlers: SpeechRecognitionHandlers | null = null;
-  private restartTimeout: number | null = null;
   private consecutiveErrors = 0;
 
   isSupported(): boolean {
     // In Obsidian Electron Desktop (Windows/Mac/Linux), webkitSpeechRecognition is a non-functioning stub
     // without Google Chrome server keys and triggers crash loops. Must return false so Desktop uses Win+H.
-    if (typeof window === "undefined" || Platform.isDesktop) {
+    if (typeof window === "undefined" || Platform.isDesktop || Platform.isDesktopApp) {
       return false;
     }
     return !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
@@ -125,7 +124,7 @@ export class SpeechRecognizer {
   }
 
   private initAndStart() {
-    if (!this.shouldBeListening || this.consecutiveErrors >= 3) return;
+    if (!this.shouldBeListening) return;
 
     try {
       const SpeechClass =
@@ -163,54 +162,37 @@ export class SpeechRecognizer {
         }
 
         this.consecutiveErrors++;
-
-        if (this.consecutiveErrors >= 3 || errorType === "not-allowed" || errorType === "service-not-allowed") {
-          this.shouldBeListening = false;
-          this.stop();
-          this.currentHandlers?.onError?.(errorType);
-          return;
-        }
-
-        console.warn("[Diary Copilot Speech] error:", errorType);
+        this.shouldBeListening = false;
+        this.stop();
+        this.currentHandlers?.onError?.(errorType);
       };
 
       this.recognition.onend = () => {
-        // If user is still in listening mode and errors haven't accumulated, auto-restart seamlessly
-        if (this.shouldBeListening && this.consecutiveErrors < 3) {
-          if (this.restartTimeout) window.clearTimeout(this.restartTimeout);
-          this.restartTimeout = window.setTimeout(() => {
-            if (this.shouldBeListening && this.consecutiveErrors < 3) {
-              this.initAndStart();
-            }
-          }, 250);
-        } else {
-          this.currentHandlers?.onEnd?.();
-        }
+        // IMPORTANT: NEVER auto-restart in onend on mobile / Android!
+        // On Android, starting a speech recognition session triggers an OS microphone chime sound.
+        // Auto-restarting here causes an infinite, annoying chime sound loop!
+        this.shouldBeListening = false;
+        this.currentHandlers?.onEnd?.();
       };
 
       this.recognition.start();
     } catch (err) {
       console.warn("[Diary Copilot Speech] start failed:", err);
-      this.consecutiveErrors++;
-      if (this.shouldBeListening && this.consecutiveErrors < 3) {
-        if (this.restartTimeout) window.clearTimeout(this.restartTimeout);
-        this.restartTimeout = window.setTimeout(() => {
-          if (this.shouldBeListening) this.initAndStart();
-        }, 500);
-      }
+      this.shouldBeListening = false;
+      this.currentHandlers?.onError?.(String(err));
     }
   }
 
   stop() {
     this.shouldBeListening = false;
     this.consecutiveErrors = 0;
-    if (this.restartTimeout) {
-      window.clearTimeout(this.restartTimeout);
-      this.restartTimeout = null;
-    }
     if (this.recognition) {
       try {
-        this.recognition.stop();
+        this.recognition.onstart = null;
+        this.recognition.onresult = null;
+        this.recognition.onerror = null;
+        this.recognition.onend = null;
+        this.recognition.abort();
       } catch {}
       this.recognition = null;
     }
