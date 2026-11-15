@@ -2,7 +2,7 @@ import { Platform, Notice } from "obsidian";
 import { SuggestionItem, DiaryTone } from "../types";
 import { DIARY_TONE_OPTIONS } from "../settings";
 import { speakSentence } from "../services/tts";
-import { globalSpeechRecognizer } from "../services/speech";
+import { globalSpeechRecognizer, evaluateOralMatch, OralMatchResult } from "../services/speech";
 
 export interface CardPanelCallbacks {
   onAdopt: (text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }) => void;
@@ -14,6 +14,7 @@ export interface CardPanelCallbacks {
   onClose?: () => void;
   onDirectPaste?: () => void;
   onUnlock?: () => void;
+  onOralAdopt?: (text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }) => void;
   onOralInput?: (spokenText: string, targetText: string) => void;
   onFocusEditor?: () => void;
 }
@@ -44,6 +45,19 @@ export class CardPanel {
   private currentCards: CardDescriptor[] = [];
   private isShadowTyping = false;
 
+  // Oral Shadowing Visual Studio State
+  private isOralMode = false;
+  private oralTargetText = "";
+  private oralKind: "continue" | "alternative" | "translation" = "continue";
+  private oralSourceRange?: { from: number; to: number };
+  private oralPassed = false;
+  private oralPassTimeout: number | null = null;
+  private oralWorkspaceEl: HTMLElement | null = null;
+  private oralTargetWordSpans: HTMLElement[] = [];
+  private oralLiveTextEl: HTMLElement | null = null;
+  private oralProgressFillEl: HTMLElement | null = null;
+  private oralScoreBadgeEl: HTMLElement | null = null;
+
   constructor(containerEl: HTMLElement, callbacks: CardPanelCallbacks) {
     this.containerEl = containerEl;
     this.callbacks = callbacks;
@@ -60,7 +74,7 @@ export class CardPanel {
     this.resizeHandleEl = this.panelEl.createDiv({ cls: "diary-copilot-resize-handle" });
     this.setupResizeListeners();
 
-    // Header bar (unified action bar across browse & locked modes)
+    // Header bar (unified action bar across browse, locked, & oral modes)
     const header = this.panelEl.createDiv({ cls: "diary-copilot-panel-header" });
     
     // Left: Brand / Mode Indicator
@@ -86,99 +100,83 @@ export class CardPanel {
     }
 
     this.toneSelectEl.addEventListener("change", (e) => {
-      const selectedTone = (e.target as HTMLSelectElement).value as DiaryTone;
-      this.callbacks.onToneChange?.(selectedTone);
+      const newTone = (e.target as HTMLSelectElement).value as DiaryTone;
+      this.callbacks.onToneChange?.(newTone);
     });
 
-    // Right: Unified Actions Container
+    // Right: Unified Actions Bar
     this.headerActionsEl = header.createDiv({ cls: "diary-copilot-header-actions" });
 
-    // Main Content Area (Option A: Full-width Hero Card + Capsule Tabs)
-    this.contentAreaEl = this.panelEl.createDiv({ cls: "diary-copilot-content-area" });
+    // Content Area
+    this.contentAreaEl = this.panelEl.createDiv({ cls: "diary-copilot-panel-content" });
+
     this.renderIdleState();
   }
 
   private setupResizeListeners() {
+    if (!this.resizeHandleEl) return;
     const handleEl = this.resizeHandleEl;
-    if (!handleEl) return;
 
-    let isDragging = false;
-    let startY = 0;
-    let startHeight = 0;
-
-    const onMove = (clientY: number) => {
-      if (!isDragging || !this.panelEl) return;
-      const diffY = startY - clientY;
-      const minH = Platform.isMobile ? 70 : 80;
-      const maxH = Math.round(window.innerHeight * 0.8);
-      const newHeight = Math.round(Math.max(minH, Math.min(maxH, startHeight + diffY)));
-
-      this.panelEl.style.height = `${newHeight}px`;
-      document.body.style.setProperty("--diary-copilot-panel-height", `${newHeight}px`);
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      this.isResizing = true;
+      this.panelEl?.addClass("is-resizing");
+      handleEl.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      e.stopPropagation();
     };
 
-    const onEnd = () => {
-      if (!isDragging) return;
-      isDragging = false;
-      this.isResizing = false;
-      this.panelEl?.removeClass("is-resizing");
+    const onPointerMove = (e: PointerEvent) => {
+      if (!this.isResizing || !this.panelEl) return;
+      e.preventDefault();
+      e.stopPropagation();
 
-      if (this.panelEl) {
-        const finalHeight = Math.round(this.panelEl.getBoundingClientRect().height);
-        if (this.callbacks.onHeightResize) {
-          this.callbacks.onHeightResize(finalHeight);
-        }
+      const containerRect = this.containerEl.getBoundingClientRect();
+      const newHeight = containerRect.bottom - e.clientY;
+      const clampedHeight = Math.max(80, Math.min(newHeight, window.innerHeight * 0.7));
+
+      this.panelEl.style.height = `${clampedHeight}px`;
+      document.body.style.setProperty("--diary-copilot-panel-height", `${clampedHeight}px`);
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      if (!this.isResizing || !this.panelEl) return;
+      this.isResizing = false;
+      this.panelEl.removeClass("is-resizing");
+      try {
+        handleEl.releasePointerCapture(e.pointerId);
+      } catch {}
+
+      const finalHeight = parseInt(this.panelEl.style.height, 10);
+      if (!isNaN(finalHeight) && finalHeight >= 80) {
+        this.callbacks.onHeightResize?.(finalHeight);
       }
     };
 
-    handleEl.addEventListener("pointerdown", (e: PointerEvent) => {
-      if (!this.panelEl) return;
-      e.preventDefault();
-      e.stopPropagation();
-
-      isDragging = true;
-      this.isResizing = true;
-      this.panelEl.addClass("is-resizing");
-
-      startY = e.clientY;
-      startHeight = this.panelEl.getBoundingClientRect().height;
-
-      try {
-        handleEl.setPointerCapture(e.pointerId);
-      } catch {}
-    });
-
-    handleEl.addEventListener("pointermove", (e: PointerEvent) => {
-      if (!isDragging) return;
-      e.preventDefault();
-      e.stopPropagation();
-      onMove(e.clientY);
-    });
-
-    handleEl.addEventListener("pointerup", (e: PointerEvent) => {
-      if (!isDragging) return;
-      e.preventDefault();
-      e.stopPropagation();
-      try {
-        handleEl.releasePointerCapture(e.pointerId);
-      } catch {}
-      onEnd();
-    });
-
+    handleEl.addEventListener("pointerdown", onPointerDown);
+    handleEl.addEventListener("pointermove", onPointerMove);
+    handleEl.addEventListener("pointerup", onPointerUp);
     handleEl.addEventListener("pointercancel", (e: PointerEvent) => {
-      if (!isDragging) return;
+      if (!this.isResizing || !this.panelEl) return;
+      this.isResizing = false;
+      this.panelEl.removeClass("is-resizing");
       try {
         handleEl.releasePointerCapture(e.pointerId);
       } catch {}
-      onEnd();
     });
   }
 
   renderIdleState(message?: string) {
-    if (!this.contentAreaEl) return;
-    this.panelEl?.removeClass("is-loading");
+    if (!this.panelEl || !this.contentAreaEl) return;
+    this.contentAreaEl.empty();
+    this.panelEl.removeClass("is-hidden");
+    this.panelEl.removeClass("is-loading");
+
+    this.isOralMode = false;
+    this.isShadowTyping = false;
+
     if (this.statusDotEl) {
-      this.statusDotEl.className = "diary-copilot-status-dot";
+      this.statusDotEl.className = "diary-copilot-status-dot is-idle";
     }
     if (this.brandTextEl) {
       this.brandTextEl.setText("Diary Copilot");
@@ -186,39 +184,38 @@ export class CardPanel {
     if (this.toneWrapperEl) {
       this.toneWrapperEl.style.display = "flex";
     }
-    this.isShadowTyping = false;
+
     this.renderHeaderActionsBrowse();
 
-    const defaultMsg = message || "✍️ 請開始書寫，AI 將在此即時提供 4 種道地英文建議...";
-    this.contentAreaEl.empty();
-    const emptyBox = this.contentAreaEl.createDiv({ cls: "diary-copilot-empty-state" });
-    emptyBox.setText(defaultMsg);
+    const empty = this.contentAreaEl.createDiv({ cls: "diary-copilot-empty-state" });
+    empty.createSpan({ text: message || "✍️ 在上方筆記開始書寫英語，Copilot 將即時提供地道建議與跟寫練習..." });
   }
 
-  setLoading(message?: string) {
-    if (!this.panelEl) return;
+  setLoading(message = "思考地道表達中...") {
+    if (!this.panelEl || !this.contentAreaEl) return;
     this.panelEl.removeClass("is-hidden");
     this.panelEl.addClass("is-loading");
+
     if (this.statusDotEl) {
-      this.statusDotEl.className = "diary-copilot-status-dot loading";
+      this.statusDotEl.className = "diary-copilot-status-dot is-thinking";
     }
-    if (this.brandTextEl && message) {
+    if (this.brandTextEl) {
       this.brandTextEl.setText(message);
     }
   }
 
   setError(message = "⚠️ 連線異常或尚未設定 API Key") {
-    if (!this.panelEl) return;
+    if (!this.panelEl || !this.contentAreaEl) return;
+    this.panelEl.removeClass("is-hidden");
     this.panelEl.removeClass("is-loading");
+
     if (this.statusDotEl) {
-      this.statusDotEl.className = "diary-copilot-status-dot error";
+      this.statusDotEl.className = "diary-copilot-status-dot is-error";
     }
     if (this.brandTextEl) {
-      this.brandTextEl.setText(message);
+      this.brandTextEl.setText("連線提示");
     }
-    if (!this.currentItem) {
-      this.renderIdleState(message);
-    }
+    this.renderIdleState(message);
   }
 
   getCurrentItem(): SuggestionItem | null {
@@ -234,6 +231,11 @@ export class CardPanel {
   updateSuggestions(item: SuggestionItem | null, isPolishMode = false) {
     this.currentItem = item;
     if (!this.panelEl || !this.contentAreaEl) return;
+
+    // If currently actively in oral mode, don't clobber unless dismissed
+    if (this.isOralMode) {
+      return;
+    }
 
     if (!item || (!item.card1 && !item.card2 && !item.card3 && !item.card4 && !item.continueText)) {
       this.renderIdleState();
@@ -295,6 +297,9 @@ export class CardPanel {
     if (!this.contentAreaEl) return;
     this.contentAreaEl.empty();
 
+    this.isOralMode = false;
+    this.isShadowTyping = false;
+
     if (this.brandTextEl) {
       this.brandTextEl.setText("Diary Copilot");
     }
@@ -316,20 +321,20 @@ export class CardPanel {
 
     // Badge & Action hint in Hero Card
     const heroHeader = heroCard.createDiv({ cls: "diary-copilot-hero-header" });
-    const badgeSpan = heroHeader.createSpan({ cls: "diary-copilot-hero-badge", text: activeCard.title });
+    heroHeader.createSpan({ cls: "diary-copilot-hero-badge", text: activeCard.title });
     if (!Platform.isMobile && activeCard.shortcut) {
       heroHeader.createSpan({ cls: "key-hint", text: activeCard.shortcut });
     }
-    heroHeader.createSpan({ cls: "diary-copilot-hero-action-hint", text: "👉 點擊卡片鎖定跟讀／跟寫" });
+    heroHeader.createSpan({ cls: "diary-copilot-hero-action-hint", text: "👉 點擊卡片鎖定跟寫 · 或點上方 🎙️ 語音跟讀" });
 
     // Full multi-line wrapped text
-    const textEl = heroCard.createDiv({ cls: "diary-copilot-hero-text", text: activeCard.text });
+    heroCard.createDiv({ cls: "diary-copilot-hero-text", text: activeCard.text });
 
     if (activeCard.subText) {
       heroCard.createDiv({ cls: "diary-copilot-card-translation-source", text: activeCard.subText });
     }
 
-    // Click handler to adopt into locked mode (with drag-selection protection)
+    // Click handler to adopt into locked typing mode
     let startX = 0;
     let startY = 0;
     heroCard.addEventListener("mousedown", (e) => {
@@ -370,14 +375,17 @@ export class CardPanel {
   }
 
   /**
-   * Render Locked Shadow Mode: Full-width target sentence + Unified Action Bar (🔊, ⚡, ✨, ✕)
+   * Render Locked Shadow Mode: Full-width target sentence + Action Bar (🔊, 🎙️, ⚡, ✨, ✕)
    */
   private renderLockedMode(targetText: string) {
     if (!this.contentAreaEl) return;
     this.contentAreaEl.empty();
 
+    this.isOralMode = false;
+    this.isShadowTyping = true;
+
     if (this.brandTextEl) {
-      this.brandTextEl.setText("🔒 跟寫 / 口說跟讀中");
+      this.brandTextEl.setText("🔒 鎖定跟寫中");
     }
     if (this.toneWrapperEl) {
       this.toneWrapperEl.style.display = "none";
@@ -397,18 +405,59 @@ export class CardPanel {
     lockedCard.createDiv({
       cls: "diary-copilot-locked-hint",
       text: Platform.isMobile
-        ? "💡 提示：按鍵盤 🎤 唸出這句話（80% 自動通過）· 或直接打字跟寫 · 點 ⚡ 填入跳過"
-        : "💡 提示：直接打字跟寫 · Win+H 語音跟讀 · 按 Tab 直接填入 · Esc 解鎖",
+        ? "💡 提示：按上方 🎙️ 開始語音跟讀 · 或在鍵盤打字跟寫 · 點 ⚡ 填入跳過"
+        : "💡 提示：按上方 🎙️ 語音跟讀 · 或直接打字跟寫 · 按 Tab 直接填入 · Esc 解鎖",
     });
   }
 
   /**
-   * Header Action Bar in Browse Mode: Polish & Close
+   * Header Action Bar in Browse Mode: 🔊 朗讀, 🎙️ 跟讀, ⚡ 填入, ✨ 潤飾, ✕ 關閉
    */
   private renderHeaderActionsBrowse() {
     if (!this.headerActionsEl) return;
     this.headerActionsEl.empty();
 
+    const activeCard = this.currentCards[this.activeTabIdx] || this.currentCards[0];
+
+    if (activeCard) {
+      // 1. 🔊 朗讀 (TTS)
+      const ttsBtn = this.headerActionsEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-tts-btn",
+        text: "🔊 朗讀",
+        attr: { title: "聆聽標準美式發音" },
+      });
+      ttsBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        speakSentence(activeCard.text);
+      });
+
+      // 2. 🎙️ 語音跟讀 (Starts Visual Oral Studio)
+      const oralBtn = this.headerActionsEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-oral-btn",
+        text: "🎙️ 跟讀",
+        attr: { title: "開口說英語，視覺化即時判讀並自動填入" },
+      });
+      oralBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.startOralShadowing(activeCard.text, activeCard.kind, this.currentItem?.sourceRange);
+      });
+
+      // 3. ⚡ 填入 (Direct Paste)
+      const pasteBtn = this.headerActionsEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-direct-paste-btn",
+        text: "⚡ 填入",
+        attr: { title: "直接將此句子填入筆記" },
+      });
+      pasteBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.callbacks.onAdopt(activeCard.text, activeCard.kind, this.currentItem?.sourceRange);
+      });
+    }
+
+    // 4. ✨ 潤飾
     const polishBtn = this.headerActionsEl.createEl("button", {
       cls: "diary-copilot-action-btn diary-copilot-polish-btn",
       text: Platform.isMobile ? "✨ 潤飾" : "✨ 潤飾 (F3)",
@@ -420,6 +469,7 @@ export class CardPanel {
       this.callbacks.onPolishRequest?.();
     });
 
+    // 5. ✕ 關閉
     const closeBtn = this.headerActionsEl.createEl("button", {
       cls: "diary-copilot-action-btn diary-copilot-close-btn",
       text: "✕",
@@ -433,7 +483,7 @@ export class CardPanel {
   }
 
   /**
-   * Unified Header Action Bar in Locked Mode: 🔊 朗讀, ⚡ 填入, ✨ 潤飾, ✕ 解鎖
+   * Header Action Bar in Locked Mode: 🔊 朗讀, 🎙️ 跟讀, ⚡ 填入, ✨ 潤飾, ✕ 解鎖
    */
   private renderHeaderActionsLocked(targetText: string) {
     if (!this.headerActionsEl) return;
@@ -451,51 +501,16 @@ export class CardPanel {
       speakSentence(targetText);
     });
 
-    // 2. 🎙️ 跟讀 (Speech Recognition in en-US)
+    // 2. 🎙️ 跟讀 (Visual Oral Studio)
     const oralBtn = this.headerActionsEl.createEl("button", {
       cls: "diary-copilot-action-btn diary-copilot-oral-btn",
       text: "🎙️ 跟讀",
-      attr: { title: "開口說英語，自動語音辨識與輸入" },
+      attr: { title: "開口說英語，視覺化即時辨識與自動填入" },
     });
     oralBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       e.preventDefault();
-
-      if (globalSpeechRecognizer.getIsListening()) {
-        globalSpeechRecognizer.stop();
-        oralBtn.setText("🎙️ 跟讀");
-        oralBtn.removeClass("is-recording");
-        return;
-      }
-
-      if (!globalSpeechRecognizer.isSupported()) {
-        this.callbacks.onFocusEditor?.();
-        new Notice("💡 請在鍵盤上點擊 🎤 麥克風圖示開始說英語跟讀", 3500);
-        return;
-      }
-
-      oralBtn.setText("🔴 聆聽中...");
-      oralBtn.addClass("is-recording");
-      new Notice("🎙️ 請對著手機唸出這句話（自動英語辨識）...", 2200);
-
-      globalSpeechRecognizer.start("en-US", {
-        onResult: (transcript, _isFinal) => {
-          if (this.callbacks.onOralInput) {
-            this.callbacks.onOralInput(transcript, targetText);
-          }
-        },
-        onError: (err) => {
-          oralBtn.setText("🎙️ 跟讀");
-          oralBtn.removeClass("is-recording");
-          if (err !== "no-speech") {
-            new Notice(`語音辨識提示：${err}`);
-          }
-        },
-        onEnd: () => {
-          oralBtn.setText("🎙️ 跟讀");
-          oralBtn.removeClass("is-recording");
-        },
-      });
+      this.startOralShadowing(targetText, "continue", this.currentItem?.sourceRange);
     });
 
     // 3. ⚡ 填入 (Direct Paste / Skip Shadowing)
@@ -510,7 +525,7 @@ export class CardPanel {
       this.callbacks.onDirectPaste?.();
     });
 
-    // 3. ✨ 潤飾 (Polish)
+    // 4. ✨ 潤飾 (Polish)
     const polishBtn = this.headerActionsEl.createEl("button", {
       cls: "diary-copilot-action-btn diary-copilot-polish-btn",
       text: Platform.isMobile ? "✨ 潤飾" : "✨ 潤飾 (F3)",
@@ -522,7 +537,7 @@ export class CardPanel {
       this.callbacks.onPolishRequest?.();
     });
 
-    // 4. ✕ 解鎖 (Unlock & return to browse mode)
+    // 5. ✕ 解鎖 (Unlock & return to browse mode)
     const unlockBtn = this.headerActionsEl.createEl("button", {
       cls: "diary-copilot-action-btn diary-copilot-close-btn",
       text: "✕",
@@ -537,6 +552,278 @@ export class CardPanel {
         this.callbacks.onDismiss();
       }
     });
+  }
+
+  // ========================================================
+  // Visual Oral Shadowing Studio (即時視覺化語音跟讀工作台)
+  // ========================================================
+
+  /**
+   * Starts Oral Shadowing Studio without touching note document until confirmation.
+   */
+  startOralShadowing(
+    targetText: string,
+    kind: "continue" | "alternative" | "translation",
+    sourceRange?: { from: number; to: number }
+  ) {
+    this.isOralMode = true;
+    this.oralTargetText = targetText;
+    this.oralKind = kind;
+    this.oralSourceRange = sourceRange;
+    this.oralPassed = false;
+    if (this.oralPassTimeout) {
+      window.clearTimeout(this.oralPassTimeout);
+      this.oralPassTimeout = null;
+    }
+
+    if (this.brandTextEl) {
+      this.brandTextEl.setText("🎙️ 口說跟讀中 (en-US)");
+    }
+    if (this.toneWrapperEl) {
+      this.toneWrapperEl.style.display = "none";
+    }
+
+    this.renderHeaderActionsOral();
+    this.renderOralWorkspace();
+
+    if (!globalSpeechRecognizer.isSupported()) {
+      new Notice("💡 目前環境不支援 Web Speech 語音辨識，請使用鍵盤輸入", 3500);
+      return;
+    }
+
+    new Notice("🎙️ 語音辨識已啟動，請對著手機唸出上方目標句子...", 2500);
+
+    globalSpeechRecognizer.start("en-US", {
+      onResult: (transcript: string, _isFinal: boolean) => {
+        if (!this.isOralMode || this.oralPassed) return;
+        const match = evaluateOralMatch(transcript, this.oralTargetText);
+        this.updateOralVisuals(match);
+
+        if (match.isPass) {
+          this.handleOralPass(match);
+        }
+      },
+      onError: (err: string) => {
+        if (!this.isOralMode) return;
+        if (err === "not-allowed" || err === "service-not-allowed") {
+          new Notice("⚠️ 麥克風權限未開啟，請允許瀏覽器/Obsidian存取麥克風");
+        } else if (err !== "no-speech" && err !== "aborted") {
+          console.warn("[Diary Copilot Oral Error]", err);
+        }
+      },
+      onEnd: () => {
+        // SpeechRecognizer auto-restarts persistently when shouldBeListening is true
+      },
+    });
+  }
+
+  /**
+   * Header Action Bar in Oral Mode: 🔊 示範, ⚡ 直接填入, ✕ 取消
+   */
+  private renderHeaderActionsOral() {
+    if (!this.headerActionsEl) return;
+    this.headerActionsEl.empty();
+
+    // 1. 🔊 示範 (TTS Listen)
+    const ttsBtn = this.headerActionsEl.createEl("button", {
+      cls: "diary-copilot-action-btn diary-copilot-tts-btn",
+      text: "🔊 聽示範",
+      attr: { title: "再次聆聽標準發音示範" },
+    });
+    ttsBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      speakSentence(this.oralTargetText);
+    });
+
+    // 2. ⚡ 直接填入 (Skip Oral Drill)
+    const pasteBtn = this.headerActionsEl.createEl("button", {
+      cls: "diary-copilot-action-btn diary-copilot-direct-paste-btn",
+      text: "⚡ 直接填入",
+      attr: { title: "跳過口說練習，直接將此句子填入筆記" },
+    });
+    pasteBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.handleOralAdoptDirect();
+    });
+
+    // 3. ✕ 取消跟讀 (Safe cancel without mutating note)
+    const cancelBtn = this.headerActionsEl.createEl("button", {
+      cls: "diary-copilot-action-btn diary-copilot-close-btn",
+      text: "✕ 取消",
+      attr: { "aria-label": "取消跟讀", title: "取消跟讀並返回卡片" },
+    });
+    cancelBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.cancelOralShadowing();
+    });
+  }
+
+  /**
+   * Renders the Visual Oral Shadowing Workspace
+   */
+  private renderOralWorkspace() {
+    if (!this.contentAreaEl) return;
+    this.contentAreaEl.empty();
+
+    const initialMatch = evaluateOralMatch("", this.oralTargetText);
+
+    this.oralWorkspaceEl = this.contentAreaEl.createDiv({ cls: "diary-copilot-oral-workspace" });
+
+    // 1. Target Sentence Box with word spans
+    const targetEl = this.oralWorkspaceEl.createDiv({ cls: "diary-copilot-oral-target" });
+    this.oralTargetWordSpans = [];
+
+    initialMatch.targetWords.forEach((word) => {
+      const span = targetEl.createSpan({
+        cls: "oral-word is-pending",
+        text: word,
+      });
+      targetEl.createSpan({ text: " " });
+      this.oralTargetWordSpans.push(span);
+    });
+
+    // 2. Live Spoken Transcript Bubble
+    const liveBox = this.oralWorkspaceEl.createDiv({ cls: "diary-copilot-oral-live-box" });
+    liveBox.createSpan({ cls: "diary-copilot-oral-live-icon", text: "🎙️" });
+    this.oralLiveTextEl = liveBox.createSpan({
+      cls: "diary-copilot-oral-live-text is-empty",
+      text: "正在聆聽... 請對著手機唸出上方句子",
+    });
+
+    // 3. Progress Meter (Bar + 70% threshold mark)
+    const progWrapper = this.oralWorkspaceEl.createDiv({ cls: "diary-copilot-oral-progress-wrapper" });
+    this.oralProgressFillEl = progWrapper.createDiv({ cls: "diary-copilot-oral-progress-fill" });
+
+    // 4. Status Row (Score badge & Tips)
+    const statusRow = this.oralWorkspaceEl.createDiv({ cls: "diary-copilot-oral-status-row" });
+    this.oralScoreBadgeEl = statusRow.createSpan({
+      cls: "diary-copilot-oral-score-badge",
+      text: "📊 吻合度：0%（70% 達標自動放入）",
+    });
+
+    statusRow.createSpan({
+      cls: "diary-copilot-oral-tip",
+      text: Platform.isMobile ? "唸完自動判定填入 · 隨時可點⚡跳過" : "唸完自動判定填入 · 隨時可點⚡直接填入",
+    });
+  }
+
+  /**
+   * Real-time visual updates on each speech recognition event
+   */
+  private updateOralVisuals(match: OralMatchResult) {
+    if (!this.oralWorkspaceEl) return;
+
+    // 1. Update target sentence words highlighting
+    this.oralTargetWordSpans.forEach((span, idx) => {
+      if (match.matchedIndices.has(idx)) {
+        span.removeClass("is-pending");
+        span.addClass("is-matched");
+      } else {
+        span.removeClass("is-matched");
+        span.addClass("is-pending");
+      }
+    });
+
+    // 2. Update Live Transcript
+    if (this.oralLiveTextEl) {
+      if (match.spokenText && match.spokenText.trim().length > 0) {
+        this.oralLiveTextEl.setText(`「 ${match.spokenText} 」`);
+        this.oralLiveTextEl.removeClass("is-empty");
+      } else {
+        this.oralLiveTextEl.setText("正在聆聽... 請開始朗讀上方句子");
+        this.oralLiveTextEl.addClass("is-empty");
+      }
+    }
+
+    // 3. Update Progress Bar
+    const pct = Math.min(100, Math.round(match.matchRatio * 100));
+    if (this.oralProgressFillEl) {
+      this.oralProgressFillEl.style.width = `${pct}%`;
+      this.oralProgressFillEl.removeClass("is-warning", "is-success");
+      if (pct >= 70) {
+        this.oralProgressFillEl.addClass("is-success");
+      } else if (pct >= 40) {
+        this.oralProgressFillEl.addClass("is-warning");
+      }
+    }
+
+    // 4. Update Score Badge
+    if (this.oralScoreBadgeEl) {
+      if (pct >= 70) {
+        this.oralScoreBadgeEl.setText(`🎉 辨識吻合度：${pct}%（已達標！）`);
+        this.oralScoreBadgeEl.addClass("is-success");
+      } else {
+        this.oralScoreBadgeEl.setText(`📊 吻合度：${pct}%（門檻 70%）`);
+        this.oralScoreBadgeEl.removeClass("is-success");
+      }
+    }
+  }
+
+  /**
+   * Handles successful oral match (>= 70%) with celebratory visual feedback & atomic note insertion
+   */
+  private handleOralPass(match: OralMatchResult) {
+    this.oralPassed = true;
+    globalSpeechRecognizer.stop();
+
+    // 1. Visual success feedback
+    this.oralWorkspaceEl?.addClass("is-passed");
+    if (this.oralScoreBadgeEl) {
+      this.oralScoreBadgeEl.setText(`🎉 辨識成功 (${Math.round(match.matchRatio * 100)}%)！正在放入筆記...`);
+      this.oralScoreBadgeEl.addClass("is-success");
+    }
+    if (this.oralProgressFillEl) {
+      this.oralProgressFillEl.style.width = "100%";
+      this.oralProgressFillEl.addClass("is-success");
+    }
+
+    // 2. Visual confirmation delay (450ms) so user perceives the celebratory outcome
+    this.oralPassTimeout = window.setTimeout(() => {
+      this.isOralMode = false;
+      if (this.callbacks.onOralAdopt) {
+        this.callbacks.onOralAdopt(this.oralTargetText, this.oralKind, this.oralSourceRange);
+      } else {
+        this.callbacks.onAdopt(this.oralTargetText, this.oralKind, this.oralSourceRange);
+      }
+      this.renderIdleState();
+    }, 450);
+  }
+
+  /**
+   * Direct paste button clicked from Oral Studio
+   */
+  private handleOralAdoptDirect() {
+    this.oralPassed = true;
+    globalSpeechRecognizer.stop();
+    this.isOralMode = false;
+    if (this.callbacks.onOralAdopt) {
+      this.callbacks.onOralAdopt(this.oralTargetText, this.oralKind, this.oralSourceRange);
+    } else {
+      this.callbacks.onAdopt(this.oralTargetText, this.oralKind, this.oralSourceRange);
+    }
+    this.renderIdleState();
+  }
+
+  /**
+   * Cancel Oral Shadowing without mutating note
+   */
+  private cancelOralShadowing() {
+    this.oralPassed = false;
+    globalSpeechRecognizer.stop();
+    this.isOralMode = false;
+    if (this.oralPassTimeout) {
+      window.clearTimeout(this.oralPassTimeout);
+      this.oralPassTimeout = null;
+    }
+    if (this.isShadowTyping) {
+      this.renderLockedMode(this.oralTargetText);
+    } else {
+      this.renderBrowseMode();
+    }
+    new Notice("已取消跟讀，筆記內容未更動", 1500);
   }
 
   isHidden(): boolean {
@@ -556,6 +843,10 @@ export class CardPanel {
   }
 
   destroy() {
+    if (this.oralPassTimeout) {
+      window.clearTimeout(this.oralPassTimeout);
+      this.oralPassTimeout = null;
+    }
     globalSpeechRecognizer.stop();
     if (this.panelEl) {
       this.panelEl.remove();

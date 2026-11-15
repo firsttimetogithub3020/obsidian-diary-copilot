@@ -489,6 +489,9 @@ export default class DiaryCopilotPlugin extends Plugin {
           onDirectPaste: () => {
             this.handleDirectPaste();
           },
+          onOralAdopt: (text, kind, sourceRange) => {
+            this.executeOralAdoption(text, kind, sourceRange);
+          },
           onUnlock: () => {
             this.scheduler.clear();
             this.clearGhostText();
@@ -879,6 +882,69 @@ export default class DiaryCopilotPlugin extends Plugin {
     // Refetch next suggestions for continuation
     editor.focus();
     const newContext = extractContextFromDoc(editor.getValue(), anchorPos + targetText.length);
+    const filePath = activeMarkdownView.file.path;
+    const paragraphSummary = this.summaryManager.getParagraphSummary(filePath);
+    const styleSummary = this.data.styleSummary?.summary;
+    this.scheduler.handleDocChange(newContext, styleSummary, paragraphSummary);
+  }
+
+  executeOralAdoption(
+    text: string,
+    kind: "continue" | "alternative" | "translation",
+    sourceRange?: { from: number; to: number }
+  ) {
+    const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!activeMarkdownView || !activeMarkdownView.file) return;
+
+    const editorView = this.getEditorView();
+    if (!editorView) return;
+
+    const editor = activeMarkdownView.editor;
+    const cleanText = text.trim();
+
+    let targetFrom: number;
+    let targetTo: number;
+    let replacedText = "";
+
+    // If there is an active shadow typing session (e.g. user began typing then did oral):
+    if (this.scheduler.isShadowMode()) {
+      const anchorPos = this.scheduler.getAnchorPos();
+      const currentCursor = editor.posToOffset(editor.getCursor());
+      targetFrom = anchorPos;
+      targetTo = Math.max(anchorPos, currentCursor);
+    } else if (sourceRange) {
+      targetFrom = Math.min(sourceRange.from, sourceRange.to);
+      targetTo = Math.max(sourceRange.from, sourceRange.to);
+      replacedText = editorView.state.doc.sliceString(targetFrom, targetTo);
+    } else {
+      const curPos = editor.posToOffset(editor.getCursor());
+      targetFrom = curPos;
+      targetTo = curPos;
+    }
+
+    // Atomic insertion/replacement into document
+    editorView.dispatch({
+      changes: {
+        from: targetFrom,
+        to: targetTo,
+        insert: cleanText,
+      },
+      selection: { anchor: targetFrom + cleanText.length },
+      userEvent: "input",
+    });
+
+    editor.focus();
+
+    // Clear shadow state & restore panel
+    this.scheduler.clear();
+    this.clearGhostText();
+    this.cardPanel?.renderIdleState();
+
+    this.recordAdoption(cleanText, kind, replacedText);
+    new Notice("🎉 語音跟讀成功！已將標準句子放入筆記", 2500);
+
+    // Refetch next continuation suggestions
+    const newContext = extractContextFromDoc(editor.getValue(), targetFrom + cleanText.length);
     const filePath = activeMarkdownView.file.path;
     const paragraphSummary = this.summaryManager.getParagraphSummary(filePath);
     const styleSummary = this.data.styleSummary?.summary;

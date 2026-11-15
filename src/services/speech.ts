@@ -10,6 +10,77 @@ export interface SpeechRecognitionHandlers {
   onEnd?: () => void;
 }
 
+export interface OralMatchResult {
+  spokenText: string;
+  targetText: string;
+  targetWords: string[];
+  matchedIndices: Set<number>;
+  matchRatio: number;
+  isPass: boolean;
+}
+
+/**
+ * Evaluates spoken transcript against target text, providing word-level match details
+ * and a forgiving threshold (>= 70%) for low-frustration English oral practice.
+ */
+export function evaluateOralMatch(spoken: string, target: string): OralMatchResult {
+  const normalize = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/[‘’]/g, "'")
+      .replace(/[“”]/g, '"')
+      .replace(/n't\b/g, " not")
+      .replace(/'m\b/g, " am")
+      .replace(/'re\b/g, " are")
+      .replace(/'ve\b/g, " have")
+      .replace(/'ll\b/g, " will")
+      .replace(/'d\b/g, " would")
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const rawTargetWords = target.trim().split(/\s+/).filter((w) => w.length > 0);
+  const normSpoken = normalize(spoken);
+  const normSpokenWords = normSpoken.split(" ").filter((w) => w.length > 0);
+  const matchedIndices = new Set<number>();
+
+  if (rawTargetWords.length === 0 || normSpokenWords.length === 0) {
+    return {
+      spokenText: spoken,
+      targetText: target,
+      targetWords: rawTargetWords,
+      matchedIndices,
+      matchRatio: 0,
+      isPass: false,
+    };
+  }
+
+  let searchStart = 0;
+  for (let i = 0; i < rawTargetWords.length; i++) {
+    const cleanWord = normalize(rawTargetWords[i]);
+    if (!cleanWord) continue;
+
+    const idx = normSpokenWords.indexOf(cleanWord, searchStart);
+    if (idx !== -1) {
+      matchedIndices.add(i);
+      searchStart = idx + 1;
+    }
+  }
+
+  const matchRatio = rawTargetWords.length > 0 ? matchedIndices.size / rawTargetWords.length : 0;
+  // Consider passed if >= 70% matched and spoken length is at least 45% of word count
+  const isPass = matchRatio >= 0.70 && normSpokenWords.length >= Math.floor(rawTargetWords.length * 0.45);
+
+  return {
+    spokenText: spoken,
+    targetText: target,
+    targetWords: rawTargetWords,
+    matchedIndices,
+    matchRatio: Math.min(1.0, matchRatio),
+    isPass,
+  };
+}
+
 export class SpeechRecognizer {
   private recognition: any = null;
   private shouldBeListening = false;
