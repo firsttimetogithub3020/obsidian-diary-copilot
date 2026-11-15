@@ -33,7 +33,7 @@
   top: -8px;
   left: 50%;
   transform: translateX(-50%);
-  width: 140px;
+  width: 180px;
   height: 16px;
   cursor: ns-resize;
   z-index: 25;
@@ -47,7 +47,7 @@
 
 .diary-copilot-resize-handle::after {
   content: "";
-  width: 48px;
+  width: 54px;
   height: 4px;
   border-radius: 2px;
   background-color: var(--text-faint);
@@ -67,7 +67,7 @@
   top: -14px;
   left: 50%;
   transform: translateX(-50%);
-  width: 130px;
+  width: 160px;
   height: 28px;
   touch-action: none !important;
   -webkit-user-select: none !important;
@@ -128,6 +128,36 @@
   user-select: none;
   margin-top: 2px;
   margin-bottom: 2px;
+  width: 100%;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.diary-copilot-header-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  z-index: 20;
+}
+
+.diary-copilot-header-audio {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.diary-copilot-header-center {
+  flex: 1;
+  min-width: 130px;
+}
+
+.diary-copilot-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  z-index: 20;
 }
 
 .diary-copilot-brand {
@@ -941,8 +971,29 @@
   top: -14px;
   left: 50%;
   transform: translateX(-50%);
-  width: 130px;
+  width: 160px;
   height: 28px;
+}
+
+.diary-copilot-panel.is-collapsed {
+  overflow: hidden !important;
+  min-height: 0 !important;
+}
+
+.diary-copilot-panel.is-collapsed .diary-copilot-panel-content {
+  display: none !important;
+}
+
+.is-mobile .diary-copilot-panel.is-collapsed {
+  min-height: 0 !important;
+  padding-bottom: 2px;
+}
+
+.is-mobile .diary-copilot-brand-text {
+  max-width: 65px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .is-mobile .diary-copilot-hero-card {

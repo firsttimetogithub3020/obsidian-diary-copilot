@@ -34,6 +34,8 @@ export class CardPanel {
   private statusDotEl: HTMLElement | null = null;
   private brandTextEl: HTMLElement | null = null;
   private headerHintEl: HTMLElement | null = null;
+  private headerLeftEl: HTMLElement | null = null;
+  private headerAudioEl: HTMLElement | null = null;
   private toneWrapperEl: HTMLElement | null = null;
   private toneSelectEl: HTMLSelectElement | null = null;
   private headerActionsEl: HTMLElement | null = null;
@@ -42,6 +44,7 @@ export class CardPanel {
   private callbacks: CardPanelCallbacks;
   private currentItem: SuggestionItem | null = null;
   private isResizing = false;
+  private isCollapsed = false;
   private activeTabIdx = 0;
   private currentCards: CardDescriptor[] = [];
   private isShadowTyping = false;
@@ -89,13 +92,18 @@ export class CardPanel {
     // Header bar (unified action bar across browse, locked, & oral modes)
     const header = this.panelEl.createDiv({ cls: "diary-copilot-panel-header" });
     
-    // Left: Brand / Mode Indicator
-    const brand = header.createDiv({ cls: "diary-copilot-brand" });
+    // Left Group: Brand + Audio buttons (🔊 朗讀, 🎙️ 跟讀) + Tone Selector
+    this.headerLeftEl = header.createDiv({ cls: "diary-copilot-header-left" });
+
+    const brand = this.headerLeftEl.createDiv({ cls: "diary-copilot-brand" });
     this.statusDotEl = brand.createSpan({ cls: "diary-copilot-status-dot" });
     this.brandTextEl = brand.createSpan({ cls: "diary-copilot-brand-text", text: "Diary Copilot" });
 
-    // Middle: Tone Selector (visible in browse mode)
-    this.toneWrapperEl = header.createDiv({ cls: "diary-copilot-tone-wrapper" });
+    // Audio Buttons sub-container in Left Group
+    this.headerAudioEl = this.headerLeftEl.createDiv({ cls: "diary-copilot-header-audio" });
+
+    // Tone Selector (visible in browse mode) in Left Group
+    this.toneWrapperEl = this.headerLeftEl.createDiv({ cls: "diary-copilot-tone-wrapper" });
     this.toneWrapperEl.createSpan({ cls: "diary-copilot-tone-label", text: "語調：" });
 
     this.toneSelectEl = this.toneWrapperEl.createEl("select", { cls: "diary-copilot-tone-select" });
@@ -116,7 +124,10 @@ export class CardPanel {
       this.callbacks.onToneChange?.(newTone);
     });
 
-    // Right: Unified Actions Bar
+    // Center dedicated space: completely empty, keeping resize handle clear!
+    header.createDiv({ cls: "diary-copilot-header-center" });
+
+    // Right: Unified Actions Bar (⚡ 填入, ❓ 提問/✍️ 回續寫, ✨ 潤飾, ✕)
     this.headerActionsEl = header.createDiv({ cls: "diary-copilot-header-actions" });
 
     // Content Area
@@ -128,7 +139,7 @@ export class CardPanel {
   private setupResizeListeners() {
     if (!this.resizeHandleEl) return;
     const handleEl = this.resizeHandleEl;
-    handleEl.setAttribute("title", "拖曳自訂高度 · 雙擊恢復智慧自適應內容");
+    handleEl.setAttribute("title", "拖曳調整高度 · 按一下收摺/展開 · 點按功能自動貼合內容");
 
     let pointerStartY = 0;
     let pointerStartTime = 0;
@@ -163,9 +174,11 @@ export class CardPanel {
       if (Math.abs(deltaY) > 3) {
         pointerMoved = true;
         this.hasUserManuallyResized = true;
+        this.isCollapsed = false;
+        this.panelEl?.removeClass("is-collapsed");
       }
 
-      const clampedHeight = Math.max(50, Math.min(initialHeight + deltaY, window.innerHeight * 0.75));
+      const clampedHeight = Math.max(32, Math.min(initialHeight + deltaY, window.innerHeight * 0.75));
 
       this.panelEl.style.height = `${clampedHeight}px`;
       if (clampedHeight <= 95) {
@@ -185,16 +198,16 @@ export class CardPanel {
       } catch {}
 
       const elapsed = Date.now() - pointerStartTime;
-      // Quick tap (< 350ms without moving) toggles height preset
+      // Quick tap (< 350ms without moving) toggles Collapse (Header-only) vs Content-fit
       if (!pointerMoved && elapsed < 350) {
-        this.toggleHeightPreset();
+        this.toggleCollapse();
         this.callbacks.onFocusEditor?.();
         return;
       }
 
       if (pointerMoved) {
         const finalHeight = parseInt(this.panelEl.style.height, 10);
-        if (!isNaN(finalHeight) && finalHeight >= 50) {
+        if (!isNaN(finalHeight) && finalHeight >= 32) {
           this.hasUserManuallyResized = true;
           this.userManualHeight = finalHeight;
           this.callbacks.onHeightResize?.(finalHeight);
@@ -219,15 +232,23 @@ export class CardPanel {
     handleEl.addEventListener("dblclick", (e: MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      this.resetToAutoHeight();
+      this.resetToAutoFit();
     });
   }
 
   /**
-   * Applies either auto-fit height (hugs rendered content naturally) or manual lock height
+   * Applies either auto-fit height (hugs rendered content naturally), manual lock height, or collapsed height
    */
   public applyPanelHeight() {
     if (!this.panelEl) return;
+
+    if (this.isCollapsed) {
+      const collapsedHeight = Platform.isMobile ? 32 : 36;
+      this.panelEl.style.height = `${collapsedHeight}px`;
+      this.panelEl.addClass("is-compact");
+      document.body.style.setProperty("--diary-copilot-panel-height", `${collapsedHeight}px`);
+      return;
+    }
 
     if (this.hasUserManuallyResized && this.userManualHeight) {
       this.panelEl.style.height = `${this.userManualHeight}px`;
@@ -240,7 +261,7 @@ export class CardPanel {
     } else {
       this.panelEl.style.height = "auto";
       requestAnimationFrame(() => {
-        if (!this.panelEl || this.hasUserManuallyResized) return;
+        if (!this.panelEl || this.hasUserManuallyResized || this.isCollapsed) return;
         const measured = this.panelEl.offsetHeight;
         if (measured > 0) {
           document.body.style.setProperty("--diary-copilot-panel-height", `${measured}px`);
@@ -255,71 +276,39 @@ export class CardPanel {
   }
 
   /**
-   * Resets panel height back to smart auto-fit (content-driven)
+   * Resets manual lock and automatically fits the current rendered content height
    */
-  public resetToAutoHeight() {
+  public resetToAutoFit() {
+    this.isCollapsed = false;
     this.hasUserManuallyResized = false;
     this.userManualHeight = null;
-    this.panelEl?.addClass("is-animating");
+    this.panelEl?.removeClass("is-collapsed");
     this.applyPanelHeight();
-    window.setTimeout(() => this.panelEl?.removeClass("is-animating"), 240);
     this.callbacks.onFocusEditor?.();
   }
 
   /**
-   * Toggles panel height: cycles through preset heights or returns to smart auto-fit
+   * Toggles between Collapsed (Header-only ~32px) and Expanded (Content-fit auto height)
    */
-  public toggleHeightPreset() {
+  public toggleCollapse() {
     if (!this.panelEl) return;
+    this.isCollapsed = !this.isCollapsed;
 
-    if (!this.hasUserManuallyResized) {
-      this.hasUserManuallyResized = true;
-      const targetHeight = Platform.isMobile ? 125 : 220;
-      this.userManualHeight = targetHeight;
-      this.panelEl.addClass("is-animating");
-      this.applyPanelHeight();
-      window.setTimeout(() => this.panelEl?.removeClass("is-animating"), 240);
-      this.callbacks.onHeightResize?.(targetHeight);
+    this.panelEl.addClass("is-animating");
+    if (this.isCollapsed) {
+      this.panelEl.addClass("is-collapsed");
+      const collapsedHeight = Platform.isMobile ? 32 : 36;
+      this.panelEl.style.height = `${collapsedHeight}px`;
+      this.panelEl.addClass("is-compact");
+      document.body.style.setProperty("--diary-copilot-panel-height", `${collapsedHeight}px`);
     } else {
-      const currentHeight = this.userManualHeight || this.panelEl.offsetHeight || 125;
-      if (Platform.isMobile) {
-        if (currentHeight <= 95) {
-          this.userManualHeight = 125;
-          this.panelEl.addClass("is-animating");
-          this.applyPanelHeight();
-          window.setTimeout(() => this.panelEl?.removeClass("is-animating"), 240);
-          this.callbacks.onHeightResize?.(125);
-        } else if (currentHeight <= 150) {
-          this.userManualHeight = 190;
-          this.panelEl.addClass("is-animating");
-          this.applyPanelHeight();
-          window.setTimeout(() => this.panelEl?.removeClass("is-animating"), 240);
-          this.callbacks.onHeightResize?.(190);
-        } else {
-          // Cycle back to auto-fit
-          this.resetToAutoHeight();
-          return;
-        }
-      } else {
-        if (currentHeight < 160) {
-          this.userManualHeight = 220;
-          this.panelEl.addClass("is-animating");
-          this.applyPanelHeight();
-          window.setTimeout(() => this.panelEl?.removeClass("is-animating"), 240);
-          this.callbacks.onHeightResize?.(220);
-        } else if (currentHeight < 280) {
-          this.userManualHeight = 320;
-          this.panelEl.addClass("is-animating");
-          this.applyPanelHeight();
-          window.setTimeout(() => this.panelEl?.removeClass("is-animating"), 240);
-          this.callbacks.onHeightResize?.(320);
-        } else {
-          // Cycle back to auto-fit
-          this.resetToAutoHeight();
-          return;
-        }
-      }
+      this.panelEl.removeClass("is-collapsed");
+      // Restore to content-fit auto height
+      this.hasUserManuallyResized = false;
+      this.userManualHeight = null;
+      this.applyPanelHeight();
     }
+    window.setTimeout(() => this.panelEl?.removeClass("is-animating"), 240);
     this.callbacks.onFocusEditor?.();
   }
 
@@ -437,6 +426,7 @@ export class CardPanel {
     this.pinnedInquiryCategory = "closed";
     this.isShowingInquiryAnswers = false;
     this.activeTabIdx = 0;
+    this.resetToAutoFit();
 
     this.panelEl.removeClass("is-hidden");
     this.panelEl.removeClass("is-loading");
@@ -454,6 +444,7 @@ export class CardPanel {
   clearPinnedInquiry() {
     this.pinnedInquiryItem = null;
     this.isShowingInquiryAnswers = false;
+    this.resetToAutoFit();
     this.renderBrowseMode();
   }
 
@@ -593,6 +584,7 @@ export class CardPanel {
       if (this.pinnedInquiryCategory !== "closed") {
         this.pinnedInquiryCategory = "closed";
         this.activeTabIdx = 0;
+        this.resetToAutoFit();
         this.renderBrowseMode();
         this.callbacks.onFocusEditor?.();
       }
@@ -608,6 +600,7 @@ export class CardPanel {
       if (this.pinnedInquiryCategory !== "open") {
         this.pinnedInquiryCategory = "open";
         this.activeTabIdx = 0;
+        this.resetToAutoFit();
         this.renderBrowseMode();
         this.callbacks.onFocusEditor?.();
       }
@@ -627,6 +620,7 @@ export class CardPanel {
       e.preventDefault();
       this.isShowingInquiryAnswers = !this.isShowingInquiryAnswers;
       this.activeTabIdx = 0;
+      this.resetToAutoFit();
       this.renderBrowseMode();
       this.callbacks.onFocusEditor?.();
     });
@@ -741,6 +735,7 @@ export class CardPanel {
         tabBtn.addEventListener("touchstart", (e) => {
           e.preventDefault();
           this.activeTabIdx = idx;
+          this.resetToAutoFit();
           this.renderBrowseMode();
           this.callbacks.onFocusEditor?.();
         }, { passive: false });
@@ -748,6 +743,7 @@ export class CardPanel {
         tabBtn.addEventListener("click", (e) => {
           e.preventDefault();
           this.activeTabIdx = idx;
+          this.resetToAutoFit();
           this.renderBrowseMode();
           this.callbacks.onFocusEditor?.();
         });
@@ -794,19 +790,21 @@ export class CardPanel {
   }
 
   /**
-   * Header Action Bar in Browse Mode: 🔊 朗讀, 🎙️ 跟讀, ⚡ 填入, ✨ 潤飾, ✕ 關閉
+   * Header Action Bar in Browse Mode: Left Group (🔊 朗讀, 🎙️ 跟讀) & Right Group (⚡ 填入, ✨ 潤飾, ✕ 關閉)
+   * Center zone is completely clear for the resize handle!
    */
   private renderHeaderActionsBrowse() {
     if (!this.headerActionsEl) return;
     this.headerActionsEl.empty();
+    if (this.headerAudioEl) this.headerAudioEl.empty();
 
     const activeCard = this.currentCards[this.activeTabIdx] || this.currentCards[0];
 
-    if (activeCard) {
-      // 1. 🔊 朗讀 (TTS)
-      const ttsBtn = this.headerActionsEl.createEl("button", {
+    if (activeCard && this.headerAudioEl) {
+      // 1. 🔊 朗讀 (TTS) - Left Group
+      const ttsBtn = this.headerAudioEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-tts-btn",
-        text: Platform.isMobile ? "🔊" : "🔊 朗讀",
+        text: "🔊 朗讀",
         attr: { title: "聆聽標準美式發音" },
       });
       ttsBtn.addEventListener("click", (e) => {
@@ -815,19 +813,22 @@ export class CardPanel {
         speakSentence(activeCard.text);
       });
 
-      // 2. 🎙️ 語音跟讀 (Starts Visual Oral Studio)
-      const oralBtn = this.headerActionsEl.createEl("button", {
+      // 2. 🎙️ 語音跟讀 (Starts Visual Oral Studio) - Left Group
+      const oralBtn = this.headerAudioEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-oral-btn",
-        text: Platform.isMobile ? "🎙️" : "🎙️ 跟讀",
+        text: "🎙️ 跟讀",
         attr: { title: "開口說英語，視覺化即時判讀並自動填入" },
       });
       oralBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         e.preventDefault();
+        this.resetToAutoFit();
         this.startOralShadowing(activeCard.text, activeCard.kind, this.currentItem?.sourceRange);
       });
+    }
 
-      // 3. ⚡ 填入 (Direct Paste)
+    if (activeCard) {
+      // 3. ⚡ 填入 (Direct Paste) - Right Group
       const pasteBtn = this.headerActionsEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-direct-paste-btn",
         text: "⚡ 填入",
@@ -841,7 +842,7 @@ export class CardPanel {
     }
 
     if (this.pinnedInquiryItem) {
-      // ✍️ 回續寫
+      // ✍️ 回續寫 - Right Group
       const resumeBtn = this.headerActionsEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-resume-btn",
         text: Platform.isMobile ? "✍️ 續寫" : "✍️ 回續寫",
@@ -854,7 +855,7 @@ export class CardPanel {
         this.callbacks.onDismiss?.();
       });
     } else {
-      // 4. ❓ 提問 (F5)
+      // 4. ❓ 提問 (F5) - Right Group
       const inquiryBtn = this.headerActionsEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-inquiry-btn",
         text: Platform.isMobile ? "❓ 提問" : "❓ 提問 (F5)",
@@ -863,35 +864,25 @@ export class CardPanel {
       inquiryBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         e.preventDefault();
+        this.resetToAutoFit();
         this.callbacks.onInquiryRequest?.();
       });
     }
 
-    // 5. ✨ 潤飾
+    // 5. ✨ 潤飾 - Right Group (Full Chinese text)
     const polishBtn = this.headerActionsEl.createEl("button", {
       cls: "diary-copilot-action-btn diary-copilot-polish-btn",
-      text: Platform.isMobile ? "✨" : "✨ 潤飾 (F3)",
+      text: Platform.isMobile ? "✨ 潤飾" : "✨ 潤飾 (F3)",
       attr: { title: "潤飾當前/前一句表達 (F3)" },
     });
     polishBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       e.preventDefault();
+      this.resetToAutoFit();
       this.callbacks.onPolishRequest?.();
     });
 
-    // 6. ↕️ 切換高度 (80px / 125px / 190px)
-    const heightBtn = this.headerActionsEl.createEl("button", {
-      cls: "diary-copilot-action-btn diary-copilot-height-btn",
-      text: "↕️",
-      attr: { title: "切換面板高度 (80px / 125px / 190px)" },
-    });
-    heightBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      this.toggleHeightPreset();
-    });
-
-    // 7. ✕ 關閉
+    // 6. ✕ 關閉 - Right Group
     const closeBtn = this.headerActionsEl.createEl("button", {
       cls: "diary-copilot-action-btn diary-copilot-close-btn",
       text: "✕",
@@ -905,37 +896,41 @@ export class CardPanel {
   }
 
   /**
-   * Header Action Bar in Locked Mode: 🔊 朗讀, 🎙️ 跟讀, ⚡ 填入, ✨ 潤飾, ✕ 解鎖
+   * Header Action Bar in Locked Mode: 🔊 朗讀, 🎙️ 跟讀 (Left) & ⚡ 填入, ✨ 潤飾, ✕ 解鎖 (Right)
    */
   private renderHeaderActionsLocked(targetText: string) {
     if (!this.headerActionsEl) return;
     this.headerActionsEl.empty();
+    if (this.headerAudioEl) this.headerAudioEl.empty();
 
-    // 1. 🔊 朗讀 (TTS)
-    const ttsBtn = this.headerActionsEl.createEl("button", {
-      cls: "diary-copilot-action-btn diary-copilot-tts-btn",
-      text: "🔊 朗讀",
-      attr: { title: "聆聽標準美式發音" },
-    });
-    ttsBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      speakSentence(targetText);
-    });
+    if (this.headerAudioEl) {
+      // 1. 🔊 朗讀 (TTS) - Left Group
+      const ttsBtn = this.headerAudioEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-tts-btn",
+        text: "🔊 朗讀",
+        attr: { title: "聆聽標準美式發音" },
+      });
+      ttsBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        speakSentence(targetText);
+      });
 
-    // 2. 🎙️ 跟讀 (Visual Oral Studio)
-    const oralBtn = this.headerActionsEl.createEl("button", {
-      cls: "diary-copilot-action-btn diary-copilot-oral-btn",
-      text: "🎙️ 跟讀",
-      attr: { title: "開口說英語，視覺化即時辨識與自動填入" },
-    });
-    oralBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      this.startOralShadowing(targetText, "continue", this.currentItem?.sourceRange);
-    });
+      // 2. 🎙️ 跟讀 (Visual Oral Studio) - Left Group
+      const oralBtn = this.headerAudioEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-oral-btn",
+        text: "🎙️ 跟讀",
+        attr: { title: "開口說英語，視覺化即時辨識與自動填入" },
+      });
+      oralBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.resetToAutoFit();
+        this.startOralShadowing(targetText, "continue", this.currentItem?.sourceRange);
+      });
+    }
 
-    // 3. ⚡ 填入 (Direct Paste / Skip Shadowing)
+    // 3. ⚡ 填入 (Direct Paste / Skip Shadowing) - Right Group
     const pasteBtn = this.headerActionsEl.createEl("button", {
       cls: "diary-copilot-action-btn diary-copilot-direct-paste-btn",
       text: Platform.isMobile ? "⚡ 填入" : "⚡ 填入 (Tab)",
@@ -947,7 +942,7 @@ export class CardPanel {
       this.callbacks.onDirectPaste?.();
     });
 
-    // 4. ✨ 潤飾 (Polish)
+    // 4. ✨ 潤飾 (Polish) - Right Group
     const polishBtn = this.headerActionsEl.createEl("button", {
       cls: "diary-copilot-action-btn diary-copilot-polish-btn",
       text: Platform.isMobile ? "✨ 潤飾" : "✨ 潤飾 (F3)",
@@ -956,10 +951,11 @@ export class CardPanel {
     polishBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       e.preventDefault();
+      this.resetToAutoFit();
       this.callbacks.onPolishRequest?.();
     });
 
-    // 5. ✕ 解鎖 (Unlock & return to browse mode)
+    // 5. ✕ 解鎖 (Unlock & return to browse mode) - Right Group
     const unlockBtn = this.headerActionsEl.createEl("button", {
       cls: "diary-copilot-action-btn diary-copilot-close-btn",
       text: "✕",
@@ -968,10 +964,11 @@ export class CardPanel {
     unlockBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       e.preventDefault();
+      this.resetToAutoFit();
       if (this.callbacks.onUnlock) {
         this.callbacks.onUnlock();
       } else {
-        this.callbacks.onDismiss();
+        this.renderBrowseMode();
       }
     });
   }
