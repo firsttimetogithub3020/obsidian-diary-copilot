@@ -422,6 +422,7 @@ export default class DiaryCopilotPlugin extends Plugin {
       this.syncActiveView();
       new Notice("已全域開啟 Diary Copilot 面板");
     }
+    this.updateRibbonIconState();
   }
 
   toggleCopilotInCurrentNote() {
@@ -995,15 +996,27 @@ export default class DiaryCopilotPlugin extends Plugin {
     const shouldShow = this.settings.showRibbonIcon ?? true;
     if (shouldShow) {
       if (!this.ribbonIconEl) {
-        this.ribbonIconEl = this.addRibbonIcon("sparkles", "Diary Copilot (切換此筆記開啟/關閉)", () => {
-          this.toggleCopilotInCurrentNote();
+        this.ribbonIconEl = this.addRibbonIcon("sparkles", "Diary Copilot (全域開啟／關閉)", () => {
+          this.toggleCopilotGlobally();
         });
       }
+      this.updateRibbonIconState();
     } else {
       if (this.ribbonIconEl) {
         this.ribbonIconEl.detach();
         this.ribbonIconEl = null;
       }
+    }
+  }
+
+  private updateRibbonIconState() {
+    if (!this.ribbonIconEl) return;
+    if (this.isCopilotGloballyMuted) {
+      this.ribbonIconEl.setAttribute("aria-label", "Diary Copilot (已全域關閉，點擊開啟)");
+      this.ribbonIconEl.style.opacity = "0.45";
+    } else {
+      this.ribbonIconEl.setAttribute("aria-label", "Diary Copilot (已全域開啟，點擊關閉)");
+      this.ribbonIconEl.style.opacity = "1";
     }
   }
 }

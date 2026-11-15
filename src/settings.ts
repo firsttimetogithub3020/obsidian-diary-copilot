@@ -277,8 +277,8 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("在側邊工具列 (Ribbon) 顯示開關圖示")
-      .setDesc("在 Obsidian 左側功能工具列顯示 ✨ 圖示，點擊可快速為當前筆記開啟或關閉 Copilot 面板（可自由選擇開啟或隱藏）")
+      .setName("在側邊工具列 (Ribbon) 顯示全域開關圖示")
+      .setDesc("在 Obsidian 左側功能工具列顯示 ✨ 圖示，點擊可快速全域開啟或關閉 Copilot 面板（開關指令優先，絕不自動重開）")
       .addToggle((toggle) => {
         toggle
           .setValue(this.plugin.settings.showRibbonIcon ?? true)
