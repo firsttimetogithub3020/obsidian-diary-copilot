@@ -98,14 +98,24 @@ export default class DiaryCopilotPlugin extends Plugin {
         onPolishRequest: () => {
           this.handlePolishSentence();
         },
+        isShadowMode: () => this.scheduler.isShadowMode(),
+        onDirectPaste: () => this.handleDirectPaste(),
       }),
       EditorView.updateListener.of((update: ViewUpdate) => {
         this.handleEditorUpdate(update);
       }),
     ]);
 
-    // Global Key Listener for Alt/Option+1/2/3/4 card selection across all layouts & IMEs, and Escape unlock
+    // Global Key Listener for Tab (direct paste in shadow mode), Alt/Option+1/2/3/4 card selection, and Escape unlock
     this.registerDomEvent(window, "keydown", (e: KeyboardEvent) => {
+      if (e.key === "Tab" && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        if (this.scheduler.isShadowMode()) {
+          this.handleDirectPaste();
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+      }
       if (e.key === "Escape") {
         if (this.scheduler.isShadowMode()) {
           this.handleDismiss();
@@ -145,21 +155,25 @@ export default class DiaryCopilotPlugin extends Plugin {
       isEnabled: () => this.settings.enableSelectionLookup ?? true,
     });
 
-    // Global mouseup/touchend for reading view selection lookup
-    this.registerDomEvent(window, "mouseup", () => {
-      if (this.currentActiveEditorView) return; // Handled by CodeMirror updateListener in editor
+    // Global mouseup/touchend for selection lookup across note editor, suggestion cards, and locked screens
+    const handleSelectionFromDOM = () => {
       const sel = window.getSelection();
-      if (sel && !sel.isCollapsed) {
-        const text = sel.toString().trim();
-        if (text.length > 0 && text.length <= 80 && /[a-zA-Z]/.test(text)) {
-          try {
-            const range = sel.getRangeAt(0);
-            const rect = range.getBoundingClientRect();
+      if (!sel || sel.isCollapsed) return;
+
+      const text = sel.toString().trim();
+      if (text.length > 0 && text.length <= 80 && /[a-zA-Z]/.test(text)) {
+        try {
+          const range = sel.getRangeAt(0);
+          const rect = range.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
             this.selectionPopover?.handleSelection(text, rect);
-          } catch {}
-        }
+          }
+        } catch {}
       }
-    });
+    };
+
+    this.registerDomEvent(window, "mouseup", handleSelectionFromDOM);
+    this.registerDomEvent(window, "touchend", handleSelectionFromDOM);
 
     // Ribbon Icon on Left Sidebar (One-click toggle Copilot for current note)
     this.addRibbonIcon("sparkles", "Diary Copilot (切換此筆記開啟/關閉)", () => {
@@ -440,6 +454,9 @@ export default class DiaryCopilotPlugin extends Plugin {
           },
           onClose: () => {
             this.toggleCopilotInCurrentNote();
+          },
+          onDirectPaste: () => {
+            this.handleDirectPaste();
           },
         });
       } else if (fileChanged) {
@@ -775,6 +792,50 @@ export default class DiaryCopilotPlugin extends Plugin {
     this.recordAdoption(cleanText, kind, replacedText);
 
     new Notice(sourceRange ? "✍️ 已消除原文字，請跟寫練習！" : "✍️ 已套用建議，請跟寫練習！", 2000);
+  }
+
+  handleDirectPaste() {
+    if (!this.scheduler.isShadowMode()) return;
+
+    const targetText = this.scheduler.getShadowTargetText();
+    const anchorPos = this.scheduler.getAnchorPos();
+    if (!targetText) return;
+
+    const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!activeMarkdownView || !activeMarkdownView.file) return;
+
+    const editorView = this.getEditorView();
+    if (!editorView) return;
+
+    const editor = activeMarkdownView.editor;
+    const currentCursor = editor.posToOffset(editor.getCursor());
+
+    // Replace anything typed since anchorPos with the full targetText!
+    editorView.dispatch({
+      changes: {
+        from: anchorPos,
+        to: Math.max(anchorPos, currentCursor),
+        insert: targetText,
+      },
+      selection: { anchor: anchorPos + targetText.length },
+      userEvent: "input",
+    });
+
+    // Clear shadow state & restore cards
+    this.scheduler.clear();
+    this.clearGhostText();
+    this.cardPanel?.renderIdleState();
+
+    this.recordAdoption(targetText, "continue");
+    new Notice("⚡ 已直接填入完整句子！", 1500);
+
+    // Refetch next suggestions for continuation
+    editor.focus();
+    const newContext = extractContextFromDoc(editor.getValue(), anchorPos + targetText.length);
+    const filePath = activeMarkdownView.file.path;
+    const paragraphSummary = this.summaryManager.getParagraphSummary(filePath);
+    const styleSummary = this.data.styleSummary?.summary;
+    this.scheduler.handleDocChange(newContext, styleSummary, paragraphSummary);
   }
 
   recordAdoption(text: string, kind: string, sourceText?: string) {

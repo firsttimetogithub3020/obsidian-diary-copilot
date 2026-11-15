@@ -7,6 +7,8 @@ export interface KeymapCallbacks {
   onAdopt: (text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }) => void;
   onDismiss: () => void;
   onPolishRequest?: () => void;
+  isShadowMode?: () => boolean;
+  onDirectPaste?: () => void;
 }
 
 export function createDiaryKeymap(callbacks: KeymapCallbacks) {
@@ -71,10 +73,19 @@ export function createDiaryKeymap(callbacks: KeymapCallbacks) {
     return false;
   };
 
-  // Strictly disengage Tab from cards to prevent Obsidian markdown indentation / code block issues!
-  // Use Alt+1, Alt+2, Alt+3, Alt+4
+  const handleTab: Command = () => {
+    if (callbacks.isShadowMode?.()) {
+      callbacks.onDirectPaste?.();
+      return true;
+    }
+    return false;
+  };
+
+  // Tab key acts as direct paste ONLY when actively in shadow-typing mode.
+  // In normal mode, Tab is never intercepted to preserve list indentation.
   return Prec.highest(
     keymap.of([
+      { key: "Tab", run: handleTab },
       { key: "Alt-1", run: acceptCard1 },
       { key: "Alt-2", run: acceptCard2 },
       { key: "Alt-3", run: acceptCard3 },

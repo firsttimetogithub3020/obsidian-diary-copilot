@@ -243,10 +243,39 @@
   flex-direction: column;
   justify-content: flex-start;
   transition: background-color 0.12s ease, border-color 0.12s ease;
-  user-select: none;
+  user-select: text;
   height: 100%;
   box-sizing: border-box;
   overflow: hidden;
+}
+
+.diary-copilot-card.is-locked-card {
+  border-color: var(--interactive-accent);
+  background-color: var(--background-secondary);
+}
+
+.diary-copilot-direct-paste-btn {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: transform 0.1s ease, opacity 0.15s ease;
+}
+
+.diary-copilot-direct-paste-btn:hover {
+  opacity: 0.92;
+  transform: scale(1.02);
+}
+
+.diary-copilot-direct-paste-btn:active {
+  transform: scale(0.98);
 }
 
 .diary-copilot-card:hover {
@@ -291,6 +320,8 @@
   text-overflow: ellipsis;
   word-break: break-word;
   flex: 1;
+  user-select: text !important;
+  cursor: text;
 }
 
 .diary-copilot-card:hover .diary-copilot-card-text {
@@ -306,6 +337,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  user-select: text !important;
 }
 
 /* Ghost Text in CodeMirror 6 (Desktop only) */

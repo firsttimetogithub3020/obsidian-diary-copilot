@@ -173,6 +173,9 @@ export class SelectionPopover {
     if (targetTop < 40) {
       targetTop = rect.bottom + 8;
     }
+    if (targetTop + popHeight > window.innerHeight - 8) {
+      targetTop = window.innerHeight - popHeight - 8;
+    }
 
     this.popoverEl.style.left = `${Math.round(targetLeft)}px`;
     this.popoverEl.style.top = `${Math.round(targetTop)}px`;

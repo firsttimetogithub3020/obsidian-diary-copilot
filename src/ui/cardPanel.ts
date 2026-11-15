@@ -10,6 +10,7 @@ export interface CardPanelCallbacks {
   getTone?: () => DiaryTone;
   onPolishRequest?: () => void;
   onClose?: () => void;
+  onDirectPaste?: () => void;
 }
 
 export class CardPanel {
@@ -338,14 +339,31 @@ export class CardPanel {
 
     if (isShadowTyping) {
       this.cardsRowEl.addClass("is-shadow-typing");
-      this.renderCard(
-        this.cardsRowEl,
-        "🔒 跟寫練習中 (目標句子已鎖定)",
-        "鎖定中",
-        c1,
-        () => {},
-        "灰字同步推進 · 打錯按 ⌫ 倒退修正 · 按 Enter / Esc 立即解鎖"
-      );
+      const lockedCard = this.cardsRowEl.createDiv({ cls: "diary-copilot-card is-locked-card" });
+
+      const badge = lockedCard.createDiv({ cls: "diary-copilot-card-badge" });
+      badge.createSpan({ text: "🔒 跟寫練習中 (目標句子已鎖定)" });
+
+      // Direct Paste Button (works on Windows, Mac, iPad, iPhone, Android)
+      const directPasteBtn = badge.createEl("button", {
+        cls: "diary-copilot-direct-paste-btn",
+        text: Platform.isMobile ? "⚡ 直接填入" : "⚡ 直接填入 (Tab)",
+        attr: { title: "跳過跟寫，直接把卡片句子填入筆記中" },
+      });
+      directPasteBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.callbacks.onDirectPaste?.();
+      });
+
+      lockedCard.createDiv({ cls: "diary-copilot-card-text", text: c1 });
+
+      lockedCard.createDiv({
+        cls: "diary-copilot-card-translation-source",
+        text: Platform.isMobile
+          ? "點擊上方「⚡ 直接填入」跳過跟寫 · 打錯按 ⌫ 倒退"
+          : "按 Tab 或點擊「⚡ 直接填入」跳過跟寫 · 打錯按 ⌫ 倒退 · 按 Esc / Enter 解鎖",
+      });
       return;
     }
 
@@ -495,6 +513,11 @@ export class CardPanel {
   ) {
     const card = parent.createDiv({ cls: "diary-copilot-card" });
     card.addEventListener("click", (e) => {
+      // If user actively selected text within card, do not trigger card adopt
+      const sel = window.getSelection()?.toString().trim();
+      if (sel && sel.length > 0) {
+        return;
+      }
       e.stopPropagation();
       onClick();
     });
