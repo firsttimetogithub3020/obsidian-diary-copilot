@@ -1150,3 +1150,117 @@
   color: var(--text-success, #48bb78);
   font-weight: 600;
 }
+
+/* Inquiry Hero Question Box */
+.diary-copilot-inquiry-hero-box {
+  width: 100%;
+  background: var(--background-secondary-alt);
+  border: 1px solid var(--interactive-accent);
+  border-radius: 8px;
+  padding: 10px 14px;
+  box-sizing: border-box;
+  margin-bottom: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.diary-copilot-inquiry-hero-q {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: var(--text-normal);
+  word-break: break-word;
+}
+
+.diary-copilot-inquiry-hero-zh {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.diary-copilot-inquiry-hero-prompt {
+  font-size: 12px;
+  color: var(--interactive-accent);
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--background-modifier-border);
+}
+
+.diary-copilot-toggle-answers-tab {
+  font-weight: 600;
+  border-color: var(--interactive-accent);
+  color: var(--text-accent);
+}
+
+.diary-copilot-toggle-answers-tab.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+/* Inquiry Desktop 2x2 Grid */
+.diary-copilot-inquiry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+.diary-copilot-inquiry-grid-card {
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: 0;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.diary-copilot-inquiry-grid-card:hover {
+  border-color: var(--interactive-accent);
+  background: var(--background-secondary);
+}
+
+.diary-copilot-inquiry-grid-card-text {
+  font-size: var(--diary-copilot-font-size, 13px);
+  color: var(--text-normal);
+  line-height: 1.45;
+  white-space: normal !important;
+  word-break: break-word !important;
+  flex: 1;
+  margin: 4px 0;
+}
+
+.diary-copilot-card-mini-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.diary-copilot-mini-btn {
+  background: var(--background-secondary-alt);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 3px;
+  font-size: 10.5px;
+  padding: 1px 5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.diary-copilot-mini-btn:hover {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}

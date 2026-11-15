@@ -50,6 +50,7 @@ export class CardPanel {
   private isInquiryMode = false;
   private currentInquiryItem: InquiryItem | null = null;
   private inquiryCategory: "closed" | "open" = "closed";
+  private isInquiryShowAnswers = false;
 
   // Oral Shadowing Visual Studio State
   private isOralMode = false;
@@ -423,6 +424,7 @@ export class CardPanel {
     this.currentInquiryItem = item;
     this.currentItem = null;
     this.inquiryCategory = "closed";
+    this.isInquiryShowAnswers = false;
     this.activeTabIdx = 0;
 
     this.panelEl.removeClass("is-hidden");
@@ -435,7 +437,7 @@ export class CardPanel {
   }
 
   /**
-   * Render Option A Browse Mode: Full-width Hero Card + Capsule Tabs
+   * Render Option A Browse Mode: Full-width Hero Card + Capsule Tabs (or 2x2 Desktop Grid)
    */
   private renderBrowseMode() {
     if (!this.contentAreaEl) return;
@@ -443,6 +445,9 @@ export class CardPanel {
 
     this.isOralMode = false;
     this.isShadowTyping = false;
+
+    let qText = "";
+    let qZh = "";
 
     if (this.isInquiryMode && this.currentInquiryItem) {
       if (this.brandTextEl) {
@@ -454,21 +459,20 @@ export class CardPanel {
 
       const item = this.currentInquiryItem;
       const isClosed = this.inquiryCategory === "closed";
-      const qText = isClosed ? item.closedQuestion : item.openQuestion;
-      const qZh = isClosed ? item.closedChinese : item.openChinese;
-      const qBanner = qZh ? `❓ ${qText}（${qZh}）` : `❓ ${qText}`;
+      qText = isClosed ? item.closedQuestion : item.openQuestion;
+      qZh = (isClosed ? item.closedChinese : item.openChinese) || "";
 
       this.currentCards = [];
       if (isClosed) {
-        if (item.yes1) this.currentCards.push({ title: "🟢 Yes · 自然口語", shortcut: "Alt+1", text: item.yes1, kind: "continue", subText: qBanner });
-        if (item.yes2) this.currentCards.push({ title: "🟢 Yes · 細膩表達", shortcut: "Alt+2", text: item.yes2, kind: "continue", subText: qBanner });
-        if (item.no1) this.currentCards.push({ title: "🔴 No · 自然口語", shortcut: "Alt+3", text: item.no1, kind: "continue", subText: qBanner });
-        if (item.no2) this.currentCards.push({ title: "🔴 No · 細膩表達", shortcut: "Alt+4", text: item.no2, kind: "continue", subText: qBanner });
+        if (item.yes1) this.currentCards.push({ title: "🟢 Yes · 自然口語", shortcut: "Alt+1", text: item.yes1, kind: "continue" });
+        if (item.yes2) this.currentCards.push({ title: "🟢 Yes · 細膩表達", shortcut: "Alt+2", text: item.yes2, kind: "continue" });
+        if (item.no1) this.currentCards.push({ title: "🔴 No · 自然口語", shortcut: "Alt+3", text: item.no1, kind: "continue" });
+        if (item.no2) this.currentCards.push({ title: "🔴 No · 細膩表達", shortcut: "Alt+4", text: item.no2, kind: "continue" });
       } else {
-        if (item.openStyle1) this.currentCards.push({ title: "🌿 自然口語", shortcut: "Alt+1", text: item.openStyle1, kind: "continue", subText: qBanner });
-        if (item.openStyle2) this.currentCards.push({ title: "💭 情感反思", shortcut: "Alt+2", text: item.openStyle2, kind: "continue", subText: qBanner });
-        if (item.openStyle3) this.currentCards.push({ title: "💼 專業嚴謹", shortcut: "Alt+3", text: item.openStyle3, kind: "continue", subText: qBanner });
-        if (item.openStyle4) this.currentCards.push({ title: "⚡ 精簡有力", shortcut: "Alt+4", text: item.openStyle4, kind: "continue", subText: qBanner });
+        if (item.openStyle1) this.currentCards.push({ title: "🌿 自然口語", shortcut: "Alt+1", text: item.openStyle1, kind: "continue" });
+        if (item.openStyle2) this.currentCards.push({ title: "💭 情感反思", shortcut: "Alt+2", text: item.openStyle2, kind: "continue" });
+        if (item.openStyle3) this.currentCards.push({ title: "💼 專業嚴謹", shortcut: "Alt+3", text: item.openStyle3, kind: "continue" });
+        if (item.openStyle4) this.currentCards.push({ title: "⚡ 精簡有力", shortcut: "Alt+4", text: item.openStyle4, kind: "continue" });
       }
 
       if (this.activeTabIdx >= this.currentCards.length) {
@@ -485,12 +489,12 @@ export class CardPanel {
 
     this.renderHeaderActionsBrowse();
 
-    if (this.currentCards.length === 0) {
+    if (this.currentCards.length === 0 && !this.isInquiryMode) {
       this.renderIdleState();
       return;
     }
 
-    // If in Inquiry Mode, render category switcher tabs at top: [❓ 是非引導 (Yes/No)] [💭 開放引導 (Wh-)]
+    // 1. If in Inquiry Mode: Category Tabs Row + Answer Toggle Button + Prominent Hero Question Box
     if (this.isInquiryMode) {
       const catRow = this.contentAreaEl.createDiv({ cls: "diary-copilot-capsule-tabs diary-copilot-inquiry-cat-tabs" });
       const isClosed = this.inquiryCategory === "closed";
@@ -505,6 +509,7 @@ export class CardPanel {
         if (this.inquiryCategory !== "closed") {
           this.inquiryCategory = "closed";
           this.activeTabIdx = 0;
+          this.isInquiryShowAnswers = false; // Reset to let user think about the new question first
           this.renderBrowseMode();
         }
       });
@@ -519,70 +524,228 @@ export class CardPanel {
         if (this.inquiryCategory !== "open") {
           this.inquiryCategory = "open";
           this.activeTabIdx = 0;
+          this.isInquiryShowAnswers = false; // Reset to let user think about the new question first
           this.renderBrowseMode();
         }
       });
+
+      // Toggle Answers Button right next to the category tabs!
+      const toggleAnswerBtn = catRow.createEl("button", {
+        cls: `diary-copilot-capsule-tab diary-copilot-toggle-answers-tab ${this.isInquiryShowAnswers ? "is-active" : ""}`,
+        text: this.isInquiryShowAnswers ? "🔼 隱藏建議回答" : "💡 查看建議回答",
+      });
+      toggleAnswerBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.isInquiryShowAnswers = !this.isInquiryShowAnswers;
+        this.renderBrowseMode();
+      });
+
+      // Prominent Hero Question Box
+      const qBox = this.contentAreaEl.createDiv({ cls: "diary-copilot-inquiry-hero-box" });
+      qBox.createDiv({ cls: "diary-copilot-inquiry-hero-q", text: `❓ ${qText}` });
+      if (qZh) {
+        qBox.createDiv({ cls: "diary-copilot-inquiry-hero-zh", text: qZh });
+      }
+
+      if (!this.isInquiryShowAnswers) {
+        qBox.createDiv({
+          cls: "diary-copilot-inquiry-hero-prompt",
+          text: "💭 先在心中構思或直接在上方筆記中寫下回答；若需要靈感，請點擊「💡 查看建議回答」展開參考語料。",
+        });
+        // Stop here! Only show the question, giving user pure thinking space
+        return;
+      }
     }
 
-    const activeCard = this.currentCards[this.activeTabIdx] || this.currentCards[0];
+    // 2. Answers are displayed (or in normal free-writing mode):
+    // Check if device is desktop with wide screen (>= 640px) or mobile/tablet (narrow screen)
+    const isDesktopWide = !Platform.isMobile && ((this.contentAreaEl.clientWidth || window.innerWidth) >= 640);
 
-    // 1. Full-width Hero Card (Multi-line wrap, zero horizontal scrolling)
+    if (isDesktopWide && this.currentCards.length > 1) {
+      // DESKTOP: 2x2 Grid Layout with complete wrapped sentences!
+      this.renderDesktop2x2Grid();
+    } else {
+      // MOBILE / TABLET / NARROW: Single Card with Touch Swipe Gestures!
+      this.renderMobileSingleCardWithSwipe();
+    }
+  }
+
+  /**
+   * Desktop 2x2 Grid Layout: all 4 cards shown simultaneously with complete multi-line wrapped sentences
+   */
+  private renderDesktop2x2Grid() {
+    if (!this.contentAreaEl) return;
+    const gridEl = this.contentAreaEl.createDiv({ cls: "diary-copilot-inquiry-grid" });
+
+    this.currentCards.forEach((card, idx) => {
+      const cardEl = gridEl.createDiv({ cls: "diary-copilot-inquiry-grid-card" });
+      const headerEl = cardEl.createDiv({ cls: "diary-copilot-hero-header" });
+      headerEl.createSpan({ cls: "diary-copilot-hero-badge", text: card.title });
+      if (!Platform.isMobile && card.shortcut) {
+        headerEl.createSpan({ cls: "key-hint", text: card.shortcut });
+      }
+
+      // Quick mini actions in card header: ⚡ 填入, 🎙️ 跟讀, 🔊 朗讀
+      const miniActions = headerEl.createDiv({ cls: "diary-copilot-card-mini-actions" });
+      const pasteBtn = miniActions.createEl("button", {
+        cls: "diary-copilot-mini-btn",
+        text: "⚡ 填入",
+        attr: { title: "直接填入此句（正常黑字）" },
+      });
+      pasteBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.callbacks.onAdopt(card.text, card.kind, this.currentItem?.sourceRange, true);
+      });
+
+      const oralBtn = miniActions.createEl("button", {
+        cls: "diary-copilot-mini-btn",
+        text: "🎙️",
+        attr: { title: "開口跟讀評分" },
+      });
+      oralBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.startOralShadowing(card.text, card.kind, this.currentItem?.sourceRange);
+      });
+
+      const ttsBtn = miniActions.createEl("button", {
+        cls: "diary-copilot-mini-btn",
+        text: "🔊",
+        attr: { title: "聆聽發音" },
+      });
+      ttsBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        speakSentence(card.text);
+      });
+
+      // Full multi-line wrapped text (shows complete sentence, no ellipsis)
+      cardEl.createDiv({ cls: "diary-copilot-inquiry-grid-card-text", text: card.text });
+
+      if (card.subText) {
+        cardEl.createDiv({ cls: "diary-copilot-card-translation-source", text: card.subText });
+      }
+
+      // Click anywhere on card body starts shadow-typing drill
+      cardEl.addEventListener("click", (e) => {
+        const sel = window.getSelection()?.toString().trim();
+        if (sel && sel.length > 0) return;
+        this.callbacks.onAdopt(card.text, card.kind, this.currentItem?.sourceRange, false);
+      });
+    });
+  }
+
+  /**
+   * Mobile / Tablet Layout: Single Card with Touch Swipe Gestures (Swipe Left -> Next, Swipe Right -> Prev)
+   */
+  private renderMobileSingleCardWithSwipe() {
+    if (!this.contentAreaEl) return;
+    const activeCard = this.currentCards[this.activeTabIdx] || this.currentCards[0];
+    if (!activeCard) return;
+
+    // 1. Hero Card
     const heroCard = this.contentAreaEl.createDiv({ cls: "diary-copilot-hero-card" });
 
-    // Badge & Action hint in Hero Card
     const heroHeader = heroCard.createDiv({ cls: "diary-copilot-hero-header" });
     heroHeader.createSpan({ cls: "diary-copilot-hero-badge", text: activeCard.title });
     if (!Platform.isMobile && activeCard.shortcut) {
       heroHeader.createSpan({ cls: "key-hint", text: activeCard.shortcut });
     }
-    heroHeader.createSpan({ cls: "diary-copilot-hero-action-hint", text: "⚡直接填入 · 點擊卡片跟寫 · 🎙️跟讀" });
+    heroHeader.createSpan({
+      cls: "diary-copilot-hero-action-hint",
+      text: Platform.isMobile ? "⚡填入 · 點擊跟寫 · 🎙️跟讀 · 👈👉左右滑動換卡" : "⚡上方直接填入 · 點擊卡片跟寫 · 🎙️跟讀",
+    });
 
-    // Full multi-line wrapped text
+    // Full multi-line wrapped text (shows complete sentence)
     heroCard.createDiv({ cls: "diary-copilot-hero-text", text: activeCard.text });
 
     if (activeCard.subText) {
       heroCard.createDiv({ cls: "diary-copilot-card-translation-source", text: activeCard.subText });
     }
 
-    // Click handler on Hero Card initiates Shadow Typing (isDirectPaste = false)
-    let startX = 0;
-    let startY = 0;
-    heroCard.addEventListener("mousedown", (e) => {
-      startX = e.clientX;
-      startY = e.clientY;
-    });
+    // Touch Swipe Gesture (Swipe Left: Next Card; Swipe Right: Previous Card)
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchStartTime = 0;
+
     heroCard.addEventListener("touchstart", (e: TouchEvent) => {
-      if (e.touches.length > 0) {
-        startX = e.touches[0].clientX;
-        startY = e.touches[0].clientY;
+      if (e.touches.length === 1) {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        touchStartTime = Date.now();
       }
     }, { passive: true });
 
+    heroCard.addEventListener("touchend", (e: TouchEvent) => {
+      if (e.changedTouches.length === 1) {
+        const deltaX = e.changedTouches[0].clientX - touchStartX;
+        const deltaY = e.changedTouches[0].clientY - touchStartY;
+        const duration = Date.now() - touchStartTime;
+
+        // Horizontal swipe detected: distance > 35px, ratio > 1.3, duration < 600ms
+        if (Math.abs(deltaX) > 35 && Math.abs(deltaX) > Math.abs(deltaY) * 1.3 && duration < 600) {
+          if (deltaX < 0) {
+            // Swipe Left -> Next Card (一滑就是下一頁)
+            if (this.activeTabIdx < this.currentCards.length - 1) {
+              this.activeTabIdx++;
+              this.renderBrowseMode();
+            }
+          } else {
+            // Swipe Right -> Previous Card (一滑就是上一頁)
+            if (this.activeTabIdx > 0) {
+              this.activeTabIdx--;
+              this.renderBrowseMode();
+            }
+          }
+          return;
+        }
+
+        // Tap click adoption
+        const dist = Math.hypot(deltaX, deltaY);
+        if (dist <= 5) {
+          const sel = window.getSelection()?.toString().trim();
+          if (sel && sel.length > 0) return;
+          this.callbacks.onAdopt(activeCard.text, activeCard.kind, this.currentItem?.sourceRange, false);
+        }
+      }
+    }, { passive: true });
+
+    // Desktop mouse click adoption
+    let mouseStartX = 0;
+    let mouseStartY = 0;
+    heroCard.addEventListener("mousedown", (e) => {
+      mouseStartX = e.clientX;
+      mouseStartY = e.clientY;
+    });
     heroCard.addEventListener("click", (e) => {
-      const dist = Math.hypot(e.clientX - startX, e.clientY - startY);
+      if (Platform.isMobile) return;
+      const dist = Math.hypot(e.clientX - mouseStartX, e.clientY - mouseStartY);
       if (dist > 5) return;
       const sel = window.getSelection()?.toString().trim();
       if (sel && sel.length > 0) return;
-      // Adopt as shadow-typing drill
       this.callbacks.onAdopt(activeCard.text, activeCard.kind, this.currentItem?.sourceRange, false);
     });
 
-    // 2. Capsule Tabs Row (Clean pills below Hero Card)
-    const tabsRow = this.contentAreaEl.createDiv({ cls: "diary-copilot-capsule-tabs" });
-    this.currentCards.forEach((card, idx) => {
-      const isSelected = idx === this.activeTabIdx;
-      const tabBtn = tabsRow.createEl("button", {
-        cls: `diary-copilot-capsule-tab ${isSelected ? "is-active" : ""}`,
-        text: isSelected ? `● ${card.title}` : card.title,
-      });
+    // 2. Capsule Tabs Row below Hero Card (shows pagination pills)
+    if (this.currentCards.length > 1) {
+      const tabsRow = this.contentAreaEl.createDiv({ cls: "diary-copilot-capsule-tabs" });
+      this.currentCards.forEach((card, idx) => {
+        const isSelected = idx === this.activeTabIdx;
+        const tabBtn = tabsRow.createEl("button", {
+          cls: `diary-copilot-capsule-tab ${isSelected ? "is-active" : ""}`,
+          text: isSelected ? `● ${card.title}` : card.title,
+        });
 
-      tabBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        this.activeTabIdx = idx;
-        this.renderBrowseMode();
+        tabBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          this.activeTabIdx = idx;
+          this.renderBrowseMode();
+        });
       });
-    });
+    }
   }
 
   /**
