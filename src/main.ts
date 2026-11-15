@@ -13,6 +13,7 @@ import { openTodayDiary } from "./commands/openToday";
 import { tidyUpTodayDiary } from "./commands/tidyUp";
 import { buildPolishSystemPrompt, buildPolishUserPrompt } from "./llm/prompts";
 import { SelectionPopover } from "./ui/selectionPopover";
+import { checkAndApplyPluginUpdate } from "./services/updater";
 
 export default class DiaryCopilotPlugin extends Plugin {
   settings: PluginSettings;
@@ -207,6 +208,12 @@ export default class DiaryCopilotPlugin extends Plugin {
       },
     });
 
+    this.addCommand({
+      id: "check-for-updates",
+      name: "檢查並更新 Diary Copilot (Check for Updates)",
+      callback: () => this.checkForUpdates(true),
+    });
+
     // Register Setting Tab
     this.addSettingTab(new DiaryCopilotSettingTab(this.app, this));
 
@@ -228,7 +235,16 @@ export default class DiaryCopilotPlugin extends Plugin {
       this.syncActiveView();
       this.checkAndGenerateDailyStyleSummary();
       this.applyAppearanceSettings();
+
+      // Silent background update check 4 seconds after Obsidian is ready
+      window.setTimeout(() => {
+        this.checkForUpdates(false);
+      }, 4000);
     });
+  }
+
+  async checkForUpdates(manual: boolean = false): Promise<boolean> {
+    return await checkAndApplyPluginUpdate(this.app, this.manifest, manual);
   }
 
   onunload() {

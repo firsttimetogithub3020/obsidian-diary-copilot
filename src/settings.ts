@@ -61,6 +61,23 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
       <b>💡 私人使用說明</b>：此 API Key 僅儲存於您目前的裝置或 Vault（<code>data.json</code>），兩位使用者可各自填入獨立申請的 Google Gemini API Key。絕不會上傳或公開。
     `;
 
+    // Plugin Version & Auto Update
+    new Setting(containerEl)
+      .setName(`外掛版本：v${this.plugin.manifest.version}`)
+      .setDesc("每次啟動 Obsidian 時外掛會在背景自動檢查 GitHub 最新版本並自動更新。您也可以隨時點擊按鈕立即檢查。")
+      .addButton((btn) => {
+        btn
+          .setButtonText("🚀 立即檢查並更新外掛")
+          .setCta()
+          .onClick(async () => {
+            btn.setDisabled(true);
+            btn.setButtonText("正在檢查...");
+            await this.plugin.checkForUpdates(true);
+            btn.setDisabled(false);
+            btn.setButtonText("🚀 立即檢查並更新外掛");
+          });
+      });
+
     // Gemini API Key
     new Setting(containerEl)
       .setName("Gemini API Key")
