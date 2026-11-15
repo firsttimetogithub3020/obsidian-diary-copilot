@@ -76,6 +76,23 @@ export default class DiaryCopilotPlugin extends Plugin {
           this.recordAdoption(completedText, "shadow");
           this.clearGhostText();
         },
+        onOralShadowComplete: (targetText: string, anchorPos: number, cursorOffset: number) => {
+          const editorView = this.getEditorView();
+          if (editorView) {
+            editorView.dispatch({
+              changes: {
+                from: anchorPos,
+                to: cursorOffset,
+                insert: targetText,
+              },
+              selection: { anchor: anchorPos + targetText.length },
+              userEvent: "input",
+            });
+          }
+          new Notice("🎉 口說跟讀成功！已自動填入標準句子", 2500);
+          this.recordAdoption(targetText, "oral");
+          this.clearGhostText();
+        },
         onShadowAbandon: () => {
           new Notice("已解鎖卡片", 1500);
           this.clearGhostText();
@@ -459,6 +476,12 @@ export default class DiaryCopilotPlugin extends Plugin {
           },
           onDirectPaste: () => {
             this.handleDirectPaste();
+          },
+          onUnlock: () => {
+            this.scheduler.clear();
+            this.clearGhostText();
+            this.cardPanel?.renderIdleState();
+            new Notice("已解鎖卡片", 1200);
           },
         });
       } else if (fileChanged) {

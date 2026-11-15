@@ -199,20 +199,221 @@
   user-select: none;
 }
 
-.diary-copilot-polish-btn:hover {
+.diary-copilot-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.diary-copilot-action-btn {
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-normal);
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  line-height: 1.4;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.12s ease, background-color 0.12s ease, color 0.12s ease;
+  user-select: none;
+}
+
+.diary-copilot-action-btn:hover {
   border-color: var(--interactive-accent);
   color: var(--interactive-accent);
   background: var(--background-secondary-alt);
 }
 
-.diary-copilot-polish-btn:active {
+.diary-copilot-action-btn:active {
   transform: scale(0.97);
 }
 
-.diary-copilot-hint {
+.diary-copilot-tts-btn {
+  font-weight: 500;
+  color: var(--text-normal);
+}
+
+.diary-copilot-direct-paste-btn {
+  background-color: var(--interactive-accent) !important;
+  color: var(--text-on-accent) !important;
+  border-color: var(--interactive-accent) !important;
+  font-weight: 600 !important;
+}
+
+.diary-copilot-direct-paste-btn:hover {
+  opacity: 0.92;
+  transform: scale(1.02);
+}
+
+.diary-copilot-close-btn {
+  color: var(--text-muted);
+  padding: 2px 6px;
+}
+
+.diary-copilot-close-btn:hover {
+  color: var(--text-normal);
+  background-color: var(--background-modifier-hover);
+}
+
+/* Content Area (Option A: Full-width Hero Card + Capsule Tabs) */
+.diary-copilot-content-area {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Full-width Hero Card */
+.diary-copilot-hero-card {
+  width: 100%;
+  flex: 1;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.diary-copilot-hero-card:hover {
+  background: var(--background-secondary-alt);
+  border-color: var(--interactive-accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.diary-copilot-hero-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  user-select: none;
+}
+
+.diary-copilot-hero-badge {
+  font-weight: 600;
+  color: var(--interactive-accent);
+  background: var(--background-secondary);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.diary-copilot-hero-action-hint {
   font-size: 11px;
   color: var(--text-faint);
+  margin-left: auto;
+}
+
+.diary-copilot-hero-text {
+  font-size: var(--diary-copilot-font-size, 13.5px);
+  color: var(--text-normal);
+  line-height: 1.5;
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  cursor: text !important;
+  flex: 1;
+}
+
+/* Capsule Tabs Row */
+.diary-copilot-capsule-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  padding-top: 1px;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+  user-select: none;
   flex-shrink: 0;
+}
+
+.diary-copilot-capsule-tab {
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 12px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary-alt);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.diary-copilot-capsule-tab:hover {
+  border-color: var(--interactive-accent);
+  color: var(--text-normal);
+}
+
+.diary-copilot-capsule-tab.is-active {
+  border-color: var(--interactive-accent);
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+/* Locked Card (Shadowing / Oral Drill Mode) */
+.diary-copilot-locked-card {
+  width: 100%;
+  flex: 1;
+  background: var(--background-primary);
+  border: 1.5px solid var(--interactive-accent);
+  border-radius: 8px;
+  padding: 9px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.diary-copilot-locked-text {
+  font-size: calc(var(--diary-copilot-font-size, 13.5px) + 0.5px);
+  font-weight: 500;
+  color: var(--text-normal);
+  line-height: 1.55;
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  cursor: text !important;
+  flex: 1;
+}
+
+.diary-copilot-locked-hint {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 4px;
+  user-select: none;
 }
 
 /* Cards List (2x2 grid: top 2, bottom 2) */
@@ -417,18 +618,23 @@
   height: 24px;
 }
 
-.is-mobile .diary-copilot-cards-row {
-  display: flex;
-  overflow-x: auto;
-  gap: 8px;
-  -webkit-overflow-scrolling: touch;
+.is-mobile .diary-copilot-hero-card {
+  padding: 8px 10px;
+  width: 100%;
 }
 
-.is-mobile .diary-copilot-card {
-  min-width: 200px;
-  flex-shrink: 0;
-  min-height: 52px;
+.is-mobile .diary-copilot-locked-card {
   padding: 8px 10px;
+  width: 100%;
+}
+
+.is-mobile .diary-copilot-header-actions {
+  gap: 4px;
+}
+
+.is-mobile .diary-copilot-action-btn {
+  padding: 2px 6px;
+  font-size: 10.5px;
 }
 
 /* Expand / Collapse Button */

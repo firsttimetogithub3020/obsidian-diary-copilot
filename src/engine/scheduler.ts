@@ -14,6 +14,7 @@ export interface SchedulerCallbacks {
   onError: () => void;
   onUsageIncrement?: (inputTokens: number, outputTokens: number) => void;
   onShadowComplete?: (completedText: string) => void;
+  onOralShadowComplete?: (targetText: string, anchorPos: number, cursorOffset: number) => void;
   onShadowAbandon?: () => void;
 }
 
@@ -153,6 +154,23 @@ export class SuggestionScheduler {
               return;
             }
           } else {
+            // Check for Oral Shadowing (Speech Dictation via keyboard microphone)
+            if (typedDiff.length >= 6 && this.checkOralFuzzyMatch(typedDiff, this.originalContinueText)) {
+              const completedText = this.originalContinueText;
+              const anchor = this.anchorPos;
+              const cursor = context.cursorOffset;
+              this.clear();
+              if (this.callbacks.onOralShadowComplete) {
+                this.callbacks.onOralShadowComplete(completedText, anchor, cursor);
+              } else {
+                this.callbacks.onShadowComplete?.(completedText);
+              }
+
+              this.callbacks.onLoading();
+              this.triggerFetch(context, styleSummary, paragraphSummary);
+              return;
+            }
+
             // Mismatched / Typo!
             // CRITICAL: Stay locked in shadow-typing mode!
             // Do NOT overwrite lastActiveSuggestion!
@@ -317,5 +335,46 @@ export class SuggestionScheduler {
         this.activeAbortController = null;
       }
     }
+  }
+
+  private checkOralFuzzyMatch(typed: string, target: string): boolean {
+    const normalize = (s: string) =>
+      s
+        .toLowerCase()
+        .replace(/[‘’]/g, "'")
+        .replace(/[“”]/g, '"')
+        .replace(/n't\b/g, " not")
+        .replace(/'m\b/g, " am")
+        .replace(/'re\b/g, " are")
+        .replace(/'ve\b/g, " have")
+        .replace(/'ll\b/g, " will")
+        .replace(/'d\b/g, " would")
+        .replace(/[^a-z0-9\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const normTyped = normalize(typed);
+    const normTarget = normalize(target);
+    if (!normTyped || !normTarget) return false;
+
+    const targetWords = normTarget.split(" ").filter((w) => w.length > 0);
+    const typedWords = normTyped.split(" ").filter((w) => w.length > 0);
+    if (targetWords.length === 0 || typedWords.length === 0) return false;
+
+    // Spoken input should have at least 50% as many words as target
+    if (typedWords.length < Math.floor(targetWords.length * 0.5)) return false;
+
+    let matchedWords = 0;
+    let searchStart = 0;
+    for (const tWord of targetWords) {
+      const idx = typedWords.indexOf(tWord, searchStart);
+      if (idx !== -1) {
+        matchedWords++;
+        searchStart = idx + 1;
+      }
+    }
+
+    const matchRatio = matchedWords / targetWords.length;
+    return matchRatio >= 0.75;
   }
 }
