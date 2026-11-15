@@ -19,6 +19,12 @@ class GhostTextWidget extends WidgetType {
     span.textContent = this.text;
     return span;
   }
+
+  ignoreEvent(_event: Event): boolean {
+    // Return true so CodeMirror never intercepts mouse/touch/pointer/selection events inside the ghost text widget.
+    // This allows native text selection and lookup popovers across desktop and mobile.
+    return true;
+  }
 }
 
 export interface GhostTextState {

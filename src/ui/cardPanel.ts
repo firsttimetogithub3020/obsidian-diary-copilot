@@ -512,8 +512,31 @@ export class CardPanel {
     subText?: string | null
   ) {
     const card = parent.createDiv({ cls: "diary-copilot-card" });
+    let startX = 0;
+    let startY = 0;
+
+    card.addEventListener("mousedown", (e) => {
+      startX = e.clientX;
+      startY = e.clientY;
+    });
+
+    card.addEventListener(
+      "touchstart",
+      (e: TouchEvent) => {
+        if (e.touches.length > 0) {
+          startX = e.touches[0].clientX;
+          startY = e.touches[0].clientY;
+        }
+      },
+      { passive: true }
+    );
+
     card.addEventListener("click", (e) => {
-      // If user actively selected text within card, do not trigger card adopt
+      // If user dragged to select text (distance > 5px) or actively selected text within card, do not trigger card adopt
+      const dist = Math.hypot(e.clientX - startX, e.clientY - startY);
+      if (dist > 5) {
+        return;
+      }
       const sel = window.getSelection()?.toString().trim();
       if (sel && sel.length > 0) {
         return;

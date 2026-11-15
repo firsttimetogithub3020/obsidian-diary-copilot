@@ -243,7 +243,8 @@
   flex-direction: column;
   justify-content: flex-start;
   transition: background-color 0.12s ease, border-color 0.12s ease;
-  user-select: text;
+  user-select: text !important;
+  -webkit-user-select: text !important;
   height: 100%;
   box-sizing: border-box;
   overflow: hidden;
@@ -321,7 +322,8 @@
   word-break: break-word;
   flex: 1;
   user-select: text !important;
-  cursor: text;
+  -webkit-user-select: text !important;
+  cursor: text !important;
 }
 
 .diary-copilot-card:hover .diary-copilot-card-text {
@@ -338,16 +340,20 @@
   overflow: hidden;
   text-overflow: ellipsis;
   user-select: text !important;
+  -webkit-user-select: text !important;
+  cursor: text !important;
 }
 
 /* Ghost Text in CodeMirror 6 (Desktop only) */
 .diary-copilot-ghost-text {
   color: var(--text-muted) !important;
   opacity: 0.78;
-  pointer-events: none;
-  user-select: none;
+  pointer-events: auto !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  cursor: text !important;
   font-style: italic;
-  display: inline-block;
+  display: inline;
   letter-spacing: normal;
 }
 
@@ -502,7 +508,7 @@
 /* Selection Popover (Instant Lookup & Translation) */
 .diary-copilot-selection-popover {
   position: fixed;
-  z-index: 1000;
+  z-index: 99999 !important;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -516,7 +522,8 @@
   line-height: 1.4;
   max-width: 90vw;
   pointer-events: auto;
-  user-select: text;
+  user-select: text !important;
+  -webkit-user-select: text !important;
   animation: diary-copilot-fade-in 0.15s ease forwards;
 }
 

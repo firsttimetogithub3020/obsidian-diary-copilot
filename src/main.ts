@@ -155,21 +155,24 @@ export default class DiaryCopilotPlugin extends Plugin {
       isEnabled: () => this.settings.enableSelectionLookup ?? true,
     });
 
-    // Global mouseup/touchend for selection lookup across note editor, suggestion cards, and locked screens
+    // Global mouseup/touchend for selection lookup across note editor, suggestion cards, ghost text, and locked screens
     const handleSelectionFromDOM = () => {
-      const sel = window.getSelection();
-      if (!sel || sel.isCollapsed) return;
+      window.setTimeout(() => {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed) return;
 
-      const text = sel.toString().trim();
-      if (text.length > 0 && text.length <= 80 && /[a-zA-Z]/.test(text)) {
-        try {
-          const range = sel.getRangeAt(0);
-          const rect = range.getBoundingClientRect();
-          if (rect.width > 0 && rect.height > 0) {
-            this.selectionPopover?.handleSelection(text, rect);
-          }
-        } catch {}
-      }
+        const rawText = sel.toString().trim();
+        const text = rawText.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "");
+        if (text.length > 0 && text.length <= 80 && /[a-zA-Z]/.test(text)) {
+          try {
+            const range = sel.getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+              this.selectionPopover?.handleSelection(text, rect);
+            }
+          } catch {}
+        }
+      }, 40);
     };
 
     this.registerDomEvent(window, "mouseup", handleSelectionFromDOM);
@@ -551,14 +554,15 @@ export default class DiaryCopilotPlugin extends Plugin {
     this.currentActiveEditorView = update.view;
 
     // Selection popover lookup trigger (works across notes when enabled)
-    if (update.selectionSet || update.docChanged) {
+    if (this.settings.enableSelectionLookup && update.selectionSet) {
       const sel = update.view.state.selection.main;
       if (!sel.empty) {
         const from = sel.from;
         const to = sel.to;
         if (to - from <= 80) {
           const selectedText = update.view.state.sliceDoc(from, to).trim();
-          if (selectedText.length > 0 && /[a-zA-Z]/.test(selectedText)) {
+          const cleanText = selectedText.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "");
+          if (cleanText.length > 0 && /[a-zA-Z]/.test(cleanText)) {
             const startCoords = update.view.coordsAtPos(from);
             const endCoords = update.view.coordsAtPos(to);
             if (startCoords && endCoords) {
@@ -568,17 +572,15 @@ export default class DiaryCopilotPlugin extends Plugin {
                 right: Math.max(startCoords.right, endCoords.right),
                 bottom: Math.max(startCoords.bottom, endCoords.bottom),
               };
-              this.selectionPopover?.handleSelection(selectedText, rect);
+              this.selectionPopover?.handleSelection(cleanText, rect);
             }
-          } else {
-            this.selectionPopover?.hide();
           }
-        } else {
-          this.selectionPopover?.hide();
         }
-      } else {
-        this.selectionPopover?.hide();
       }
+    }
+
+    if (update.docChanged) {
+      this.selectionPopover?.hide();
     }
 
     if (!this.activeView || !this.isEligibleNote(this.activeView.file)) {

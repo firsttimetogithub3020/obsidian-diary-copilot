@@ -42,6 +42,16 @@ export class SelectionPopover {
       },
       true
     );
+
+    window.addEventListener(
+      "touchstart",
+      (e) => {
+        if (this.popoverEl && !this.popoverEl.contains(e.target as Node)) {
+          this.hide();
+        }
+      },
+      { passive: true, capture: true }
+    );
   }
 
   handleSelection(selectedText: string, rect: { left: number; top: number; right: number; bottom: number }) {
@@ -50,10 +60,9 @@ export class SelectionPopover {
       return;
     }
 
-    const cleanText = selectedText.trim();
+    const cleanText = selectedText.trim().replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "");
     // Only lookup reasonable word or phrase lengths (1 to 80 chars, contains English letters)
     if (cleanText.length === 0 || cleanText.length > 80 || !/[a-zA-Z]/.test(cleanText)) {
-      this.hide();
       return;
     }
 
