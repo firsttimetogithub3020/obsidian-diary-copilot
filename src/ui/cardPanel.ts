@@ -320,6 +320,7 @@ export class CardPanel {
 
     this.isOralMode = false;
     this.isShadowTyping = false;
+    globalSpeechRecognizer.stop();
 
     if (this.statusDotEl) {
       this.statusDotEl.className = "diary-copilot-status-dot is-idle";
@@ -461,6 +462,7 @@ export class CardPanel {
 
     this.isOralMode = false;
     this.isShadowTyping = false;
+    globalSpeechRecognizer.stop();
 
     // 1. Update brand text & tone display
     if (this.pinnedInquiryItem) {
@@ -714,11 +716,12 @@ export class CardPanel {
       heroCard.createDiv({ cls: "diary-copilot-card-translation-source", text: activeCard.subText });
     }
 
-    // Tap on card starts shadow-typing drill
+    // Tap on card shows locked target sentence for focused viewing WITHOUT mutating note document
     heroCard.addEventListener("click", (e) => {
       const sel = window.getSelection()?.toString().trim();
       if (sel && sel.length > 0) return;
-      this.callbacks.onAdopt(activeCard.text, activeCard.kind, this.currentItem?.sourceRange, false);
+      this.resetToAutoFit();
+      this.renderLockedMode(activeCard.text);
     });
 
     // 2. Capsule Tabs Row below Hero Card (shows pagination pills)
@@ -760,6 +763,7 @@ export class CardPanel {
 
     this.isOralMode = false;
     this.isShadowTyping = true;
+    globalSpeechRecognizer.stop();
 
     if (this.brandTextEl) {
       this.brandTextEl.setText("🔒 鎖定跟寫中");

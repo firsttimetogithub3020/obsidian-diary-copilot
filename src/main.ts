@@ -658,6 +658,12 @@ export default class DiaryCopilotPlugin extends Plugin {
       return;
     }
 
+    // CRITICAL: If the user is actively in an IME composition (Pinyin, Zhuyin, or mobile keyboard voice dictation streaming):
+    // DO NOT interrupt, do not trigger API requests, and do not dispatch any editor changes!
+    if (update.view.composing) {
+      return;
+    }
+
     // Typing exits polish mode back to prediction mode
     if (this.isPolishMode) {
       this.isPolishMode = false;
