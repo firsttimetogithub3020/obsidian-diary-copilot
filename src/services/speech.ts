@@ -212,9 +212,15 @@ export class SpeechRecognizer {
   private lastTranscript = "";
 
   isSupported(): boolean {
-    // In Obsidian Electron Desktop (Windows/Mac/Linux), webkitSpeechRecognition is a non-functioning stub
-    // without Google Chrome server keys and triggers crash loops. Must return false so Desktop uses Win+H.
-    if (typeof window === "undefined" || Platform.isDesktop || Platform.isDesktopApp) {
+    // In Obsidian Electron Desktop (Windows/Mac/Linux) and iOS (iPhone/iPad WKWebView),
+    // webkitSpeechRecognition is either a non-functioning stub or strictly blocked by Apple with 'not-allowed'.
+    // Returning false enables the native OS speech input workflow (iOS keyboard mic, Win+H, Fn Fn dictation).
+    if (
+      typeof window === "undefined" ||
+      Platform.isDesktop ||
+      Platform.isDesktopApp ||
+      Platform.isIosApp
+    ) {
       return false;
     }
     return !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);

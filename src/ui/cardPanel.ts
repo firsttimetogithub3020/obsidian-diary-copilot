@@ -1068,11 +1068,13 @@ export class CardPanel {
         },
       });
     } else {
-      // Desktop / Windows Electron: Focus voice input & prompt Win+H
+      // Desktop (Windows/Mac) & iOS (iPhone/iPad): Focus voice input & prompt native dictation
       new Notice(
-        Platform.isMacOS
-          ? "🎙️ 已選取文字方塊！Mac 請連按兩次 Fn 啟動聽寫（亦可在此直接打字）"
-          : "🎙️ 已選取文字方塊！請按快捷鍵 [Win + H] 啟動語音輸入，唸完可點「⏹️ 說完了」！",
+        Platform.isIosApp
+          ? "🎙️ 已為您聚焦輸入框！請點擊鍵盤上的「麥克風 🎙️」說出英文（亦可在此直接打字）"
+          : (Platform.isMacOS
+              ? "🎙️ 已選取文字方塊！Mac 請連按兩次 Fn 啟動聽寫（亦可在此直接打字）"
+              : "🎙️ 已選取文字方塊！請按快捷鍵 [Win + H] 啟動語音輸入，唸完可點「⏹️ 說完了」！"),
         5000
       );
       this.focusDesktopVoiceInput();
@@ -1235,9 +1237,11 @@ export class CardPanel {
       const voiceWrapper = this.oralWorkspaceEl.createDiv({ cls: "diary-copilot-desktop-voice-wrapper" });
       
       const banner = voiceWrapper.createDiv({ cls: "diary-copilot-desktop-voice-banner" });
-      banner.innerHTML = Platform.isMacOS
-        ? "💡 <b>已自動選取文字方塊</b>：連按兩次 <kbd>Fn</kbd> 啟動聽寫（或在此直接打字）"
-        : "💡 <b>已自動選取文字方塊</b>：請按鍵盤 <kbd>Win</kbd> + <kbd>H</kbd> 啟動語音輸入（或在此直接打字）";
+      banner.innerHTML = Platform.isIosApp
+        ? "💡 <b>已為您聚焦輸入框</b>：請點擊鍵盤上的 <kbd>🎙️ 麥克風</kbd> 說出英文（或在此直接打字練習）"
+        : (Platform.isMacOS
+            ? "💡 <b>已自動選取文字方塊</b>：連按兩次 <kbd>Fn</kbd> 啟動聽寫（或在此直接打字）"
+            : "💡 <b>已自動選取文字方塊</b>：請按鍵盤 <kbd>Win</kbd> + <kbd>H</kbd> 啟動語音輸入（或在此直接打字）");
 
       const inputRow = voiceWrapper.createDiv({ cls: "diary-copilot-desktop-voice-input-row" });
       inputRow.createSpan({ cls: "diary-copilot-desktop-voice-icon", text: "🎙️" });
@@ -1245,9 +1249,11 @@ export class CardPanel {
         cls: "diary-copilot-desktop-voice-input",
         type: "text",
         attr: {
-          placeholder: Platform.isMacOS
-            ? "已選取文字方塊！連按兩次 Fn 說話，或在此打字跟讀..."
-            : "已選取文字方塊！請按 Win+H 說話，或在此打字跟讀...",
+          placeholder: Platform.isIosApp
+            ? "點擊鍵盤上的 🎙️ 唸出上方句子，達 70% 自動放入..."
+            : (Platform.isMacOS
+                ? "已選取文字方塊！連按兩次 Fn 說話，或在此打字跟讀..."
+                : "已選取文字方塊！請按 Win+H 說話，或在此打字跟讀..."),
         },
       });
 
@@ -1302,8 +1308,10 @@ export class CardPanel {
     statusRow.createSpan({
       cls: "diary-copilot-oral-tip",
       text: isWebSpeechSupported
-        ? (Platform.isMobile ? "唸完點「⏹️ 說完了」或停頓後自動放入" : "唸完點「⏹️ 說完了」或停頓後自動放入")
-        : (Platform.isMacOS ? "按兩次 Fn 語音聽寫 · 隨時可點「⏹️ 說完了」" : "按 Win+H 語音口說 · 隨時可點「⏹️ 說完了」"),
+        ? "唸完點「⏹️ 說完了」或停頓後自動放入"
+        : (Platform.isIosApp
+            ? "點擊鍵盤 🎙️ 說出句子 · 達 70% 吻合度自動填入"
+            : (Platform.isMacOS ? "按兩次 Fn 語音聽寫 · 隨時可點「⏹️ 說完了」" : "按 Win+H 語音口說 · 隨時可點「⏹️ 說完了」")),
     });
 
     this.applyPanelHeight();
@@ -1429,7 +1437,12 @@ export class CardPanel {
         this.desktopVoiceInputEl.value = "";
       }
       this.focusDesktopVoiceInput();
-      new Notice("🔄 已為您清空並重新選取文字方塊！請按 Win+H 重新口說或打字跟讀", 2500);
+      new Notice(
+        Platform.isIosApp
+          ? "🔄 請點擊鍵盤上的「麥克風 🎙️」重新說話跟讀！"
+          : "🔄 已為您清空並重新選取文字方塊！請按 Win+H 重新口說或打字跟讀",
+        2500
+      );
     }
   }
 
