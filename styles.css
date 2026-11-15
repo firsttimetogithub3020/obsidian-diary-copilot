@@ -20,6 +20,10 @@
   max-height: 70vh;
 }
 
+.diary-copilot-panel.is-animating {
+  transition: height 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 /* Resize Handle on top of panel */
 .diary-copilot-resize-handle {
   position: absolute;
@@ -32,7 +36,9 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  touch-action: none;
+  touch-action: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
 }
 
 .diary-copilot-resize-handle::after {
@@ -54,9 +60,11 @@
 
 /* Touch-friendly Mobile Resize Handle (Android, iPad, iPhone) */
 .diary-copilot-panel.is-mobile .diary-copilot-resize-handle {
-  top: -14px;
-  height: 26px;
-  touch-action: none;
+  top: -16px;
+  height: 32px;
+  touch-action: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
 }
 
 .diary-copilot-panel.is-mobile .diary-copilot-resize-handle::after {

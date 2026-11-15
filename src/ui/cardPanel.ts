@@ -120,10 +120,91 @@ export class CardPanel {
   private setupResizeListeners() {
     if (!this.resizeHandleEl) return;
     const handleEl = this.resizeHandleEl;
+    handleEl.setAttribute("title", "拖曳調整高度 · 點擊快速切換標準/展開");
+
+    let touchStartY = 0;
+    let touchStartTime = 0;
+    let hasMoved = false;
+
+    // --- Touch Event Handlers for Mobile (Android, iPad, iPhone) ---
+    // Using { capture: true, passive: false } prevents Obsidian's mobile Pull-Down gesture completely!
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      this.isResizing = true;
+      hasMoved = false;
+      const touch = e.touches[0];
+      touchStartY = touch.clientY;
+      touchStartTime = Date.now();
+
+      this.panelEl?.addClass("is-resizing");
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!this.isResizing || !this.panelEl || e.touches.length !== 1) return;
+      // CRITICAL: e.preventDefault() prevents browser/Obsidian mobile pull-down action!
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      const touch = e.touches[0];
+      if (Math.abs(touch.clientY - touchStartY) > 4) {
+        hasMoved = true;
+      }
+
+      const containerRect = this.containerEl.getBoundingClientRect();
+      const newHeight = containerRect.bottom - touch.clientY;
+      const clampedHeight = Math.max(80, Math.min(newHeight, window.innerHeight * 0.75));
+
+      this.panelEl.style.height = `${clampedHeight}px`;
+      document.body.style.setProperty("--diary-copilot-panel-height", `${clampedHeight}px`);
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (!this.isResizing || !this.panelEl) return;
+      this.isResizing = false;
+      this.panelEl.removeClass("is-resizing");
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      const elapsed = Date.now() - touchStartTime;
+      // If it was a quick tap (< 320ms without significant drag), toggle between Standard (125px) and Expanded (240px)
+      if (!hasMoved && elapsed < 320) {
+        this.toggleHeightPreset();
+        return;
+      }
+
+      const finalHeight = parseInt(this.panelEl.style.height, 10);
+      if (!isNaN(finalHeight) && finalHeight >= 80) {
+        this.callbacks.onHeightResize?.(finalHeight);
+      }
+    };
+
+    const onTouchCancel = (e: TouchEvent) => {
+      if (!this.isResizing || !this.panelEl) return;
+      this.isResizing = false;
+      this.panelEl.removeClass("is-resizing");
+      e.stopPropagation();
+    };
+
+    handleEl.addEventListener("touchstart", onTouchStart, { capture: true, passive: false });
+    handleEl.addEventListener("touchmove", onTouchMove, { capture: true, passive: false });
+    handleEl.addEventListener("touchend", onTouchEnd, { capture: true, passive: false });
+    handleEl.addEventListener("touchcancel", onTouchCancel, { capture: true, passive: false });
+
+    // --- Pointer Events for Desktop Mouse Dragging & Click Toggle ---
+    let pointerStartY = 0;
+    let pointerStartTime = 0;
+    let pointerMoved = false;
 
     const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType === "touch") return; // Handled by touch listeners above
       if (e.button !== 0) return;
       this.isResizing = true;
+      pointerMoved = false;
+      pointerStartY = e.clientY;
+      pointerStartTime = Date.now();
       this.panelEl?.addClass("is-resizing");
       handleEl.setPointerCapture(e.pointerId);
       e.preventDefault();
@@ -131,25 +212,37 @@ export class CardPanel {
     };
 
     const onPointerMove = (e: PointerEvent) => {
+      if (e.pointerType === "touch") return;
       if (!this.isResizing || !this.panelEl) return;
       e.preventDefault();
       e.stopPropagation();
 
+      if (Math.abs(e.clientY - pointerStartY) > 3) {
+        pointerMoved = true;
+      }
+
       const containerRect = this.containerEl.getBoundingClientRect();
       const newHeight = containerRect.bottom - e.clientY;
-      const clampedHeight = Math.max(80, Math.min(newHeight, window.innerHeight * 0.7));
+      const clampedHeight = Math.max(80, Math.min(newHeight, window.innerHeight * 0.75));
 
       this.panelEl.style.height = `${clampedHeight}px`;
       document.body.style.setProperty("--diary-copilot-panel-height", `${clampedHeight}px`);
     };
 
     const onPointerUp = (e: PointerEvent) => {
+      if (e.pointerType === "touch") return;
       if (!this.isResizing || !this.panelEl) return;
       this.isResizing = false;
       this.panelEl.removeClass("is-resizing");
       try {
         handleEl.releasePointerCapture(e.pointerId);
       } catch {}
+
+      const elapsed = Date.now() - pointerStartTime;
+      if (!pointerMoved && elapsed < 300) {
+        this.toggleHeightPreset();
+        return;
+      }
 
       const finalHeight = parseInt(this.panelEl.style.height, 10);
       if (!isNaN(finalHeight) && finalHeight >= 80) {
@@ -161,6 +254,7 @@ export class CardPanel {
     handleEl.addEventListener("pointermove", onPointerMove);
     handleEl.addEventListener("pointerup", onPointerUp);
     handleEl.addEventListener("pointercancel", (e: PointerEvent) => {
+      if (e.pointerType === "touch") return;
       if (!this.isResizing || !this.panelEl) return;
       this.isResizing = false;
       this.panelEl.removeClass("is-resizing");
@@ -168,6 +262,26 @@ export class CardPanel {
         handleEl.releasePointerCapture(e.pointerId);
       } catch {}
     });
+  }
+
+  /**
+   * Toggles panel height between Standard (~125px) and Expanded (~240px)
+   */
+  private toggleHeightPreset() {
+    if (!this.panelEl) return;
+    const currentHeight = parseInt(this.panelEl.style.height || getComputedStyle(this.panelEl).height, 10) || 125;
+    const isExpanded = currentHeight >= 200;
+    const targetHeight = isExpanded ? 125 : 240;
+
+    this.panelEl.addClass("is-animating");
+    this.panelEl.style.height = `${targetHeight}px`;
+    document.body.style.setProperty("--diary-copilot-panel-height", `${targetHeight}px`);
+
+    window.setTimeout(() => {
+      this.panelEl?.removeClass("is-animating");
+    }, 240);
+
+    this.callbacks.onHeightResize?.(targetHeight);
   }
 
   renderIdleState(message?: string) {
