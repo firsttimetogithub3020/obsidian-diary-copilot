@@ -1,3 +1,5 @@
+import { Platform } from "obsidian";
+
 /**
  * Speech Recognition Service for Diary Copilot Oral Shadowing
  * Automatically activates device microphone in English mode (en-US).
@@ -75,7 +77,7 @@ export function evaluateOralMatch(spoken: string, target: string, isFinal = fals
 
   // Confirmed unable to reach 50% if:
   // 1. isFinal is true (sentence segment ended by recognizer) and matchRatio < 0.50
-  // 2. OR user has already spoken substantial words (>= target length or >= 4 words) and matchRatio < 0.50
+  // 2. OR user has already spoken substantial words (>= target length or >= 3 words) and matchRatio < 0.50
   const hasSpokenSubstantial = normSpokenWords.length >= Math.max(3, Math.floor(rawTargetWords.length * 0.75));
   const isFailed = (isFinal || hasSpokenSubstantial) && matchRatio < 0.50 && normSpokenWords.length > 0;
 
@@ -96,12 +98,15 @@ export class SpeechRecognizer {
   private currentLang = "en-US";
   private currentHandlers: SpeechRecognitionHandlers | null = null;
   private restartTimeout: number | null = null;
+  private consecutiveErrors = 0;
 
   isSupported(): boolean {
-    return (
-      typeof window !== "undefined" &&
-      !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
-    );
+    // In Obsidian Electron Desktop (Windows/Mac/Linux), webkitSpeechRecognition is a non-functioning stub
+    // without Google Chrome server keys and triggers crash loops. Must return false so Desktop uses Win+H.
+    if (typeof window === "undefined" || Platform.isDesktop) {
+      return false;
+    }
+    return !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
   }
 
   start(lang = "en-US", handlers: SpeechRecognitionHandlers): boolean {
@@ -113,13 +118,14 @@ export class SpeechRecognizer {
     this.shouldBeListening = true;
     this.currentLang = lang;
     this.currentHandlers = handlers;
+    this.consecutiveErrors = 0;
 
     this.initAndStart();
     return true;
   }
 
   private initAndStart() {
-    if (!this.shouldBeListening) return;
+    if (!this.shouldBeListening || this.consecutiveErrors >= 3) return;
 
     try {
       const SpeechClass =
@@ -131,6 +137,7 @@ export class SpeechRecognizer {
       this.recognition.maxAlternatives = 1;
 
       this.recognition.onstart = () => {
+        this.consecutiveErrors = 0;
         this.currentHandlers?.onStart?.();
       };
 
@@ -155,24 +162,27 @@ export class SpeechRecognizer {
           return;
         }
 
-        if (errorType === "not-allowed" || errorType === "service-not-allowed") {
+        this.consecutiveErrors++;
+
+        if (this.consecutiveErrors >= 3 || errorType === "not-allowed" || errorType === "service-not-allowed") {
           this.shouldBeListening = false;
-          this.currentHandlers?.onError?.("not-allowed");
+          this.stop();
+          this.currentHandlers?.onError?.(errorType);
           return;
         }
 
-        console.warn("Speech recognition error:", errorType);
+        console.warn("[Diary Copilot Speech] error:", errorType);
       };
 
       this.recognition.onend = () => {
-        // If user is still in listening mode, auto-restart seamlessly so microphone doesn't prematurely drop!
-        if (this.shouldBeListening) {
+        // If user is still in listening mode and errors haven't accumulated, auto-restart seamlessly
+        if (this.shouldBeListening && this.consecutiveErrors < 3) {
           if (this.restartTimeout) window.clearTimeout(this.restartTimeout);
           this.restartTimeout = window.setTimeout(() => {
-            if (this.shouldBeListening) {
+            if (this.shouldBeListening && this.consecutiveErrors < 3) {
               this.initAndStart();
             }
-          }, 80);
+          }, 250);
         } else {
           this.currentHandlers?.onEnd?.();
         }
@@ -180,18 +190,20 @@ export class SpeechRecognizer {
 
       this.recognition.start();
     } catch (err) {
-      console.warn("Speech recognition start failed:", err);
-      if (this.shouldBeListening) {
+      console.warn("[Diary Copilot Speech] start failed:", err);
+      this.consecutiveErrors++;
+      if (this.shouldBeListening && this.consecutiveErrors < 3) {
         if (this.restartTimeout) window.clearTimeout(this.restartTimeout);
         this.restartTimeout = window.setTimeout(() => {
           if (this.shouldBeListening) this.initAndStart();
-        }, 200);
+        }, 500);
       }
     }
   }
 
   stop() {
     this.shouldBeListening = false;
+    this.consecutiveErrors = 0;
     if (this.restartTimeout) {
       window.clearTimeout(this.restartTimeout);
       this.restartTimeout = null;

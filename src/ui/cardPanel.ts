@@ -595,7 +595,7 @@ export class CardPanel {
       globalSpeechRecognizer.start("en-US", {
         onResult: (transcript: string, _isFinal: boolean) => {
           if (!this.isOralMode || this.oralPassed) return;
-          const match = evaluateOralMatch(transcript, this.oralTargetText);
+          const match = evaluateOralMatch(transcript, this.oralTargetText, _isFinal);
           this.updateOralVisuals(match);
 
           if (match.isPass) {
@@ -726,9 +726,13 @@ export class CardPanel {
         type: "text",
         attr: {
           placeholder: Platform.isMacOS
-            ? "連按兩次 Fn / Control 啟動聽寫（或打字跟讀）..."
-            : "請按 Win+H 啟動語音輸入（或打字跟讀）...",
+            ? "已選取文字方塊！連按兩次 Fn / Control 啟動聽寫（或打字跟讀）..."
+            : "已選取文字方塊！請按 Win+H 啟動語音輸入（或打字跟讀）...",
         },
+      });
+
+      voiceWrapper.addEventListener("click", () => {
+        this.desktopVoiceInputEl?.focus();
       });
 
       this.desktopVoiceInputEl.addEventListener("input", (e) => {
