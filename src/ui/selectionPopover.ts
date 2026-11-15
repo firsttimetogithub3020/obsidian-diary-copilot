@@ -163,7 +163,29 @@ export class SelectionPopover {
     this.popoverEl.style.display = "flex";
     this.popoverEl.style.visibility = "hidden";
 
-    // Wait for layout measurement
+    // Mobile adaptation: Dock popover right above the bottom Copilot cards
+    // This completely avoids overlapping with Android / iOS native "Copy / Share" action bars!
+    if (Platform.isMobile) {
+      this.popoverEl.addClass("is-mobile-docked");
+      const panelEl = document.querySelector(".diary-copilot-panel:not(.is-hidden)") as HTMLElement | null;
+      let bottomPx = 16;
+      if (panelEl) {
+        const panelRect = panelEl.getBoundingClientRect();
+        if (panelRect.height > 0 && panelRect.top < window.innerHeight) {
+          bottomPx = Math.max(16, window.innerHeight - panelRect.top + 10);
+        }
+      }
+      this.popoverEl.style.left = "10px";
+      this.popoverEl.style.right = "10px";
+      this.popoverEl.style.top = "auto";
+      this.popoverEl.style.bottom = `${Math.round(bottomPx)}px`;
+      this.popoverEl.style.visibility = "visible";
+      return;
+    }
+
+    // Desktop: traditional floating tooltip right above the selected word
+    this.popoverEl.removeClass("is-mobile-docked");
+    this.popoverEl.style.bottom = "auto";
     const popoverRect = this.popoverEl.getBoundingClientRect();
     const popWidth = popoverRect.width || 220;
     const popHeight = popoverRect.height || 36;

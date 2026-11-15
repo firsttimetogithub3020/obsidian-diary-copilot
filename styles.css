@@ -527,6 +527,38 @@
   animation: diary-copilot-fade-in 0.15s ease forwards;
 }
 
+/* Mobile docked mode (anchors directly above bottom Copilot cards) */
+.diary-copilot-selection-popover.is-mobile-docked {
+  position: fixed !important;
+  left: 10px !important;
+  right: 10px !important;
+  margin: 0 auto !important;
+  width: auto !important;
+  max-width: 520px !important;
+  border: 1px solid var(--interactive-accent) !important;
+  background-color: var(--background-secondary-alt, var(--background-primary)) !important;
+  box-shadow: 0 -4px 22px rgba(0, 0, 0, 0.32) !important;
+  padding: 8px 12px !important;
+  border-radius: 10px !important;
+  z-index: 99999 !important;
+}
+
+.diary-copilot-selection-popover.is-mobile-docked .popover-term {
+  max-width: 110px;
+}
+
+.diary-copilot-selection-popover.is-mobile-docked .popover-translation {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diary-copilot-selection-popover.is-mobile-docked .popover-actions {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 @keyframes diary-copilot-fade-in {
   from {
     opacity: 0;
