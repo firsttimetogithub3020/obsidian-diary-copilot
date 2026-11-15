@@ -54,6 +54,7 @@ export class CardPanel {
   private isOralListening = false;
   private oralLatestTranscript = "";
   private oralPassTimeout: number | null = null;
+  private oralAutoFinalizeTimeout: number | null = null;
   private oralWorkspaceEl: HTMLElement | null = null;
   private oralTargetWordSpans: HTMLElement[] = [];
   private oralLiveTextEl: HTMLElement | null = null;
@@ -580,6 +581,7 @@ export class CardPanel {
       window.clearTimeout(this.oralPassTimeout);
       this.oralPassTimeout = null;
     }
+    this.clearAutoPassTimer();
 
     if (this.brandTextEl) {
       this.brandTextEl.setText("🎙️ 口說跟讀中 (en-US)");
@@ -594,7 +596,7 @@ export class CardPanel {
     const isWebSpeechSupported = globalSpeechRecognizer.isSupported();
 
     if (isWebSpeechSupported) {
-      new Notice("🎙️ 語音辨識已啟動，長句可從容唸完，唸完可點「⏹️ 說完了」或等待自動判定...", 3500);
+      new Notice("🎙️ 語音辨識已啟動，長句可從容唸完，唸完請點「⏹️ 說完了」或停頓後自動判定...", 3500);
 
       globalSpeechRecognizer.start("en-US", {
         onResult: (transcript: string, _isFinal: boolean) => {
@@ -604,11 +606,15 @@ export class CardPanel {
           this.updateOralVisuals(match);
 
           if (match.isPass) {
-            this.handleOralPass(match);
+            // Reached >= 70%: Do NOT cut off user! Allow them to finish speaking and auto-settle after 2s of silence.
+            this.scheduleAutoPass(2200);
+          } else {
+            this.clearAutoPassTimer();
           }
         },
         onError: (err: string) => {
           if (!this.isOralMode) return;
+          this.clearAutoPassTimer();
           this.isOralListening = false;
           this.renderHeaderActionsOral();
           if (err === "not-allowed" || err === "service-not-allowed") {
@@ -619,6 +625,7 @@ export class CardPanel {
         },
         onEnd: () => {
           if (!this.isOralMode || this.oralPassed) return;
+          this.clearAutoPassTimer();
           this.isOralListening = false;
           this.renderHeaderActionsOral();
           if (this.oralLatestTranscript) {
@@ -639,6 +646,24 @@ export class CardPanel {
         5000
       );
       this.focusDesktopVoiceInput();
+    }
+  }
+
+  private scheduleAutoPass(delayMs = 2200) {
+    if (this.oralAutoFinalizeTimeout) {
+      window.clearTimeout(this.oralAutoFinalizeTimeout);
+    }
+    this.oralAutoFinalizeTimeout = window.setTimeout(() => {
+      if (this.isOralMode && !this.oralPassed) {
+        this.finishOralRecording();
+      }
+    }, delayMs);
+  }
+
+  private clearAutoPassTimer() {
+    if (this.oralAutoFinalizeTimeout) {
+      window.clearTimeout(this.oralAutoFinalizeTimeout);
+      this.oralAutoFinalizeTimeout = null;
     }
   }
 
@@ -725,6 +750,7 @@ export class CardPanel {
    * Manual Stop: User tapped "⏹️ 說完了", immediately stops microphone and evaluates.
    */
   private finishOralRecording() {
+    this.clearAutoPassTimer();
     this.isOralListening = false;
     globalSpeechRecognizer.stop();
     this.renderHeaderActionsOral();
@@ -817,7 +843,16 @@ export class CardPanel {
         this.updateOralVisuals(match);
 
         if (match.isPass) {
-          this.handleOralPass(match);
+          this.scheduleAutoPass(2200);
+        } else {
+          this.clearAutoPassTimer();
+        }
+      });
+
+      this.desktopVoiceInputEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          this.finishOralRecording();
         }
       });
       this.oralLiveTextEl = null;
@@ -837,7 +872,7 @@ export class CardPanel {
     statusRow.createSpan({
       cls: "diary-copilot-oral-tip",
       text: isWebSpeechSupported
-        ? (Platform.isMobile ? "唸完點「⏹️ 說完了」或達標自動放入" : "唸完點「⏹️ 說完了」或達標自動放入")
+        ? (Platform.isMobile ? "唸完點「⏹️ 說完了」或停頓後自動放入" : "唸完點「⏹️ 說完了」或停頓後自動放入")
         : (Platform.isMacOS ? "按兩次 Fn 語音聽寫 · 隨時可點「⏹️ 說完了」" : "按 Win+H 語音口說 · 隨時可點「⏹️ 說完了」"),
     });
   }
@@ -890,7 +925,7 @@ export class CardPanel {
     if (this.oralScoreBadgeEl) {
       this.oralScoreBadgeEl.removeClass("is-success", "is-failed");
       if (pct >= 70) {
-        this.oralScoreBadgeEl.setText(`🎉 辨識吻合度：${pct}%（已達標！）`);
+        this.oralScoreBadgeEl.setText(`🎉 吻合度：${pct}%（已達標！唸完請點「⏹️ 說完了」或停頓後放入）`);
         this.oralScoreBadgeEl.addClass("is-success");
       } else if (match.isFailed) {
         this.oralScoreBadgeEl.setText(`❌ 吻合度未達 50%（${pct}%），請重新跟讀`);
@@ -913,6 +948,7 @@ export class CardPanel {
       window.clearTimeout(this.oralPassTimeout);
       this.oralPassTimeout = null;
     }
+    this.clearAutoPassTimer();
 
     this.renderHeaderActionsOral();
     this.renderOralWorkspace();
@@ -929,15 +965,19 @@ export class CardPanel {
               this.updateOralVisuals(match);
 
               if (match.isPass) {
-                this.handleOralPass(match);
+                this.scheduleAutoPass(2200);
+              } else {
+                this.clearAutoPassTimer();
               }
             },
             onError: () => {
+              this.clearAutoPassTimer();
               this.isOralListening = false;
               this.renderHeaderActionsOral();
             },
             onEnd: () => {
               if (!this.isOralMode || this.oralPassed) return;
+              this.clearAutoPassTimer();
               this.isOralListening = false;
               this.renderHeaderActionsOral();
               if (this.oralLatestTranscript) {
@@ -967,6 +1007,7 @@ export class CardPanel {
   private handleOralPass(match: OralMatchResult) {
     this.oralPassed = true;
     this.isOralListening = false;
+    this.clearAutoPassTimer();
     globalSpeechRecognizer.stop();
     this.renderHeaderActionsOral();
 
@@ -1000,6 +1041,7 @@ export class CardPanel {
     this.oralPassed = true;
     this.isOralListening = false;
     this.oralLatestTranscript = "";
+    this.clearAutoPassTimer();
     globalSpeechRecognizer.stop();
     this.isOralMode = false;
     if (this.callbacks.onOralAdopt) {
@@ -1017,6 +1059,7 @@ export class CardPanel {
     this.oralPassed = false;
     this.isOralListening = false;
     this.oralLatestTranscript = "";
+    this.clearAutoPassTimer();
     globalSpeechRecognizer.stop();
     this.isOralMode = false;
     if (this.oralPassTimeout) {
@@ -1050,6 +1093,7 @@ export class CardPanel {
   destroy() {
     this.isOralListening = false;
     this.oralLatestTranscript = "";
+    this.clearAutoPassTimer();
     if (this.oralPassTimeout) {
       window.clearTimeout(this.oralPassTimeout);
       this.oralPassTimeout = null;
