@@ -506,6 +506,9 @@ export default class DiaryCopilotPlugin extends Plugin {
           onClose: () => {
             this.toggleCopilotInCurrentNote();
           },
+          onCheckUpdate: () => {
+            this.checkForUpdates(true);
+          },
           onDirectPaste: () => {
             this.handleDirectPaste();
           },

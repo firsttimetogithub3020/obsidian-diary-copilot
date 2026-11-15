@@ -1,4 +1,4 @@
-import { App, Notice, PluginManifest, requestUrl, RequestUrlResponse } from "obsidian";
+import { App, Notice, PluginManifest, requestUrl, RequestUrlResponse, normalizePath } from "obsidian";
 
 const REPO = "firsttimetogithub3020/obsidian-diary-copilot";
 
@@ -112,13 +112,14 @@ async function fetchLatestManifest(): Promise<any | null> {
 }
 
 /**
- * Downloads a release asset trying the versioned release tag first, then latest release download.
+ * Downloads a release asset trying the versioned release tag first, then latest release download, with raw github fallback.
  */
 async function downloadAsset(filename: string, version: string): Promise<string | null> {
-  const cacheBuster = `?t=${Date.now()}`;
   const urls = [
-    `https://github.com/${REPO}/releases/download/v${version}/${filename}${cacheBuster}`,
-    `https://github.com/${REPO}/releases/latest/download/${filename}${cacheBuster}`,
+    `https://github.com/${REPO}/releases/download/v${version}/${filename}`,
+    `https://github.com/${REPO}/releases/latest/download/${filename}`,
+    `https://raw.githubusercontent.com/${REPO}/v${version}/${filename}`,
+    `https://raw.githubusercontent.com/${REPO}/main/${filename}`,
   ];
 
   for (const url of urls) {
@@ -175,10 +176,8 @@ export async function checkAndApplyPluginUpdate(
         return false;
       }
 
-      // Determine plugin directory (using pluginManifest.dir if available)
-      const pluginDir =
-        (pluginManifest as any).dir ||
-        `${app.vault.configDir}/plugins/${pluginManifest.id}`;
+      // Determine plugin directory (always use standard vault-relative path across iOS, Android & Desktop)
+      const pluginDir = normalizePath(`${app.vault.configDir}/plugins/${pluginManifest.id}`);
 
       // Ensure directory exists
       if (!(await app.vault.adapter.exists(pluginDir))) {

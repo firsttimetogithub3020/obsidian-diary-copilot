@@ -15,6 +15,7 @@ export interface CardPanelCallbacks {
   onClose?: () => void;
   onDirectPaste?: () => void;
   onUnlock?: () => void;
+  onCheckUpdate?: () => void;
   onOralAdopt?: (text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }) => void;
   onOralInput?: (spokenText: string, targetText: string) => void;
   onFocusEditor?: () => void;
@@ -467,7 +468,7 @@ export class CardPanel {
     // 1. Update brand text & tone display
     if (this.pinnedInquiryItem) {
       if (this.brandTextEl) {
-        this.brandTextEl.setText(Platform.isMobile ? "❓ 提問" : "❓ 提問引導模式");
+        this.brandTextEl.setText("❓ 提問引導模式");
       }
       if (this.toneWrapperEl) {
         this.toneWrapperEl.style.display = "none";
@@ -546,13 +547,13 @@ export class CardPanel {
       return;
     }
 
-    const isDesktopWide = !Platform.isMobile && ((this.contentAreaEl.clientWidth || window.innerWidth) >= 640);
+    const isWideScreen = (this.contentAreaEl.clientWidth || window.innerWidth) >= 640;
 
-    if (isDesktopWide && this.currentCards.length > 1) {
-      // DESKTOP: 2x2 Clean Grid Layout with complete wrapped sentences!
+    if (isWideScreen && this.currentCards.length > 1) {
+      // DESKTOP & TABLET (iPad, Android Tablet, PC): 2x2 Clean Grid Layout with complete wrapped sentences!
       this.renderDesktop2x2Grid();
     } else {
-      // MOBILE / TABLET / NARROW: Single Card with Bottom Capsule Tabs (NO swipe gestures!)
+      // PHONE (iPhone, Android Phone) & NARROW SPLIT: Single Card with Bottom Capsule Tabs (NO swipe gestures!)
       this.renderMobileSingleCard();
     }
 
@@ -578,7 +579,7 @@ export class CardPanel {
     const catGroup = ctrlRow.createDiv({ cls: "diary-copilot-pinned-cat-group" });
     const closedBtn = catGroup.createEl("button", {
       cls: `diary-copilot-pinned-cat-btn ${isClosed ? "is-active" : ""}`,
-      text: Platform.isMobile ? "❓ 是非" : "❓ 是非 (Yes/No)",
+      text: "❓ 是非 (Yes/No)",
     });
     closedBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -594,7 +595,7 @@ export class CardPanel {
 
     const openBtn = catGroup.createEl("button", {
       cls: `diary-copilot-pinned-cat-btn ${!isClosed ? "is-active" : ""}`,
-      text: Platform.isMobile ? "💭 開放" : "💭 開放 (Wh-)",
+      text: "💭 開放 (Wh-)",
     });
     openBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -612,9 +613,7 @@ export class CardPanel {
     const actionGroup = ctrlRow.createDiv({ cls: "diary-copilot-pinned-action-group" });
     const toggleAnswerBtn = actionGroup.createEl("button", {
       cls: `diary-copilot-pinned-toggle-btn ${this.isShowingInquiryAnswers ? "is-active" : ""}`,
-      text: this.isShowingInquiryAnswers
-        ? (Platform.isMobile ? "✍️ 續寫" : "✍️ 顯示即時續寫")
-        : (Platform.isMobile ? "💡 範例" : "💡 查看建議回答"),
+      text: this.isShowingInquiryAnswers ? "✍️ 顯示即時續寫" : "💡 查看建議回答",
       attr: { title: this.isShowingInquiryAnswers ? "換回根據您輸入即時產生的續寫句卡" : "查看 AI 針對此問題構思的範例回答" },
     });
     toggleAnswerBtn.addEventListener("click", (e) => {
@@ -849,7 +848,7 @@ export class CardPanel {
       // ✍️ 回續寫 - Right Group
       const resumeBtn = this.headerActionsEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-resume-btn",
-        text: Platform.isMobile ? "✍️ 續寫" : "✍️ 回續寫",
+        text: "✍️ 回續寫",
         attr: { title: "關閉提問引導，回到平日純續寫模式" },
       });
       resumeBtn.addEventListener("click", (e) => {
@@ -886,7 +885,19 @@ export class CardPanel {
       this.callbacks.onPolishRequest?.();
     });
 
-    // 6. ✕ 關閉 - Right Group
+    // 6. 🔄 檢查更新 - Right Group (跨平台全裝置一鍵檢查更新)
+    const updateBtn = this.headerActionsEl.createEl("button", {
+      cls: "diary-copilot-action-btn diary-copilot-update-btn",
+      text: "🔄",
+      attr: { "aria-label": "立即檢查並更新 Diary Copilot", title: "立即檢查並更新 Diary Copilot" },
+    });
+    updateBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.callbacks.onCheckUpdate?.();
+    });
+
+    // 7. ✕ 關閉 - Right Group
     const closeBtn = this.headerActionsEl.createEl("button", {
       cls: "diary-copilot-action-btn diary-copilot-close-btn",
       text: "✕",
