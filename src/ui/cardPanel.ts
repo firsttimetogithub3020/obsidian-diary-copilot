@@ -32,16 +32,21 @@ interface CardDescriptor {
 export class CardPanel {
   private containerEl: HTMLElement;
   private panelEl: HTMLElement | null = null;
+  private headerEl: HTMLElement | null = null;
   private statusDotEl: HTMLElement | null = null;
   private brandTextEl: HTMLElement | null = null;
   private headerHintEl: HTMLElement | null = null;
-  private headerLeftEl: HTMLElement | null = null;
+  private brandWrapperEl: HTMLElement | null = null;
   private headerAudioEl: HTMLElement | null = null;
+  private headerCenterEl: HTMLElement | null = null;
   private toneWrapperEl: HTMLElement | null = null;
   private toneSelectEl: HTMLSelectElement | null = null;
   private headerActionsEl: HTMLElement | null = null;
+  private headerSysEl: HTMLElement | null = null;
   private contentAreaEl: HTMLElement | null = null;
   private resizeHandleEl: HTMLElement | null = null;
+  private resizeObserver: ResizeObserver | null = null;
+  private onWindowResize: (() => void) | null = null;
   private callbacks: CardPanelCallbacks;
   private currentItem: SuggestionItem | null = null;
   private isResizing = false;
@@ -91,20 +96,17 @@ export class CardPanel {
     this.setupResizeListeners();
 
     // Header bar (unified action bar across browse, locked, & oral modes)
-    const header = this.panelEl.createDiv({ cls: "diary-copilot-panel-header" });
+    this.headerEl = this.panelEl.createDiv({ cls: "diary-copilot-panel-header" });
     
-    // Left Group: Brand + Audio buttons (🔊 朗讀, 🎙️ 跟讀) + Tone Selector
-    this.headerLeftEl = header.createDiv({ cls: "diary-copilot-header-left" });
+    // 1. Brand Wrapper (Row 1 Left): Status Dot + Brand Text + Tone Selector
+    this.brandWrapperEl = this.headerEl.createDiv({ cls: "diary-copilot-brand-wrapper" });
 
-    const brand = this.headerLeftEl.createDiv({ cls: "diary-copilot-brand" });
+    const brand = this.brandWrapperEl.createDiv({ cls: "diary-copilot-brand" });
     this.statusDotEl = brand.createSpan({ cls: "diary-copilot-status-dot" });
     this.brandTextEl = brand.createSpan({ cls: "diary-copilot-brand-text", text: "Diary Copilot" });
 
-    // Audio Buttons sub-container in Left Group
-    this.headerAudioEl = this.headerLeftEl.createDiv({ cls: "diary-copilot-header-audio" });
-
-    // Tone Selector (visible in browse mode) in Left Group
-    this.toneWrapperEl = this.headerLeftEl.createDiv({ cls: "diary-copilot-tone-wrapper" });
+    // Tone Selector (visible in browse mode) in Brand Wrapper
+    this.toneWrapperEl = this.brandWrapperEl.createDiv({ cls: "diary-copilot-tone-wrapper" });
     this.toneWrapperEl.createSpan({ cls: "diary-copilot-tone-label", text: "語調：" });
 
     this.toneSelectEl = this.toneWrapperEl.createEl("select", { cls: "diary-copilot-tone-select" });
@@ -125,15 +127,22 @@ export class CardPanel {
       this.callbacks.onToneChange?.(newTone);
     });
 
-    // Center dedicated space: completely empty, keeping resize handle clear!
-    header.createDiv({ cls: "diary-copilot-header-center" });
+    // 2. Audio Buttons container (Row 2 Left): 🔊 朗讀, 🎙️ 跟讀
+    this.headerAudioEl = this.headerEl.createDiv({ cls: "diary-copilot-header-audio" });
 
-    // Right: Unified Actions Bar (⚡ 填入, ❓ 提問/✍️ 回續寫, ✨ 潤飾, ✕)
-    this.headerActionsEl = header.createDiv({ cls: "diary-copilot-header-actions" });
+    // 3. Center dedicated space: completely empty, keeping resize handle clear!
+    this.headerCenterEl = this.headerEl.createDiv({ cls: "diary-copilot-header-center" });
+
+    // 4. Main Actions Bar (Row 2 Right): ⚡ 填入, ❓ 提問/✍️ 回續寫, ✨ 潤飾
+    this.headerActionsEl = this.headerEl.createDiv({ cls: "diary-copilot-header-actions" });
+
+    // 5. System Actions Bar (Row 1 Right): 🔄 檢查更新, ✕ 關閉
+    this.headerSysEl = this.headerEl.createDiv({ cls: "diary-copilot-header-sys" });
 
     // Content Area
     this.contentAreaEl = this.panelEl.createDiv({ cls: "diary-copilot-panel-content" });
 
+    this.updateHeaderLayout();
     this.renderIdleState();
   }
 
@@ -235,6 +244,44 @@ export class CardPanel {
       e.stopPropagation();
       this.resetToAutoFit();
     });
+
+    // Setup ResizeObserver & Orientation Listener for 2-row adaptive header
+    if (this.panelEl && typeof ResizeObserver !== "undefined") {
+      this.resizeObserver = new ResizeObserver(() => {
+        this.updateHeaderLayout();
+      });
+      this.resizeObserver.observe(this.panelEl);
+    }
+
+    this.onWindowResize = () => {
+      this.updateHeaderLayout();
+    };
+    window.addEventListener("resize", this.onWindowResize);
+    window.addEventListener("orientationchange", this.onWindowResize);
+  }
+
+  /**
+   * Adapts header layout:
+   * When on narrow phones, vertical/portrait orientation, or panel width < 720px,
+   * automatically displays as two lines so no buttons are covered or pushed off-screen.
+   */
+  private updateHeaderLayout() {
+    if (!this.headerEl || !this.panelEl) return;
+    const width = this.panelEl.clientWidth || window.innerWidth;
+    const height = window.innerHeight;
+    const isPortrait = window.matchMedia?.("(orientation: portrait)").matches || (height > width);
+    const isNarrow = width < 720;
+    const isPhone = Platform.isPhone;
+
+    const shouldBeTwoRow = isPhone || isPortrait || isNarrow;
+
+    if (shouldBeTwoRow) {
+      this.headerEl.addClass("is-two-row");
+      this.panelEl.addClass("has-two-row-header");
+    } else {
+      this.headerEl.removeClass("is-two-row");
+      this.panelEl.removeClass("has-two-row-header");
+    }
   }
 
   /**
@@ -797,14 +844,14 @@ export class CardPanel {
    * Center zone is completely clear for the resize handle!
    */
   private renderHeaderActionsBrowse() {
-    if (!this.headerActionsEl) return;
-    this.headerActionsEl.empty();
+    if (this.headerActionsEl) this.headerActionsEl.empty();
     if (this.headerAudioEl) this.headerAudioEl.empty();
+    if (this.headerSysEl) this.headerSysEl.empty();
 
     const activeCard = this.currentCards[this.activeTabIdx] || this.currentCards[0];
 
     if (activeCard && this.headerAudioEl) {
-      // 1. 🔊 朗讀 (TTS) - Left Group
+      // 1. 🔊 朗讀 (TTS) - Left Group (Row 2 Left)
       const ttsBtn = this.headerAudioEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-tts-btn",
         text: "🔊 朗讀",
@@ -816,7 +863,7 @@ export class CardPanel {
         speakSentence(activeCard.text);
       });
 
-      // 2. 🎙️ 語音跟讀 (Starts Visual Oral Studio) - Left Group
+      // 2. 🎙️ 語音跟讀 (Starts Visual Oral Studio) - Left Group (Row 2 Left)
       const oralBtn = this.headerAudioEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-oral-btn",
         text: "🎙️ 跟讀",
@@ -830,8 +877,8 @@ export class CardPanel {
       });
     }
 
-    if (activeCard) {
-      // 3. ⚡ 填入 (Direct Paste) - Right Group
+    if (activeCard && this.headerActionsEl) {
+      // 3. ⚡ 填入 (Direct Paste) - Right Group (Row 2 Right)
       const pasteBtn = this.headerActionsEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-direct-paste-btn",
         text: "⚡ 填入",
@@ -844,82 +891,86 @@ export class CardPanel {
       });
     }
 
-    if (this.pinnedInquiryItem) {
-      // ✍️ 回續寫 - Right Group
-      const resumeBtn = this.headerActionsEl.createEl("button", {
-        cls: "diary-copilot-action-btn diary-copilot-resume-btn",
-        text: "✍️ 回續寫",
-        attr: { title: "關閉提問引導，回到平日純續寫模式" },
+    if (this.headerActionsEl) {
+      if (this.pinnedInquiryItem) {
+        // ✍️ 回續寫 - Right Group (Row 2 Right)
+        const resumeBtn = this.headerActionsEl.createEl("button", {
+          cls: "diary-copilot-action-btn diary-copilot-resume-btn",
+          text: "✍️ 回續寫",
+          attr: { title: "關閉提問引導，回到平日純續寫模式" },
+        });
+        resumeBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          this.clearPinnedInquiry();
+          this.callbacks.onDismiss?.();
+        });
+      } else {
+        // 4. ❓ 提問 (F5) - Right Group (Row 2 Right)
+        const inquiryBtn = this.headerActionsEl.createEl("button", {
+          cls: "diary-copilot-action-btn diary-copilot-inquiry-btn",
+          text: Platform.isMobile ? "❓ 提問" : "❓ 提問 (F5)",
+          attr: { title: "根據日記內容產生是非或開放引導問句 (F5)" },
+        });
+        inquiryBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          this.resetToAutoFit();
+          this.callbacks.onInquiryRequest?.();
+        });
+      }
+
+      // 5. ✨ 潤飾 - Right Group (Row 2 Right)
+      const polishBtn = this.headerActionsEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-polish-btn",
+        text: Platform.isMobile ? "✨ 潤飾" : "✨ 潤飾 (F3)",
+        attr: { title: "潤飾當前/前一句表達 (F3)" },
       });
-      resumeBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        this.clearPinnedInquiry();
-        this.callbacks.onDismiss?.();
-      });
-    } else {
-      // 4. ❓ 提問 (F5) - Right Group
-      const inquiryBtn = this.headerActionsEl.createEl("button", {
-        cls: "diary-copilot-action-btn diary-copilot-inquiry-btn",
-        text: Platform.isMobile ? "❓ 提問" : "❓ 提問 (F5)",
-        attr: { title: "根據日記內容產生是非或開放引導問句 (F5)" },
-      });
-      inquiryBtn.addEventListener("click", (e) => {
+      polishBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         e.preventDefault();
         this.resetToAutoFit();
-        this.callbacks.onInquiryRequest?.();
+        this.callbacks.onPolishRequest?.();
       });
     }
 
-    // 5. ✨ 潤飾 - Right Group (Full Chinese text)
-    const polishBtn = this.headerActionsEl.createEl("button", {
-      cls: "diary-copilot-action-btn diary-copilot-polish-btn",
-      text: Platform.isMobile ? "✨ 潤飾" : "✨ 潤飾 (F3)",
-      attr: { title: "潤飾當前/前一句表達 (F3)" },
-    });
-    polishBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      this.resetToAutoFit();
-      this.callbacks.onPolishRequest?.();
-    });
+    if (this.headerSysEl) {
+      // 6. 🔄 檢查更新 - Sys Group (Row 1 Right)
+      const updateBtn = this.headerSysEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-update-btn",
+        text: "🔄",
+        attr: { "aria-label": "立即檢查並更新 Diary Copilot", title: "立即檢查並更新 Diary Copilot" },
+      });
+      updateBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.callbacks.onCheckUpdate?.();
+      });
 
-    // 6. 🔄 檢查更新 - Right Group (跨平台全裝置一鍵檢查更新)
-    const updateBtn = this.headerActionsEl.createEl("button", {
-      cls: "diary-copilot-action-btn diary-copilot-update-btn",
-      text: "🔄",
-      attr: { "aria-label": "立即檢查並更新 Diary Copilot", title: "立即檢查並更新 Diary Copilot" },
-    });
-    updateBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      this.callbacks.onCheckUpdate?.();
-    });
-
-    // 7. ✕ 關閉 - Right Group
-    const closeBtn = this.headerActionsEl.createEl("button", {
-      cls: "diary-copilot-action-btn diary-copilot-close-btn",
-      text: "✕",
-      attr: { "aria-label": "關閉 Copilot 面板", title: "關閉 Copilot 面板" },
-    });
-    closeBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      this.callbacks.onClose?.();
-    });
+      // 7. ✕ 關閉 - Sys Group (Row 1 Right)
+      const closeBtn = this.headerSysEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-close-btn",
+        text: "✕",
+        attr: { "aria-label": "關閉 Copilot 面板", title: "關閉 Copilot 面板" },
+      });
+      closeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.callbacks.onClose?.();
+      });
+    }
   }
 
   /**
    * Header Action Bar in Locked Mode: 🔊 朗讀, 🎙️ 跟讀 (Left) & ⚡ 填入, ✨ 潤飾, ✕ 解鎖 (Right)
    */
   private renderHeaderActionsLocked(targetText: string) {
-    if (!this.headerActionsEl) return;
-    this.headerActionsEl.empty();
+    if (this.headerActionsEl) this.headerActionsEl.empty();
     if (this.headerAudioEl) this.headerAudioEl.empty();
+    if (this.headerSysEl) this.headerSysEl.empty();
 
     if (this.headerAudioEl) {
-      // 1. 🔊 朗讀 (TTS) - Left Group
+      // 1. 🔊 朗讀 (TTS) - Left Group (Row 2 Left)
       const ttsBtn = this.headerAudioEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-tts-btn",
         text: "🔊 朗讀",
@@ -931,7 +982,7 @@ export class CardPanel {
         speakSentence(targetText);
       });
 
-      // 2. 🎙️ 跟讀 (Visual Oral Studio) - Left Group
+      // 2. 🎙️ 跟讀 (Visual Oral Studio) - Left Group (Row 2 Left)
       const oralBtn = this.headerAudioEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-oral-btn",
         text: "🎙️ 跟讀",
@@ -945,47 +996,51 @@ export class CardPanel {
       });
     }
 
-    // 3. ⚡ 填入 (Direct Paste / Skip Shadowing) - Right Group
-    const pasteBtn = this.headerActionsEl.createEl("button", {
-      cls: "diary-copilot-action-btn diary-copilot-direct-paste-btn",
-      text: Platform.isMobile ? "⚡ 填入" : "⚡ 填入 (Tab)",
-      attr: { title: "跳過練習，直接填入完整句子" },
-    });
-    pasteBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      this.callbacks.onDirectPaste?.();
-    });
+    if (this.headerActionsEl) {
+      // 3. ⚡ 填入 (Direct Paste / Skip Shadowing) - Main Actions (Row 2 Right)
+      const pasteBtn = this.headerActionsEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-direct-paste-btn",
+        text: Platform.isMobile ? "⚡ 填入" : "⚡ 填入 (Tab)",
+        attr: { title: "跳過練習，直接填入完整句子" },
+      });
+      pasteBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.callbacks.onDirectPaste?.();
+      });
 
-    // 4. ✨ 潤飾 (Polish) - Right Group
-    const polishBtn = this.headerActionsEl.createEl("button", {
-      cls: "diary-copilot-action-btn diary-copilot-polish-btn",
-      text: Platform.isMobile ? "✨ 潤飾" : "✨ 潤飾 (F3)",
-      attr: { title: "潤飾當前/前一句表達" },
-    });
-    polishBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      this.resetToAutoFit();
-      this.callbacks.onPolishRequest?.();
-    });
+      // 4. ✨ 潤飾 (Polish) - Main Actions (Row 2 Right)
+      const polishBtn = this.headerActionsEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-polish-btn",
+        text: Platform.isMobile ? "✨ 潤飾" : "✨ 潤飾 (F3)",
+        attr: { title: "潤飾當前/前一句表達" },
+      });
+      polishBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.resetToAutoFit();
+        this.callbacks.onPolishRequest?.();
+      });
+    }
 
-    // 5. ✕ 解鎖 (Unlock & return to browse mode) - Right Group
-    const unlockBtn = this.headerActionsEl.createEl("button", {
-      cls: "diary-copilot-action-btn diary-copilot-close-btn",
-      text: "✕",
-      attr: { "aria-label": "解鎖卡片", title: "解鎖卡片" },
-    });
-    unlockBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      this.resetToAutoFit();
-      if (this.callbacks.onUnlock) {
-        this.callbacks.onUnlock();
-      } else {
-        this.renderBrowseMode();
-      }
-    });
+    if (this.headerSysEl) {
+      // 5. ✕ 解鎖 (Unlock & return to browse mode) - Sys Group (Row 1 Right)
+      const unlockBtn = this.headerSysEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-close-btn",
+        text: "✕",
+        attr: { "aria-label": "解鎖卡片", title: "解鎖卡片" },
+      });
+      unlockBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.resetToAutoFit();
+        if (this.callbacks.onUnlock) {
+          this.callbacks.onUnlock();
+        } else {
+          this.renderBrowseMode();
+        }
+      });
+    }
   }
 
   // ========================================================
@@ -1113,69 +1168,76 @@ export class CardPanel {
    * Header Action Bar in Oral Mode: 🔊 示範, ⏹️ 說完了 / 🔄 重試, ⚡ 直接填入, ✕ 取消
    */
   private renderHeaderActionsOral() {
-    if (!this.headerActionsEl) return;
-    this.headerActionsEl.empty();
+    if (this.headerActionsEl) this.headerActionsEl.empty();
+    if (this.headerAudioEl) this.headerAudioEl.empty();
+    if (this.headerSysEl) this.headerSysEl.empty();
 
-    // 1. 🔊 示範 (TTS Listen)
-    const ttsBtn = this.headerActionsEl.createEl("button", {
-      cls: "diary-copilot-action-btn diary-copilot-tts-btn",
-      text: "🔊 聽示範",
-      attr: { title: "再次聆聽標準發音示範" },
-    });
-    ttsBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      speakSentence(this.oralTargetText);
-    });
-
-    // 2. ⏹️ 說完了 / 🔄 重試 Dynamic Toggle (方案 A)
-    if (this.isOralListening) {
-      const finishBtn = this.headerActionsEl.createEl("button", {
-        cls: "diary-copilot-action-btn diary-copilot-finish-btn",
-        text: "⏹️ 說完了",
-        attr: { title: "結束錄音並立即計算吻合度判定" },
+    if (this.headerAudioEl) {
+      // 1. 🔊 示範 (TTS Listen) - Audio Group (Row 2 Left)
+      const ttsBtn = this.headerAudioEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-tts-btn",
+        text: "🔊 聽示範",
+        attr: { title: "再次聆聽標準發音示範" },
       });
-      finishBtn.addEventListener("click", (e) => {
+      ttsBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         e.preventDefault();
-        this.finishOralRecording();
-      });
-    } else {
-      const retryBtn = this.headerActionsEl.createEl("button", {
-        cls: "diary-copilot-action-btn diary-copilot-retry-btn",
-        text: "🔄 重試",
-        attr: { title: "重新開始語音跟讀" },
-      });
-      retryBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        this.restartOralShadowing();
+        speakSentence(this.oralTargetText);
       });
     }
 
-    // 3. ⚡ 直接填入 (Skip Oral Drill)
-    const pasteBtn = this.headerActionsEl.createEl("button", {
-      cls: "diary-copilot-action-btn diary-copilot-direct-paste-btn",
-      text: "⚡ 直接填入",
-      attr: { title: "跳過口說練習，直接將此句子填入筆記" },
-    });
-    pasteBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      this.handleOralAdoptDirect();
-    });
+    if (this.headerActionsEl) {
+      // 2. ⏹️ 說完了 / 🔄 重試 Dynamic Toggle (方案 A) - Main Actions (Row 2 Right)
+      if (this.isOralListening) {
+        const finishBtn = this.headerActionsEl.createEl("button", {
+          cls: "diary-copilot-action-btn diary-copilot-finish-btn",
+          text: "⏹️ 說完了",
+          attr: { title: "結束錄音並立即計算吻合度判定" },
+        });
+        finishBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          this.finishOralRecording();
+        });
+      } else {
+        const retryBtn = this.headerActionsEl.createEl("button", {
+          cls: "diary-copilot-action-btn diary-copilot-retry-btn",
+          text: "🔄 重試",
+          attr: { title: "重新開始語音跟讀" },
+        });
+        retryBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          this.restartOralShadowing();
+        });
+      }
 
-    // 4. ✕ 取消跟讀 (Safe cancel without mutating note)
-    const cancelBtn = this.headerActionsEl.createEl("button", {
-      cls: "diary-copilot-action-btn diary-copilot-close-btn",
-      text: "✕ 取消",
-      attr: { "aria-label": "取消跟讀", title: "取消跟讀並返回卡片" },
-    });
-    cancelBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      this.cancelOralShadowing();
-    });
+      // 3. ⚡ 直接填入 (Skip Oral Drill) - Main Actions (Row 2 Right)
+      const pasteBtn = this.headerActionsEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-direct-paste-btn",
+        text: "⚡ 直接填入",
+        attr: { title: "跳過口說練習，直接將此句子填入筆記" },
+      });
+      pasteBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.handleOralAdoptDirect();
+      });
+    }
+
+    if (this.headerSysEl) {
+      // 4. ✕ 取消跟讀 (Safe cancel without mutating note) - Sys Group (Row 1 Right)
+      const cancelBtn = this.headerSysEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-close-btn",
+        text: "✕ 取消",
+        attr: { "aria-label": "取消跟讀", title: "取消跟讀並返回卡片" },
+      });
+      cancelBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.cancelOralShadowing();
+      });
+    }
   }
 
   /**
@@ -1543,6 +1605,15 @@ export class CardPanel {
     if (this.oralPassTimeout) {
       window.clearTimeout(this.oralPassTimeout);
       this.oralPassTimeout = null;
+    }
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+      this.resizeObserver = null;
+    }
+    if (this.onWindowResize) {
+      window.removeEventListener("resize", this.onWindowResize);
+      window.removeEventListener("orientationchange", this.onWindowResize);
+      this.onWindowResize = null;
     }
     globalSpeechRecognizer.stop();
     if (this.panelEl) {

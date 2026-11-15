@@ -120,9 +120,6 @@
 
 /* Header bar inside card panel */
 .diary-copilot-panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   font-size: 11.5px;
   color: var(--text-muted);
   user-select: none;
@@ -133,31 +130,145 @@
   box-sizing: border-box;
 }
 
-.diary-copilot-header-left {
+/* Wide / Landscape Mode: Single Line */
+.diary-copilot-panel-header:not(.is-two-row) {
   display: flex;
+  justify-content: space-between;
   align-items: center;
   gap: 4px;
-  flex-shrink: 0;
-  z-index: 20;
 }
 
-.diary-copilot-header-audio {
+.diary-copilot-panel-header:not(.is-two-row) .diary-copilot-brand-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.diary-copilot-panel-header:not(.is-two-row) .diary-copilot-header-audio {
   display: flex;
   align-items: center;
   gap: 3px;
+  flex-shrink: 0;
 }
 
-.diary-copilot-header-center {
+.diary-copilot-panel-header:not(.is-two-row) .diary-copilot-header-center {
   flex: 1;
-  min-width: 130px;
+  min-width: 60px;
 }
 
-.diary-copilot-header-actions {
+.diary-copilot-panel-header:not(.is-two-row) .diary-copilot-header-actions {
   display: flex;
   align-items: center;
   gap: 3px;
   flex-shrink: 0;
-  z-index: 20;
+}
+
+.diary-copilot-panel-header:not(.is-two-row) .diary-copilot-header-sys {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+/* Two-Row Mode (Narrow Phone, Portrait Orientation, or Width < 720px) */
+.diary-copilot-panel-header.is-two-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "brand  center sys"
+    "audio  .      actions";
+  row-gap: 3px;
+  column-gap: 4px;
+  align-items: center;
+}
+
+.diary-copilot-panel-header.is-two-row .diary-copilot-brand-wrapper {
+  grid-area: brand;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.diary-copilot-panel-header.is-two-row .diary-copilot-header-center {
+  grid-area: center;
+  min-width: 20px;
+}
+
+.diary-copilot-panel-header.is-two-row .diary-copilot-header-sys {
+  grid-area: sys;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  justify-content: flex-end;
+}
+
+.diary-copilot-panel-header.is-two-row .diary-copilot-header-audio {
+  grid-area: audio;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.diary-copilot-panel-header.is-two-row .diary-copilot-header-actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  justify-content: flex-end;
+}
+
+/* CSS Media Query fallback for instant 2-row layout in Portrait / Narrow screens */
+@media (orientation: portrait), (max-width: 720px) {
+  .diary-copilot-panel-header {
+    display: grid !important;
+    grid-template-columns: auto 1fr auto !important;
+    grid-template-rows: auto auto !important;
+    grid-template-areas:
+      "brand  center sys"
+      "audio  .      actions" !important;
+    row-gap: 3px !important;
+    column-gap: 4px !important;
+    align-items: center !important;
+  }
+
+  .diary-copilot-panel-header .diary-copilot-brand-wrapper {
+    grid-area: brand !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    min-width: 0 !important;
+  }
+
+  .diary-copilot-panel-header .diary-copilot-header-center {
+    grid-area: center !important;
+    min-width: 20px !important;
+  }
+
+  .diary-copilot-panel-header .diary-copilot-header-sys {
+    grid-area: sys !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 2px !important;
+    justify-content: flex-end !important;
+  }
+
+  .diary-copilot-panel-header .diary-copilot-header-audio {
+    grid-area: audio !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 3px !important;
+  }
+
+  .diary-copilot-panel-header .diary-copilot-header-actions {
+    grid-area: actions !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 3px !important;
+    justify-content: flex-end !important;
+  }
 }
 
 .diary-copilot-brand {
@@ -214,6 +325,10 @@
   outline: none;
   font-family: inherit;
   transition: border-color 0.12s ease, background-color 0.12s ease;
+  max-width: 140px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .diary-copilot-tone-select:hover {
