@@ -2,6 +2,8 @@
 
 /* Card Panel Container */
 .diary-copilot-panel {
+  --diary-copilot-btn-font-size: calc(var(--diary-copilot-font-size, 13.5px) - 2px);
+  --diary-copilot-subtext-font-size: calc(var(--diary-copilot-font-size, 13.5px) - 1.5px);
   position: absolute;
   left: 0;
   right: 0;
@@ -16,7 +18,7 @@
   gap: 4px;
   box-sizing: border-box;
   height: var(--diary-copilot-panel-height, 125px);
-  min-height: 75px;
+  min-height: 70px;
   max-height: 75vh;
   overflow: hidden;
 }
@@ -171,7 +173,7 @@
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   color: var(--text-normal);
-  font-size: 11px;
+  font-size: var(--diary-copilot-btn-font-size, 11px);
   padding: 1px 6px;
   border-radius: 4px;
   cursor: pointer;
@@ -194,7 +196,7 @@
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   color: var(--text-normal);
-  font-size: 11px;
+  font-size: var(--diary-copilot-btn-font-size, 11px);
   padding: 1px 7px;
   border-radius: 4px;
   cursor: pointer;
@@ -220,7 +222,7 @@
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   color: var(--text-normal);
-  font-size: 11px;
+  font-size: var(--diary-copilot-btn-font-size, 11px);
   padding: 2px 7px;
   border-radius: 4px;
   cursor: pointer;
@@ -372,14 +374,34 @@
 
 .diary-copilot-hero-badge {
   font-weight: 600;
-  color: var(--interactive-accent);
-  background: var(--background-secondary);
-  padding: 1px 6px;
+  font-size: var(--diary-copilot-btn-font-size, 11.5px);
+  padding: 1.5px 7px;
   border-radius: 4px;
+  letter-spacing: 0.2px;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.theme-dark .diary-copilot-hero-badge {
+  color: #d8b4fe !important;
+  background: rgba(168, 85, 247, 0.18) !important;
+  border: 1px solid rgba(168, 85, 247, 0.35) !important;
+}
+
+.theme-light .diary-copilot-hero-badge {
+  color: #6d28d9 !important;
+  background: rgba(109, 40, 217, 0.1) !important;
+  border: 1px solid rgba(109, 40, 217, 0.25) !important;
+}
+
+.key-hint {
+  font-size: var(--diary-copilot-btn-font-size, 11px);
+  color: var(--text-faint);
+  user-select: none;
 }
 
 .diary-copilot-hero-action-hint {
-  font-size: 11px;
+  font-size: var(--diary-copilot-subtext-font-size, 11px);
   color: var(--text-faint);
   margin-left: auto;
 }
@@ -413,7 +435,7 @@
 
 .diary-copilot-capsule-tab {
   padding: 3px 9px;
-  font-size: 11px;
+  font-size: var(--diary-copilot-btn-font-size, 11.5px);
   font-weight: 500;
   border-radius: 12px;
   border: 1px solid var(--background-modifier-border);
@@ -903,11 +925,11 @@
 
 /* Mobile specific adaptations */
 .is-mobile .diary-copilot-panel {
-  padding: 4px 8px 4px;
-  height: var(--diary-copilot-panel-height, 135px);
-  min-height: 75px;
+  padding: 3px 6px 3px;
+  height: var(--diary-copilot-panel-height, 125px);
+  min-height: 70px;
   max-height: 80vh;
-  gap: 3px;
+  gap: 2px;
 }
 
 .is-mobile .diary-copilot-resize-handle {
@@ -917,57 +939,67 @@
 }
 
 .is-mobile .diary-copilot-hero-card {
-  padding: 5px 8px;
+  padding: 4px 7px;
   width: 100%;
   min-height: 0;
+  border-radius: 6px;
 }
 
 .is-mobile .diary-copilot-locked-card {
-  padding: 5px 8px;
+  padding: 4px 7px;
   width: 100%;
 }
 
 .is-mobile .diary-copilot-header-actions {
-  gap: 3px;
+  gap: 2px;
 }
 
 .is-mobile .diary-copilot-action-btn {
-  padding: 1px 5px;
-  font-size: 10.5px;
+  padding: 1px 4px;
+  font-size: var(--diary-copilot-btn-font-size, 11px);
+  border-radius: 3px;
+  height: 22px;
+  box-sizing: border-box;
 }
 
 .is-mobile .diary-copilot-pinned-inquiry-strip {
-  padding: 3px 6px;
-  gap: 3px;
-  margin-bottom: 2px;
+  padding: 2px 6px;
+  gap: 2px;
+  margin-bottom: 1px;
 }
 
 .is-mobile .diary-copilot-pinned-cat-btn {
-  padding: 1px 6px;
-  font-size: 10.5px;
+  padding: 1px 5px;
+  font-size: var(--diary-copilot-btn-font-size, 11px);
+  height: 20px;
+  box-sizing: border-box;
 }
 
 .is-mobile .diary-copilot-pinned-toggle-btn {
-  padding: 1px 7px;
-  font-size: 10.5px;
+  padding: 1px 6px;
+  font-size: var(--diary-copilot-btn-font-size, 11px);
+  height: 20px;
+  box-sizing: border-box;
 }
 
 .is-mobile .diary-copilot-capsule-tabs {
-  gap: 4px;
+  gap: 3px;
   padding-top: 1px;
   padding-bottom: 1px;
 }
 
 .is-mobile .diary-copilot-capsule-tab {
-  padding: 2px 7px;
-  font-size: 10.5px;
+  padding: 1px 6px;
+  font-size: var(--diary-copilot-btn-font-size, 11px);
+  height: 20px;
+  box-sizing: border-box;
 }
 
-/* Compact mode (when height <= 105px on mobile) */
+/* Compact mode (when height <= 95px on mobile) */
 .diary-copilot-panel.is-compact {
   padding-top: 2px;
   padding-bottom: 2px;
-  gap: 2px;
+  gap: 1px;
 }
 
 .diary-copilot-panel.is-compact .diary-copilot-panel-header {
@@ -976,13 +1008,13 @@
 }
 
 .diary-copilot-panel.is-compact .diary-copilot-pinned-inquiry-strip {
-  padding: 2px 5px;
+  padding: 1px 5px;
   margin-bottom: 1px;
-  gap: 2px;
+  gap: 1px;
 }
 
 .diary-copilot-panel.is-compact .diary-copilot-hero-card {
-  padding: 3px 6px;
+  padding: 3px 5px;
 }
 
 /* Expand / Collapse Button */
@@ -1222,7 +1254,7 @@
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: var(--diary-copilot-btn-font-size, 11.5px);
   padding: 2px 8px;
   border-radius: 12px;
   cursor: pointer;
@@ -1255,7 +1287,7 @@
   background: var(--background-primary);
   border: 1px solid var(--interactive-accent);
   color: var(--interactive-accent);
-  font-size: 11px;
+  font-size: var(--diary-copilot-btn-font-size, 11.5px);
   font-weight: 600;
   padding: 2px 9px;
   border-radius: 12px;
@@ -1281,7 +1313,7 @@
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 11px;
+  font-size: var(--diary-copilot-btn-font-size, 11.5px);
   padding: 2px 6px;
   border-radius: 3px;
   outline: none;
@@ -1308,7 +1340,7 @@
 
 .diary-copilot-pinned-q-zh {
   color: var(--text-muted);
-  font-size: calc(var(--diary-copilot-font-size, 14px) - 1.5px);
+  font-size: var(--diary-copilot-subtext-font-size, 12px);
   line-height: 1.4;
   margin-left: 4px;
 }

@@ -126,7 +126,7 @@ export class CardPanel {
   private setupResizeListeners() {
     if (!this.resizeHandleEl) return;
     const handleEl = this.resizeHandleEl;
-    handleEl.setAttribute("title", "拖曳調整高度 · 點擊切換 90px / 140px / 210px");
+    handleEl.setAttribute("title", "拖曳調整高度 · 點擊切換 80px / 125px / 190px");
 
     let pointerStartY = 0;
     let pointerStartTime = 0;
@@ -162,10 +162,10 @@ export class CardPanel {
         pointerMoved = true;
       }
 
-      const clampedHeight = Math.max(75, Math.min(initialHeight + deltaY, window.innerHeight * 0.75));
+      const clampedHeight = Math.max(70, Math.min(initialHeight + deltaY, window.innerHeight * 0.75));
 
       this.panelEl.style.height = `${clampedHeight}px`;
-      if (clampedHeight <= 105) {
+      if (clampedHeight <= 95) {
         this.panelEl.addClass("is-compact");
       } else {
         this.panelEl.removeClass("is-compact");
@@ -190,7 +190,7 @@ export class CardPanel {
       }
 
       const finalHeight = parseInt(this.panelEl.style.height, 10);
-      if (!isNaN(finalHeight) && finalHeight >= 75) {
+      if (!isNaN(finalHeight) && finalHeight >= 70) {
         this.callbacks.onHeightResize?.(finalHeight);
       }
       this.callbacks.onFocusEditor?.();
@@ -211,7 +211,7 @@ export class CardPanel {
   }
 
   /**
-   * Toggles panel height: on mobile cycles Compact (90px) -> Standard (140px) -> Expanded (210px) -> Compact
+   * Toggles panel height: on mobile cycles Compact (80px) -> Standard (125px) -> Expanded (190px) -> Compact
    */
   public toggleHeightPreset() {
     if (!this.panelEl) return;
@@ -219,12 +219,12 @@ export class CardPanel {
     let targetHeight = 125;
 
     if (Platform.isMobile) {
-      if (currentHeight <= 115) {
-        targetHeight = 140; // From compact (90px) to standard (140px)
-      } else if (currentHeight <= 175) {
-        targetHeight = 210; // From standard to expanded (210px)
+      if (currentHeight <= 105) {
+        targetHeight = 125; // From compact (80px) to standard (125px)
+      } else if (currentHeight <= 155) {
+        targetHeight = 190; // From standard (125px) to expanded (190px)
       } else {
-        targetHeight = 90;  // From expanded back to compact (90px)
+        targetHeight = 80;  // From expanded back to compact (80px)
       }
     } else {
       targetHeight = currentHeight >= 180 ? 125 : 240;
@@ -232,7 +232,7 @@ export class CardPanel {
 
     this.panelEl.addClass("is-animating");
     this.panelEl.style.height = `${targetHeight}px`;
-    if (targetHeight <= 105) {
+    if (targetHeight <= 95) {
       this.panelEl.addClass("is-compact");
     } else {
       this.panelEl.removeClass("is-compact");
@@ -796,11 +796,11 @@ export class CardPanel {
       this.callbacks.onPolishRequest?.();
     });
 
-    // 6. ↕️ 切換高度 (90px / 140px / 210px)
+    // 6. ↕️ 切換高度 (80px / 125px / 190px)
     const heightBtn = this.headerActionsEl.createEl("button", {
       cls: "diary-copilot-action-btn diary-copilot-height-btn",
       text: "↕️",
-      attr: { title: "切換面板高度 (90px / 140px / 210px)" },
+      attr: { title: "切換面板高度 (80px / 125px / 190px)" },
     });
     heightBtn.addEventListener("click", (e) => {
       e.stopPropagation();
