@@ -9,6 +9,7 @@ export interface CardPanelCallbacks {
   onToneChange?: (tone: DiaryTone) => void;
   getTone?: () => DiaryTone;
   onPolishRequest?: () => void;
+  onClose?: () => void;
 }
 
 export class CardPanel {
@@ -89,6 +90,18 @@ export class CardPanel {
       e.stopPropagation();
       e.preventDefault();
       this.toggleExpandState();
+    });
+
+    // Close button (one-click close & mute for current note)
+    const closeBtn = header.createEl("button", {
+      cls: "diary-copilot-close-btn",
+      text: "✕",
+      attr: { "aria-label": "關閉 Copilot 面板", title: "關閉 Copilot 面板" },
+    });
+    closeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.callbacks.onClose?.();
     });
 
     this.headerHintEl = header.createSpan({ cls: "diary-copilot-hint" });

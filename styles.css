@@ -448,3 +448,117 @@
   min-height: 75px !important;
   padding: 8px 10px !important;
 }
+
+/* Close Button in Panel Header */
+.diary-copilot-panel-header .diary-copilot-close-btn {
+  background: none;
+  border: none;
+  padding: 2px 7px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.diary-copilot-panel-header .diary-copilot-close-btn:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* Selection Popover (Instant Lookup & Translation) */
+.diary-copilot-selection-popover {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.24);
+  padding: 6px 11px;
+  font-size: 13px;
+  color: var(--text-normal);
+  line-height: 1.4;
+  max-width: 90vw;
+  pointer-events: auto;
+  user-select: text;
+  animation: diary-copilot-fade-in 0.15s ease forwards;
+}
+
+@keyframes diary-copilot-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.diary-copilot-selection-popover .popover-term {
+  font-weight: 600;
+  color: var(--text-normal);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diary-copilot-selection-popover .popover-loading {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.diary-copilot-selection-popover .popover-pos {
+  font-weight: 600;
+  color: var(--interactive-accent);
+  background-color: var(--background-modifier-hover);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.diary-copilot-selection-popover .popover-translation {
+  color: var(--text-normal);
+  font-weight: 500;
+}
+
+.diary-copilot-selection-popover .popover-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  padding-left: 6px;
+  border-left: 1px solid var(--background-modifier-border);
+}
+
+.diary-copilot-selection-popover .popover-btn {
+  background: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.diary-copilot-selection-popover .popover-btn:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+  border-color: var(--background-modifier-border);
+}
+
+.diary-copilot-selection-popover .popover-close-btn {
+  font-size: 12px;
+  padding: 2px 4px;
+}

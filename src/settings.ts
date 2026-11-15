@@ -17,6 +17,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   dailyRequestLimit: 1500,
   cardFontSize: 13.5,
   panelMinHeight: 160,
+  enableSelectionLookup: true,
 };
 
 export const DIARY_TONE_OPTIONS: { id: DiaryTone; label: string; desc: string }[] = [
@@ -259,6 +260,18 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
 
     // Advanced Trigger Timing
     containerEl.createEl("h3", { text: "即時觸發與效能設定" });
+
+    new Setting(containerEl)
+      .setName("圈選單字/片語即時翻譯 (Selection Instant Lookup)")
+      .setDesc("在筆記中圈選英文單字或短語時，自動彈出極簡詞性與中文釋義氣泡，並可一鍵開啟 Google 翻譯（預設開啟）")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.enableSelectionLookup ?? true)
+          .onChange(async (val) => {
+            this.plugin.settings.enableSelectionLookup = val;
+            await this.plugin.saveSettings();
+          });
+      });
 
     new Setting(containerEl)
       .setName("標點／空格停頓觸發延遲 (毫秒)")

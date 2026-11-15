@@ -12,6 +12,7 @@ import { createDiaryKeymap } from "./ui/keymap";
 import { openTodayDiary } from "./commands/openToday";
 import { tidyUpTodayDiary } from "./commands/tidyUp";
 import { buildPolishSystemPrompt, buildPolishUserPrompt } from "./llm/prompts";
+import { SelectionPopover } from "./ui/selectionPopover";
 
 export default class DiaryCopilotPlugin extends Plugin {
   settings: PluginSettings;
@@ -28,6 +29,9 @@ export default class DiaryCopilotPlugin extends Plugin {
   private isPolishMode = false;
   private currentPolishItem: SuggestionItem | null = null;
   private manuallyEnabledNotes = new Set<string>();
+  private manuallyDisabledNotes = new Set<string>();
+  private isCopilotGloballyMuted = false;
+  private selectionPopover: SelectionPopover | null = null;
 
   async onload() {
     await this.loadPluginData();
@@ -133,6 +137,29 @@ export default class DiaryCopilotPlugin extends Plugin {
       }
     });
 
+    // Initialize Selection Popover for Instant Word/Phrase Lookup & Google Translate
+    this.selectionPopover = new SelectionPopover({
+      app: this.app,
+      llm: this.llm,
+      isEnabled: () => this.settings.enableSelectionLookup ?? true,
+    });
+
+    // Global mouseup/touchend for reading view selection lookup
+    this.registerDomEvent(window, "mouseup", () => {
+      if (this.currentActiveEditorView) return; // Handled by CodeMirror updateListener in editor
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed) {
+        const text = sel.toString().trim();
+        if (text.length > 0 && text.length <= 80 && /[a-zA-Z]/.test(text)) {
+          try {
+            const range = sel.getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+            this.selectionPopover?.handleSelection(text, rect);
+          } catch {}
+        }
+      }
+    });
+
     // Ribbon Icon on Left Sidebar (One-click toggle Copilot for current note)
     this.addRibbonIcon("sparkles", "Diary Copilot (切換此筆記開啟/關閉)", () => {
       this.toggleCopilotInCurrentNote();
@@ -141,8 +168,14 @@ export default class DiaryCopilotPlugin extends Plugin {
     // Register Commands
     this.addCommand({
       id: "toggle-copilot-current-note",
-      name: "在當前筆記開啟／關閉 Copilot (Toggle Copilot in Current Note)",
+      name: "在當前筆記開啟／關閉 Copilot (開關指令優先，絕不自動重開)",
       callback: () => this.toggleCopilotInCurrentNote(),
+    });
+
+    this.addCommand({
+      id: "toggle-copilot-globally",
+      name: "全域開啟／關閉 Copilot 面板 (開關指令優先，絕不自動重開)",
+      callback: () => this.toggleCopilotGlobally(),
     });
 
     this.addCommand({
@@ -201,6 +234,8 @@ export default class DiaryCopilotPlugin extends Plugin {
   onunload() {
     this.cardPanel?.destroy();
     this.cardPanel = null;
+    this.selectionPopover?.destroy();
+    this.selectionPopover = null;
     this.scheduler.clear();
     document.body.style.removeProperty("--diary-copilot-font-size");
     document.body.style.removeProperty("--diary-copilot-panel-height");
@@ -282,18 +317,50 @@ export default class DiaryCopilotPlugin extends Plugin {
 
   private isEligibleNote(file: TFile | null): boolean {
     if (!file) return false;
-    // 1. Manually invoked by user in this note
-    if (this.manuallyEnabledNotes.has(file.path)) return true;
+    const filePath = file.path;
+
+    // 0. Globally muted has absolute priority!
+    if (this.isCopilotGloballyMuted) return false;
+
+    // 1. Manually disabled by user in this note has ABSOLUTE priority over everything!
+    if (this.manuallyDisabledNotes.has(filePath)) {
+      return false;
+    }
+
+    // 2. Expressions hub (Expressions.md or notes named *expression*): DEFAULT TO NEVER OPEN PANEL
+    const baseNameLower = file.basename.toLowerCase();
+    if (baseNameLower === "expressions" || baseNameLower.includes("expression")) {
+      return this.manuallyEnabledNotes.has(filePath);
+    }
+
+    // 3. Explicitly enabled by user in this note
+    if (this.manuallyEnabledNotes.has(filePath)) {
+      return true;
+    }
 
     if (this.settings.enableInAllFolders) return true;
 
-    // 2. Only the configured Diary folder (default "Diary") is automatically enabled
+    // 4. Configured Diary folder (default "Diary")
     const targetFolder = (this.settings.diaryFolder || "Diary")
       .replace(/[\[\]]/g, "")
       .replace(/^\/+|\/+$/g, "")
       .toLowerCase();
-    const filePathLower = file.path.toLowerCase();
+    const filePathLower = filePath.toLowerCase();
     return filePathLower.startsWith(targetFolder + "/");
+  }
+
+  toggleCopilotGlobally() {
+    this.isCopilotGloballyMuted = !this.isCopilotGloballyMuted;
+    if (this.isCopilotGloballyMuted) {
+      this.cardPanel?.destroy();
+      this.cardPanel = null;
+      this.clearGhostText();
+      this.scheduler.clear();
+      new Notice("已全域關閉 Diary Copilot 面板（開關指令優先，絕不自動重開）");
+    } else {
+      this.syncActiveView();
+      new Notice("已全域開啟 Diary Copilot 面板");
+    }
   }
 
   toggleCopilotInCurrentNote() {
@@ -307,14 +374,17 @@ export default class DiaryCopilotPlugin extends Plugin {
     const isCurrentlyEligible = this.isEligibleNote(activeMarkdownView.file);
 
     if (isCurrentlyEligible && this.cardPanel && !this.cardPanel.isHidden()) {
-      // Hide / disable for this note
-      this.cardPanel.hide();
+      // User explicitly WANTS TO CLOSE!
+      this.manuallyDisabledNotes.add(filePath);
+      this.manuallyEnabledNotes.delete(filePath);
+      this.cardPanel?.destroy();
+      this.cardPanel = null;
       this.clearGhostText();
       this.scheduler.clear();
-      this.manuallyEnabledNotes.delete(filePath);
-      new Notice("已關閉此筆記的 Copilot 面板");
+      new Notice("已關閉此筆記的 Copilot 面板（開關指令優先，絕不自動重開）");
     } else {
-      // Enable & display for this note
+      // User explicitly WANTS TO OPEN!
+      this.manuallyDisabledNotes.delete(filePath);
       this.manuallyEnabledNotes.add(filePath);
       this.syncActiveView();
       if (this.cardPanel) {
@@ -351,6 +421,9 @@ export default class DiaryCopilotPlugin extends Plugin {
           onToneChange: (tone) => this.handleToneChange(tone),
           onPolishRequest: () => {
             this.handlePolishSentence();
+          },
+          onClose: () => {
+            this.toggleCopilotInCurrentNote();
           },
         });
       } else if (fileChanged) {
@@ -443,6 +516,37 @@ export default class DiaryCopilotPlugin extends Plugin {
 
   private handleEditorUpdate(update: ViewUpdate) {
     this.currentActiveEditorView = update.view;
+
+    // Selection popover lookup trigger (works across notes when enabled)
+    if (update.selectionSet || update.docChanged) {
+      const sel = update.view.state.selection.main;
+      if (!sel.empty) {
+        const from = sel.from;
+        const to = sel.to;
+        if (to - from <= 80) {
+          const selectedText = update.view.state.sliceDoc(from, to).trim();
+          if (selectedText.length > 0 && /[a-zA-Z]/.test(selectedText)) {
+            const startCoords = update.view.coordsAtPos(from);
+            const endCoords = update.view.coordsAtPos(to);
+            if (startCoords && endCoords) {
+              const rect = {
+                left: Math.min(startCoords.left, endCoords.left),
+                top: Math.min(startCoords.top, endCoords.top),
+                right: Math.max(startCoords.right, endCoords.right),
+                bottom: Math.max(startCoords.bottom, endCoords.bottom),
+              };
+              this.selectionPopover?.handleSelection(selectedText, rect);
+            }
+          } else {
+            this.selectionPopover?.hide();
+          }
+        } else {
+          this.selectionPopover?.hide();
+        }
+      } else {
+        this.selectionPopover?.hide();
+      }
+    }
 
     if (!this.activeView || !this.isEligibleNote(this.activeView.file)) {
       return;

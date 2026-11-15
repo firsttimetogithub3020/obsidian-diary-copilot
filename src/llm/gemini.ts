@@ -314,6 +314,34 @@ export class GeminiProvider implements LLMProvider {
     throw lastError || new Error("Failed to complete request with Gemini API.");
   }
 
+  async lookupWordOrPhrase(text: string): Promise<{ pos: string; translation: string } | null> {
+    if (!this.apiKey || !text.trim()) return null;
+
+    try {
+      const response = await this.complete({
+        systemPrompt: "You are an ultra-fast concise English-to-Traditional Chinese dictionary. For the given English word or phrase, output a compact JSON object with exactly two keys: {\"pos\": \"詞性 (e.g. n., v., adj., adv., phr.)\", \"translation\": \"簡明繁體中文釋義\"}. Do not include markdown fences or any other text, only valid JSON.",
+        userPrompt: `Word or phrase: ${text.trim()}`,
+        temperature: 0.1,
+        maxOutputTokens: 80,
+      });
+
+      let clean = response.trim();
+      if (clean.startsWith("```")) {
+        clean = clean.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```$/, "");
+      }
+      const data = JSON.parse(clean);
+      if (data && (data.translation || data.pos)) {
+        return {
+          pos: data.pos || "",
+          translation: data.translation || "",
+        };
+      }
+    } catch (e) {
+      console.warn("Failed to lookup word via Gemini:", e);
+    }
+    return null;
+  }
+
   private async completeWithModel(
     model: string,
     req: LLMRequest

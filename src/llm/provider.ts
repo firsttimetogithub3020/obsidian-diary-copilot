@@ -11,4 +11,5 @@ export interface LLMProvider {
   stream(req: LLMRequest, onChunk: (accumulatedText: string) => void): Promise<string>;
   complete(req: LLMRequest): Promise<string>;
   testConnection(): Promise<boolean>;
+  lookupWordOrPhrase?(text: string): Promise<{ pos: string; translation: string } | null>;
 }

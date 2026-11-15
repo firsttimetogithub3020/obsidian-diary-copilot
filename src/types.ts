@@ -24,6 +24,7 @@ export interface PluginSettings {
   dailyRequestLimit: number;
   cardFontSize: number;
   panelMinHeight: number;
+  enableSelectionLookup: boolean;
 }
 
 export interface SuggestionItem {
