@@ -1,7 +1,7 @@
 import { Plugin, MarkdownView, TFile, Platform, Notice } from "obsidian";
 import { EditorView, ViewUpdate } from "@codemirror/view";
 import { DEFAULT_SETTINGS, DiaryCopilotSettingTab, DIARY_TONE_OPTIONS } from "./settings";
-import { PluginData, PluginSettings, SuggestionItem, DiaryTone } from "./types";
+import { PluginData, PluginSettings, SuggestionItem, DiaryTone, InquiryItem } from "./types";
 import { GeminiProvider } from "./llm/gemini";
 import { SummaryManager } from "./engine/summary";
 import { SuggestionScheduler } from "./engine/scheduler";
@@ -11,7 +11,8 @@ import { ghostTextField, setGhostTextEffect } from "./ui/ghostText";
 import { createDiaryKeymap } from "./ui/keymap";
 import { openTodayDiary } from "./commands/openToday";
 import { tidyUpTodayDiary } from "./commands/tidyUp";
-import { buildPolishSystemPrompt, buildPolishUserPrompt } from "./llm/prompts";
+import { buildPolishSystemPrompt, buildPolishUserPrompt, buildInquirySystemPrompt, buildInquiryUserPrompt } from "./llm/prompts";
+import { parseInquiryResponse } from "./engine/parser";
 import { SelectionPopover } from "./ui/selectionPopover";
 import { checkAndApplyPluginUpdate } from "./services/updater";
 import { globalSpeechRecognizer } from "./services/speech";
@@ -30,6 +31,8 @@ export default class DiaryCopilotPlugin extends Plugin {
   private currentActiveEditorView: EditorView | null = null;
   private isPolishMode = false;
   private currentPolishItem: SuggestionItem | null = null;
+  private isInquiryMode = false;
+  private currentInquiryItem: InquiryItem | null = null;
   private manuallyEnabledNotes = new Set<string>();
   private manuallyDisabledNotes = new Set<string>();
   private isCopilotGloballyMuted = false;
@@ -53,14 +56,11 @@ export default class DiaryCopilotPlugin extends Plugin {
           }
         },
         onSuggestion: (item: SuggestionItem) => {
-          if (this.isPolishMode) return;
+          if (this.isPolishMode || this.isInquiryMode) return;
           this.cardPanel?.updateSuggestions(item, false);
 
-          const ghostStr = item?.card1 || item?.continueText;
-          if (this.settings.showGhostText && !Platform.isMobile && ghostStr && this.currentActiveEditorView) {
-            const cursor = this.currentActiveEditorView.state.selection.main.head;
-            this.setGhostText(ghostStr, cursor);
-          }
+          // Unified behavior: NEVER auto-inject ghost text into editor above!
+          // Ghost text is ONLY activated when user explicitly clicks card body for typing drill.
         },
         onError: () => {
           if (!this.isPolishMode) {
@@ -116,6 +116,9 @@ export default class DiaryCopilotPlugin extends Plugin {
         },
         onPolishRequest: () => {
           this.handlePolishSentence();
+        },
+        onInquiryRequest: () => {
+          this.handleInquiryPrompt();
         },
         isShadowMode: () => this.scheduler.isShadowMode(),
         onDirectPaste: () => this.handleDirectPaste(),
@@ -221,6 +224,12 @@ export default class DiaryCopilotPlugin extends Plugin {
       id: "polish-sentence",
       name: "潤飾當前/前一句表達 (F3)",
       callback: () => this.handlePolishSentence(),
+    });
+
+    this.addCommand({
+      id: "inquiry-guided-prompt",
+      name: "提問引導：產生是非與開放式問句 (F4)",
+      callback: () => this.handleInquiryPrompt(),
     });
 
     this.addCommand({
@@ -477,7 +486,7 @@ export default class DiaryCopilotPlugin extends Plugin {
         this.currentFilePath = activeMarkdownView.file?.path || "";
 
         this.cardPanel = new CardPanel(activeMarkdownView.contentEl, {
-          onAdopt: (text, kind, sourceRange) => this.adoptSuggestion(text, kind, sourceRange),
+          onAdopt: (text, kind, sourceRange, isDirectPaste) => this.adoptSuggestion(text, kind, sourceRange, isDirectPaste),
           onDismiss: () => {
             this.handleDismiss();
           },
@@ -490,6 +499,9 @@ export default class DiaryCopilotPlugin extends Plugin {
           onToneChange: (tone) => this.handleToneChange(tone),
           onPolishRequest: () => {
             this.handlePolishSentence();
+          },
+          onInquiryRequest: () => {
+            this.handleInquiryPrompt();
           },
           onClose: () => {
             this.toggleCopilotInCurrentNote();
@@ -647,6 +659,12 @@ export default class DiaryCopilotPlugin extends Plugin {
       return;
     }
 
+    // Typing exits inquiry mode back to prediction mode seamlessly
+    if (this.isInquiryMode) {
+      this.isInquiryMode = false;
+      this.currentInquiryItem = null;
+    }
+
     // Typing exits polish mode back to prediction mode
     if (this.isPolishMode) {
       this.isPolishMode = false;
@@ -740,14 +758,73 @@ export default class DiaryCopilotPlugin extends Plugin {
       this.currentPolishItem = polishItem;
       this.cardPanel?.updateSuggestions(polishItem, true);
 
-      if (this.settings.showGhostText && !Platform.isMobile && polishItem.card1) {
-        this.setGhostText(polishItem.card1, target.from);
-      }
+      // NOTE: Do NOT automatically set ghost text in the editor!
+      // The editor remains 100% clean until user explicitly clicks a card for shadow typing drill.
     } catch (e: any) {
       this.isPolishMode = false;
       this.currentPolishItem = null;
       this.cardPanel?.setError("⚠️ 潤飾失敗，請檢查 API Key 或網路");
       new Notice(`潤飾失敗：${e?.message || e}`);
+    }
+  }
+
+  async handleInquiryPrompt() {
+    const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!activeMarkdownView || !activeMarkdownView.file) {
+      new Notice("請先在筆記編輯器內操作");
+      return;
+    }
+
+    if (!this.isEligibleNote(activeMarkdownView.file)) {
+      this.manuallyEnabledNotes.add(activeMarkdownView.file.path);
+      this.syncActiveView();
+    }
+
+    const editor = activeMarkdownView.editor;
+    const docText = editor.getValue();
+    const cursor = editor.posToOffset(editor.getCursor());
+
+    const context = extractContextFromDoc(docText, cursor);
+    if (!context || !docText.trim()) {
+      new Notice("請先在筆記中寫下一兩句話，AI 才能為您提出引導問句！");
+      return;
+    }
+
+    this.isInquiryMode = true;
+    this.isPolishMode = false;
+    this.cardPanel?.setLoading("❓ 正在根據日記內容構思是非與開放式引導問句...");
+    this.clearGhostText();
+
+    try {
+      const systemPrompt = buildInquirySystemPrompt(this.settings.englishLevel, this.settings.diaryTone);
+      const surrounding = context.recentSentences.join(" ") || docText.slice(Math.max(0, cursor - 300), cursor);
+      const userPrompt = buildInquiryUserPrompt({
+        surroundingContext: surrounding,
+        currentSentence: context.currentSentence || "",
+        englishLevel: this.settings.englishLevel,
+        tone: this.settings.diaryTone,
+      });
+
+      const responseText = await this.llm.complete({
+        systemPrompt,
+        userPrompt,
+        temperature: 0.7,
+        maxOutputTokens: 600,
+      });
+
+      const parsed = parseInquiryResponse(responseText);
+      if (!parsed || (!parsed.closedQuestion && !parsed.openQuestion)) {
+        throw new Error("無法解析問句內容");
+      }
+
+      this.currentInquiryItem = parsed;
+      this.cardPanel?.updateInquiry(parsed);
+      // NOTE: NEVER auto-display ghost text in editor! Keep editor 100% clean.
+    } catch (e: any) {
+      this.isInquiryMode = false;
+      this.currentInquiryItem = null;
+      this.cardPanel?.setError("⚠️ 提問生成失敗，請檢查 API Key 或網路");
+      new Notice(`提問生成失敗：${e?.message || e}`);
     }
   }
 
@@ -800,11 +877,16 @@ export default class DiaryCopilotPlugin extends Plugin {
     if (!text || text.trim().length === 0) return false;
 
     const kind = item.sourceRange ? "translation" : (cardNumber === 1 ? "continue" : "alternative");
-    this.adoptSuggestion(text, kind, item.sourceRange);
+    this.adoptSuggestion(text, kind, item.sourceRange, false);
     return true;
   }
 
-  adoptSuggestion(text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }) {
+  adoptSuggestion(
+    text: string,
+    kind: "continue" | "alternative" | "translation",
+    sourceRange?: { from: number; to: number },
+    isDirectPaste = false
+  ) {
     const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (!activeMarkdownView || !activeMarkdownView.file) return;
     this.activeView = activeMarkdownView;
@@ -813,6 +895,8 @@ export default class DiaryCopilotPlugin extends Plugin {
     if (!editorView) return;
 
     const cleanText = text.trim();
+    if (!cleanText) return;
+
     const editor = activeMarkdownView.editor;
 
     // Immediately focus back to editor so cursor & typing are active
@@ -821,22 +905,58 @@ export default class DiaryCopilotPlugin extends Plugin {
     let targetPos = editor.posToOffset(editor.getCursor());
     let replacedText = "";
 
+    // Exit inquiry mode
+    this.isInquiryMode = false;
+    this.currentInquiryItem = null;
+
     // IF sourceRange exists (Chinese replacement OR F3 polish):
     if (sourceRange) {
       const from = Math.min(sourceRange.from, sourceRange.to);
       const to = Math.max(sourceRange.from, sourceRange.to);
       replacedText = editorView.state.doc.sliceString(from, to);
 
-      // Delete the original Chinese or English sentence
-      editorView.dispatch({
-        changes: { from, to, insert: "" },
-        selection: { anchor: from },
-        userEvent: "delete",
-      });
-
-      targetPos = from;
-      this.isPolishMode = false;
-      this.currentPolishItem = null;
+      if (isDirectPaste) {
+        // Direct paste: replace sourceRange directly with cleanText!
+        editorView.dispatch({
+          changes: { from, to, insert: cleanText },
+          selection: { anchor: from + cleanText.length },
+          userEvent: "input",
+        });
+        targetPos = from + cleanText.length;
+        this.isPolishMode = false;
+        this.currentPolishItem = null;
+        this.scheduler.clear();
+        this.clearGhostText();
+        this.cardPanel?.renderIdleState();
+        this.recordAdoption(cleanText, kind, replacedText);
+        new Notice("⚡ 已直接填入！", 1500);
+        return;
+      } else {
+        // Shadow typing: delete the original sentence
+        editorView.dispatch({
+          changes: { from, to, insert: "" },
+          selection: { anchor: from },
+          userEvent: "delete",
+        });
+        targetPos = from;
+        this.isPolishMode = false;
+        this.currentPolishItem = null;
+      }
+    } else {
+      if (isDirectPaste) {
+        // Direct paste: insert at current cursor!
+        editorView.dispatch({
+          changes: { from: targetPos, to: targetPos, insert: cleanText },
+          selection: { anchor: targetPos + cleanText.length },
+          userEvent: "input",
+        });
+        this.scheduler.clear();
+        this.clearGhostText();
+        this.cardPanel?.renderIdleState();
+        this.recordAdoption(cleanText, kind);
+        new Notice("⚡ 已直接填入！", 1500);
+        return;
+      }
     }
 
     // Set cursor to target position

@@ -7,6 +7,7 @@ export interface KeymapCallbacks {
   onAdopt: (text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }) => void;
   onDismiss: () => void;
   onPolishRequest?: () => void;
+  onInquiryRequest?: () => void;
   isShadowMode?: () => boolean;
   onDirectPaste?: () => void;
 }
@@ -73,6 +74,14 @@ export function createDiaryKeymap(callbacks: KeymapCallbacks) {
     return false;
   };
 
+  const inquiry: Command = () => {
+    if (callbacks.onInquiryRequest) {
+      callbacks.onInquiryRequest();
+      return true;
+    }
+    return false;
+  };
+
   const handleTab: Command = () => {
     if (callbacks.isShadowMode?.()) {
       callbacks.onDirectPaste?.();
@@ -92,6 +101,7 @@ export function createDiaryKeymap(callbacks: KeymapCallbacks) {
       { key: "Alt-4", run: acceptCard4 },
       { key: "Escape", run: dismiss },
       { key: "F3", run: polish },
+      { key: "F4", run: inquiry },
     ])
   );
 }

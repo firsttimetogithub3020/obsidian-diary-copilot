@@ -41,6 +41,21 @@ export interface SuggestionItem {
   sourceRange?: { from: number; to: number };
 }
 
+export interface InquiryItem {
+  closedQuestion: string;
+  closedChinese?: string;
+  yes1: string;
+  yes2: string;
+  no1: string;
+  no2: string;
+  openQuestion: string;
+  openChinese?: string;
+  openStyle1: string;
+  openStyle2: string;
+  openStyle3: string;
+  openStyle4: string;
+}
+
 export interface AdoptionRecord {
   text: string;
   kind: "continue" | "alternative" | "translation";

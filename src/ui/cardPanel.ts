@@ -1,16 +1,17 @@
 import { Platform, Notice } from "obsidian";
-import { SuggestionItem, DiaryTone } from "../types";
+import { SuggestionItem, DiaryTone, InquiryItem } from "../types";
 import { DIARY_TONE_OPTIONS } from "../settings";
 import { speakSentence } from "../services/tts";
 import { globalSpeechRecognizer, evaluateOralMatch, OralMatchResult } from "../services/speech";
 
 export interface CardPanelCallbacks {
-  onAdopt: (text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }) => void;
+  onAdopt: (text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }, isDirectPaste?: boolean) => void;
   onDismiss: () => void;
   onHeightResize?: (newHeight: number) => void;
   onToneChange?: (tone: DiaryTone) => void;
   getTone?: () => DiaryTone;
   onPolishRequest?: () => void;
+  onInquiryRequest?: () => void;
   onClose?: () => void;
   onDirectPaste?: () => void;
   onUnlock?: () => void;
@@ -44,6 +45,11 @@ export class CardPanel {
   private activeTabIdx = 0;
   private currentCards: CardDescriptor[] = [];
   private isShadowTyping = false;
+
+  // Inquiry Guided Mode State
+  private isInquiryMode = false;
+  private currentInquiryItem: InquiryItem | null = null;
+  private inquiryCategory: "closed" | "open" = "closed";
 
   // Oral Shadowing Visual Studio State
   private isOralMode = false;
@@ -350,6 +356,9 @@ export class CardPanel {
     this.currentItem = item;
     if (!this.panelEl || !this.contentAreaEl) return;
 
+    this.isInquiryMode = false;
+    this.currentInquiryItem = null;
+
     // If currently actively in oral mode, don't clobber unless dismissed
     if (this.isOralMode) {
       return;
@@ -408,6 +417,23 @@ export class CardPanel {
     this.renderBrowseMode();
   }
 
+  updateInquiry(item: InquiryItem) {
+    if (!this.panelEl || !this.contentAreaEl) return;
+    this.isInquiryMode = true;
+    this.currentInquiryItem = item;
+    this.currentItem = null;
+    this.inquiryCategory = "closed";
+    this.activeTabIdx = 0;
+
+    this.panelEl.removeClass("is-hidden");
+    this.panelEl.removeClass("is-loading");
+    if (this.statusDotEl) {
+      this.statusDotEl.className = "diary-copilot-status-dot";
+    }
+
+    this.renderBrowseMode();
+  }
+
   /**
    * Render Option A Browse Mode: Full-width Hero Card + Capsule Tabs
    */
@@ -418,11 +444,43 @@ export class CardPanel {
     this.isOralMode = false;
     this.isShadowTyping = false;
 
-    if (this.brandTextEl) {
-      this.brandTextEl.setText("Diary Copilot");
-    }
-    if (this.toneWrapperEl) {
-      this.toneWrapperEl.style.display = "flex";
+    if (this.isInquiryMode && this.currentInquiryItem) {
+      if (this.brandTextEl) {
+        this.brandTextEl.setText("❓ 提問引導模式");
+      }
+      if (this.toneWrapperEl) {
+        this.toneWrapperEl.style.display = "none";
+      }
+
+      const item = this.currentInquiryItem;
+      const isClosed = this.inquiryCategory === "closed";
+      const qText = isClosed ? item.closedQuestion : item.openQuestion;
+      const qZh = isClosed ? item.closedChinese : item.openChinese;
+      const qBanner = qZh ? `❓ ${qText}（${qZh}）` : `❓ ${qText}`;
+
+      this.currentCards = [];
+      if (isClosed) {
+        if (item.yes1) this.currentCards.push({ title: "🟢 Yes · 自然口語", shortcut: "Alt+1", text: item.yes1, kind: "continue", subText: qBanner });
+        if (item.yes2) this.currentCards.push({ title: "🟢 Yes · 細膩表達", shortcut: "Alt+2", text: item.yes2, kind: "continue", subText: qBanner });
+        if (item.no1) this.currentCards.push({ title: "🔴 No · 自然口語", shortcut: "Alt+3", text: item.no1, kind: "continue", subText: qBanner });
+        if (item.no2) this.currentCards.push({ title: "🔴 No · 細膩表達", shortcut: "Alt+4", text: item.no2, kind: "continue", subText: qBanner });
+      } else {
+        if (item.openStyle1) this.currentCards.push({ title: "🌿 自然口語", shortcut: "Alt+1", text: item.openStyle1, kind: "continue", subText: qBanner });
+        if (item.openStyle2) this.currentCards.push({ title: "💭 情感反思", shortcut: "Alt+2", text: item.openStyle2, kind: "continue", subText: qBanner });
+        if (item.openStyle3) this.currentCards.push({ title: "💼 專業嚴謹", shortcut: "Alt+3", text: item.openStyle3, kind: "continue", subText: qBanner });
+        if (item.openStyle4) this.currentCards.push({ title: "⚡ 精簡有力", shortcut: "Alt+4", text: item.openStyle4, kind: "continue", subText: qBanner });
+      }
+
+      if (this.activeTabIdx >= this.currentCards.length) {
+        this.activeTabIdx = 0;
+      }
+    } else {
+      if (this.brandTextEl) {
+        this.brandTextEl.setText("Diary Copilot");
+      }
+      if (this.toneWrapperEl) {
+        this.toneWrapperEl.style.display = "flex";
+      }
     }
 
     this.renderHeaderActionsBrowse();
@@ -430,6 +488,40 @@ export class CardPanel {
     if (this.currentCards.length === 0) {
       this.renderIdleState();
       return;
+    }
+
+    // If in Inquiry Mode, render category switcher tabs at top: [❓ 是非引導 (Yes/No)] [💭 開放引導 (Wh-)]
+    if (this.isInquiryMode) {
+      const catRow = this.contentAreaEl.createDiv({ cls: "diary-copilot-capsule-tabs diary-copilot-inquiry-cat-tabs" });
+      const isClosed = this.inquiryCategory === "closed";
+
+      const closedTab = catRow.createEl("button", {
+        cls: `diary-copilot-capsule-tab ${isClosed ? "is-active" : ""}`,
+        text: "❓ 是非引導 (Yes/No)",
+      });
+      closedTab.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (this.inquiryCategory !== "closed") {
+          this.inquiryCategory = "closed";
+          this.activeTabIdx = 0;
+          this.renderBrowseMode();
+        }
+      });
+
+      const openTab = catRow.createEl("button", {
+        cls: `diary-copilot-capsule-tab ${!isClosed ? "is-active" : ""}`,
+        text: "💭 開放引導 (Wh-)",
+      });
+      openTab.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (this.inquiryCategory !== "open") {
+          this.inquiryCategory = "open";
+          this.activeTabIdx = 0;
+          this.renderBrowseMode();
+        }
+      });
     }
 
     const activeCard = this.currentCards[this.activeTabIdx] || this.currentCards[0];
@@ -443,7 +535,7 @@ export class CardPanel {
     if (!Platform.isMobile && activeCard.shortcut) {
       heroHeader.createSpan({ cls: "key-hint", text: activeCard.shortcut });
     }
-    heroHeader.createSpan({ cls: "diary-copilot-hero-action-hint", text: "👉 點擊卡片鎖定跟寫 · 或點上方 🎙️ 語音跟讀" });
+    heroHeader.createSpan({ cls: "diary-copilot-hero-action-hint", text: "⚡直接填入 · 點擊卡片跟寫 · 🎙️跟讀" });
 
     // Full multi-line wrapped text
     heroCard.createDiv({ cls: "diary-copilot-hero-text", text: activeCard.text });
@@ -452,7 +544,7 @@ export class CardPanel {
       heroCard.createDiv({ cls: "diary-copilot-card-translation-source", text: activeCard.subText });
     }
 
-    // Click handler to adopt into locked typing mode
+    // Click handler on Hero Card initiates Shadow Typing (isDirectPaste = false)
     let startX = 0;
     let startY = 0;
     heroCard.addEventListener("mousedown", (e) => {
@@ -471,7 +563,8 @@ export class CardPanel {
       if (dist > 5) return;
       const sel = window.getSelection()?.toString().trim();
       if (sel && sel.length > 0) return;
-      this.callbacks.onAdopt(activeCard.text, activeCard.kind, this.currentItem?.sourceRange);
+      // Adopt as shadow-typing drill
+      this.callbacks.onAdopt(activeCard.text, activeCard.kind, this.currentItem?.sourceRange, false);
     });
 
     // 2. Capsule Tabs Row (Clean pills below Hero Card)
@@ -566,16 +659,44 @@ export class CardPanel {
       const pasteBtn = this.headerActionsEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-direct-paste-btn",
         text: "⚡ 填入",
-        attr: { title: "直接將此句子填入筆記" },
+        attr: { title: "直接將此句子填入筆記（正常文字，無灰字）" },
       });
       pasteBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         e.preventDefault();
-        this.callbacks.onAdopt(activeCard.text, activeCard.kind, this.currentItem?.sourceRange);
+        this.callbacks.onAdopt(activeCard.text, activeCard.kind, this.currentItem?.sourceRange, true);
       });
     }
 
-    // 4. ✨ 潤飾
+    if (this.isInquiryMode) {
+      // ✍️ 回續寫
+      const resumeBtn = this.headerActionsEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-resume-btn",
+        text: "✍️ 回續寫",
+        attr: { title: "回到平日續寫模式" },
+      });
+      resumeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.isInquiryMode = false;
+        this.currentInquiryItem = null;
+        this.callbacks.onDismiss?.();
+      });
+    } else {
+      // 4. ❓ 提問
+      const inquiryBtn = this.headerActionsEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-inquiry-btn",
+        text: Platform.isMobile ? "❓ 提問" : "❓ 提問 (F4)",
+        attr: { title: "根據日記內容產生是非或開放引導問句" },
+      });
+      inquiryBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.callbacks.onInquiryRequest?.();
+      });
+    }
+
+    // 5. ✨ 潤飾
     const polishBtn = this.headerActionsEl.createEl("button", {
       cls: "diary-copilot-action-btn diary-copilot-polish-btn",
       text: Platform.isMobile ? "✨ 潤飾" : "✨ 潤飾 (F3)",
@@ -1142,7 +1263,7 @@ export class CardPanel {
       if (this.callbacks.onOralAdopt) {
         this.callbacks.onOralAdopt(this.oralTargetText, this.oralKind, this.oralSourceRange);
       } else {
-        this.callbacks.onAdopt(this.oralTargetText, this.oralKind, this.oralSourceRange);
+        this.callbacks.onAdopt(this.oralTargetText, this.oralKind, this.oralSourceRange, true);
       }
       this.renderIdleState();
     }, 450);
@@ -1161,7 +1282,7 @@ export class CardPanel {
     if (this.callbacks.onOralAdopt) {
       this.callbacks.onOralAdopt(this.oralTargetText, this.oralKind, this.oralSourceRange);
     } else {
-      this.callbacks.onAdopt(this.oralTargetText, this.oralKind, this.oralSourceRange);
+      this.callbacks.onAdopt(this.oralTargetText, this.oralKind, this.oralSourceRange, true);
     }
     this.renderIdleState();
   }

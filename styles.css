@@ -1134,3 +1134,19 @@
   font-size: 12px;
   padding: 2px 4px;
 }
+
+/* Inquiry Guided Mode Category Switcher */
+.diary-copilot-inquiry-cat-tabs {
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed var(--background-modifier-border);
+}
+
+.diary-copilot-action-btn.diary-copilot-inquiry-btn {
+  color: var(--interactive-accent);
+}
+
+.diary-copilot-action-btn.diary-copilot-resume-btn {
+  color: var(--text-success, #48bb78);
+  font-weight: 600;
+}

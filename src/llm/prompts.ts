@@ -227,3 +227,60 @@ Output ONLY JSON matching:
 
   return text;
 }
+
+export interface InquiryPromptInput {
+  surroundingContext: string;
+  currentSentence: string;
+  englishLevel: EnglishLevel;
+  tone?: DiaryTone;
+}
+
+export function buildInquirySystemPrompt(level: EnglishLevel, tone: DiaryTone = "casual"): string {
+  return `You are a perceptive English Writing Coach and Socratic Guide for a personal diary.
+The user wants writing inspiration through guided questioning.
+Your task is to generate:
+1. One closed Yes/No question based on their recent thoughts, along with 4 distinct response options:
+   - 2 YES options:
+     - "yes1": Natural Conversational (日常口語自然回答)
+     - "yes2": Detailed & Reflective (細膩反思具體回答)
+   - 2 NO options:
+     - "no1": Natural Conversational (日常口語自然回答)
+     - "no2": Detailed & Reflective (細膩反思具體回答)
+2. One open-ended Wh- question (Why, How, What, etc.) that encourages deeper exploration, along with 4 distinct styled responses:
+   - "openStyle1": Natural Conversational (日常口語風格)
+   - "openStyle2": Emotional & Reflective (心理感受與反思風格)
+   - "openStyle3": Analytical & Structured (客觀分析與細節風格)
+   - "openStyle4": Concise & Punchy (精簡直接有力風格)
+
+Target English Level: ${level}
+Writing Tone: ${getToneInstructions(tone)}
+All response options must be written in the first person ("I", "my") suitable to be adopted directly into the user's diary.
+Output STRICT JSON ONLY.`;
+}
+
+export function buildInquiryUserPrompt(input: InquiryPromptInput): string {
+  return `<diary_context>
+${input.surroundingContext}
+[Recent sentence]: "${input.currentSentence}"
+</diary_context>
+
+Based on this diary context, generate:
+1. One closed Yes/No question with 2 YES answers (yes1, yes2) and 2 NO answers (no1, no2). Provide Traditional Chinese translation for the question ("closedChinese").
+2. One open-ended Wh- question with 4 distinctly styled answers (openStyle1, openStyle2, openStyle3, openStyle4). Provide Traditional Chinese translation for the question ("openChinese").
+
+Output ONLY valid JSON matching this exact structure:
+{
+  "closedQuestion": "...",
+  "closedChinese": "...",
+  "yes1": "...",
+  "yes2": "...",
+  "no1": "...",
+  "no2": "...",
+  "openQuestion": "...",
+  "openChinese": "...",
+  "openStyle1": "...",
+  "openStyle2": "...",
+  "openStyle3": "...",
+  "openStyle4": "..."
+}`;
+}

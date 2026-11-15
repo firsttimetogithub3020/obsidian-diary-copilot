@@ -1,4 +1,4 @@
-import { SuggestionItem } from "../types";
+import { SuggestionItem, InquiryItem } from "../types";
 
 export function parsePartialSuggestion(raw: string): SuggestionItem | null {
   if (!raw || raw.trim().length === 0) return null;
@@ -57,5 +57,58 @@ export function parsePartialSuggestion(raw: string): SuggestionItem | null {
     };
   }
 
+  return null;
+}
+
+export function parseInquiryResponse(raw: string): InquiryItem | null {
+  if (!raw || raw.trim().length === 0) return null;
+  let cleaned = raw.trim();
+  if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```$/, "");
+  }
+  try {
+    const parsed = JSON.parse(cleaned);
+    if (parsed && typeof parsed === "object") {
+      return {
+        closedQuestion: String(parsed.closedQuestion || "").trim(),
+        closedChinese: parsed.closedChinese ? String(parsed.closedChinese).trim() : undefined,
+        yes1: String(parsed.yes1 || "").trim(),
+        yes2: String(parsed.yes2 || "").trim(),
+        no1: String(parsed.no1 || "").trim(),
+        no2: String(parsed.no2 || "").trim(),
+        openQuestion: String(parsed.openQuestion || "").trim(),
+        openChinese: parsed.openChinese ? String(parsed.openChinese).trim() : undefined,
+        openStyle1: String(parsed.openStyle1 || "").trim(),
+        openStyle2: String(parsed.openStyle2 || "").trim(),
+        openStyle3: String(parsed.openStyle3 || "").trim(),
+        openStyle4: String(parsed.openStyle4 || "").trim(),
+      };
+    }
+  } catch {
+    // If JSON parsing fails, regex fallback
+    const extract = (field: string): string => {
+      const match = cleaned.match(new RegExp(`"${field}"\\s*:\\s*"([^"\\\\]*(?:\\\\.[^"\\\\]*)*)"`, "i"));
+      return match ? match[1].replace(/\\"/g, '"').replace(/\\n/g, " ").trim() : "";
+    };
+
+    const cq = extract("closedQuestion");
+    const oq = extract("openQuestion");
+    if (cq || oq) {
+      return {
+        closedQuestion: cq,
+        closedChinese: extract("closedChinese") || undefined,
+        yes1: extract("yes1"),
+        yes2: extract("yes2"),
+        no1: extract("no1"),
+        no2: extract("no2"),
+        openQuestion: oq,
+        openChinese: extract("openChinese") || undefined,
+        openStyle1: extract("openStyle1"),
+        openStyle2: extract("openStyle2"),
+        openStyle3: extract("openStyle3"),
+        openStyle4: extract("openStyle4"),
+      };
+    }
+  }
   return null;
 }
