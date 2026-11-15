@@ -25,6 +25,7 @@ export interface PluginSettings {
   cardFontSize: number;
   panelMinHeight: number;
   enableSelectionLookup: boolean;
+  showRibbonIcon: boolean;
 }
 
 export interface SuggestionItem {

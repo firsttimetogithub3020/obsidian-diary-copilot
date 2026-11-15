@@ -33,6 +33,7 @@ export default class DiaryCopilotPlugin extends Plugin {
   private manuallyDisabledNotes = new Set<string>();
   private isCopilotGloballyMuted = false;
   private selectionPopover: SelectionPopover | null = null;
+  private ribbonIconEl: HTMLElement | null = null;
 
   async onload() {
     await this.loadPluginData();
@@ -178,10 +179,8 @@ export default class DiaryCopilotPlugin extends Plugin {
     this.registerDomEvent(window, "mouseup", handleSelectionFromDOM);
     this.registerDomEvent(window, "touchend", handleSelectionFromDOM);
 
-    // Ribbon Icon on Left Sidebar (One-click toggle Copilot for current note)
-    this.addRibbonIcon("sparkles", "Diary Copilot (切換此筆記開啟/關閉)", () => {
-      this.toggleCopilotInCurrentNote();
-    });
+    // Ribbon Icon on Left Sidebar (One-click toggle Copilot for current note, configurable in settings)
+    this.updateRibbonIcon();
 
     // Register Commands
     this.addCommand({
@@ -876,6 +875,22 @@ export default class DiaryCopilotPlugin extends Plugin {
           lastUpdated: today,
         };
         await this.saveData(this.data);
+      }
+    }
+  }
+
+  updateRibbonIcon() {
+    const shouldShow = this.settings.showRibbonIcon ?? true;
+    if (shouldShow) {
+      if (!this.ribbonIconEl) {
+        this.ribbonIconEl = this.addRibbonIcon("sparkles", "Diary Copilot (切換此筆記開啟/關閉)", () => {
+          this.toggleCopilotInCurrentNote();
+        });
+      }
+    } else {
+      if (this.ribbonIconEl) {
+        this.ribbonIconEl.detach();
+        this.ribbonIconEl = null;
       }
     }
   }

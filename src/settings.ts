@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   cardFontSize: 13.5,
   panelMinHeight: 160,
   enableSelectionLookup: true,
+  showRibbonIcon: true,
 };
 
 export const DIARY_TONE_OPTIONS: { id: DiaryTone; label: string; desc: string }[] = [
@@ -272,6 +273,19 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
             this.plugin.applyAppearanceSettings();
             new Notice("本裝置面板高度已恢復為預設 160px");
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("在側邊工具列 (Ribbon) 顯示開關圖示")
+      .setDesc("在 Obsidian 左側功能工具列顯示 ✨ 圖示，點擊可快速為當前筆記開啟或關閉 Copilot 面板（可自由選擇開啟或隱藏）")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.showRibbonIcon ?? true)
+          .onChange(async (val) => {
+            this.plugin.settings.showRibbonIcon = val;
+            await this.plugin.saveSettings();
+            this.plugin.updateRibbonIcon();
           });
       });
 
