@@ -252,6 +252,37 @@
   animation: diary-copilot-pulse 1.2s infinite;
 }
 
+.diary-copilot-finish-btn {
+  background: var(--interactive-accent) !important;
+  color: var(--text-on-accent) !important;
+  border-color: var(--interactive-accent) !important;
+  font-weight: 600 !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  animation: diary-copilot-finish-pulse 1.8s infinite ease-in-out;
+}
+
+@keyframes diary-copilot-finish-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+
+.diary-copilot-finish-btn:hover {
+  opacity: 0.92;
+  transform: scale(1.03);
+}
+
+.diary-copilot-retry-btn {
+  background: rgba(239, 68, 68, 0.12) !important;
+  color: var(--text-error, #ef4444) !important;
+  border-color: var(--text-error, #ef4444) !important;
+  font-weight: 600 !important;
+}
+
+.diary-copilot-retry-btn:hover {
+  background: var(--text-error, #ef4444) !important;
+  color: #fff !important;
+}
+
 @keyframes diary-copilot-pulse {
   0% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.05); opacity: 0.85; }

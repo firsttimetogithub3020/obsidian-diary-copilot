@@ -51,6 +51,8 @@ export class CardPanel {
   private oralKind: "continue" | "alternative" | "translation" = "continue";
   private oralSourceRange?: { from: number; to: number };
   private oralPassed = false;
+  private isOralListening = false;
+  private oralLatestTranscript = "";
   private oralPassTimeout: number | null = null;
   private oralWorkspaceEl: HTMLElement | null = null;
   private oralTargetWordSpans: HTMLElement[] = [];
@@ -572,6 +574,8 @@ export class CardPanel {
     this.oralKind = kind;
     this.oralSourceRange = sourceRange;
     this.oralPassed = false;
+    this.isOralListening = true;
+    this.oralLatestTranscript = "";
     if (this.oralPassTimeout) {
       window.clearTimeout(this.oralPassTimeout);
       this.oralPassTimeout = null;
@@ -590,11 +594,12 @@ export class CardPanel {
     const isWebSpeechSupported = globalSpeechRecognizer.isSupported();
 
     if (isWebSpeechSupported) {
-      new Notice("🎙️ 語音辨識已啟動，請對著麥克風唸出上方目標句子...", 2500);
+      new Notice("🎙️ 語音辨識已啟動，長句可從容唸完，唸完可點「⏹️ 說完了」或等待自動判定...", 3500);
 
       globalSpeechRecognizer.start("en-US", {
         onResult: (transcript: string, _isFinal: boolean) => {
           if (!this.isOralMode || this.oralPassed) return;
+          this.oralLatestTranscript = transcript;
           const match = evaluateOralMatch(transcript, this.oralTargetText, _isFinal);
           this.updateOralVisuals(match);
 
@@ -604,6 +609,8 @@ export class CardPanel {
         },
         onError: (err: string) => {
           if (!this.isOralMode) return;
+          this.isOralListening = false;
+          this.renderHeaderActionsOral();
           if (err === "not-allowed" || err === "service-not-allowed") {
             new Notice("⚠️ 麥克風權限未開啟，請允許瀏覽器/Obsidian存取麥克風");
           } else if (err !== "no-speech" && err !== "aborted") {
@@ -611,7 +618,16 @@ export class CardPanel {
           }
         },
         onEnd: () => {
-          // On mobile, session ends naturally after speaking. User can tap 🔄 重試 to re-record.
+          if (!this.isOralMode || this.oralPassed) return;
+          this.isOralListening = false;
+          this.renderHeaderActionsOral();
+          if (this.oralLatestTranscript) {
+            const match = evaluateOralMatch(this.oralLatestTranscript, this.oralTargetText, true);
+            this.updateOralVisuals(match);
+            if (match.isPass) {
+              this.handleOralPass(match);
+            }
+          }
         },
       });
     } else {
@@ -619,7 +635,7 @@ export class CardPanel {
       new Notice(
         Platform.isMacOS
           ? "🎙️ 已選取文字方塊！Mac 請連按兩次 Fn 啟動聽寫（亦可在此直接打字）"
-          : "🎙️ 已選取文字方塊！請按快捷鍵 [Win + H] 啟動語音輸入（亦可打字跟讀）！",
+          : "🎙️ 已選取文字方塊！請按快捷鍵 [Win + H] 啟動語音輸入，唸完可點「⏹️ 說完了」！",
         5000
       );
       this.focusDesktopVoiceInput();
@@ -637,7 +653,7 @@ export class CardPanel {
   }
 
   /**
-   * Header Action Bar in Oral Mode: 🔊 示範, ⚡ 直接填入, ✕ 取消
+   * Header Action Bar in Oral Mode: 🔊 示範, ⏹️ 說完了 / 🔄 重試, ⚡ 直接填入, ✕ 取消
    */
   private renderHeaderActionsOral() {
     if (!this.headerActionsEl) return;
@@ -655,17 +671,30 @@ export class CardPanel {
       speakSentence(this.oralTargetText);
     });
 
-    // 2. 🔄 重試 (Retry)
-    const retryBtn = this.headerActionsEl.createEl("button", {
-      cls: "diary-copilot-action-btn diary-copilot-retry-btn",
-      text: "🔄 重試",
-      attr: { title: "重新開始語音跟讀" },
-    });
-    retryBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      this.restartOralShadowing();
-    });
+    // 2. ⏹️ 說完了 / 🔄 重試 Dynamic Toggle (方案 A)
+    if (this.isOralListening) {
+      const finishBtn = this.headerActionsEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-finish-btn",
+        text: "⏹️ 說完了",
+        attr: { title: "結束錄音並立即計算吻合度判定" },
+      });
+      finishBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.finishOralRecording();
+      });
+    } else {
+      const retryBtn = this.headerActionsEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-retry-btn",
+        text: "🔄 重試",
+        attr: { title: "重新開始語音跟讀" },
+      });
+      retryBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.restartOralShadowing();
+      });
+    }
 
     // 3. ⚡ 直接填入 (Skip Oral Drill)
     const pasteBtn = this.headerActionsEl.createEl("button", {
@@ -679,7 +708,7 @@ export class CardPanel {
       this.handleOralAdoptDirect();
     });
 
-    // 3. ✕ 取消跟讀 (Safe cancel without mutating note)
+    // 4. ✕ 取消跟讀 (Safe cancel without mutating note)
     const cancelBtn = this.headerActionsEl.createEl("button", {
       cls: "diary-copilot-action-btn diary-copilot-close-btn",
       text: "✕ 取消",
@@ -690,6 +719,26 @@ export class CardPanel {
       e.preventDefault();
       this.cancelOralShadowing();
     });
+  }
+
+  /**
+   * Manual Stop: User tapped "⏹️ 說完了", immediately stops microphone and evaluates.
+   */
+  private finishOralRecording() {
+    this.isOralListening = false;
+    globalSpeechRecognizer.stop();
+    this.renderHeaderActionsOral();
+
+    const spokenText = this.desktopVoiceInputEl ? this.desktopVoiceInputEl.value : this.oralLatestTranscript;
+    const match = evaluateOralMatch(spokenText, this.oralTargetText, true);
+    this.updateOralVisuals(match);
+
+    if (match.isPass) {
+      this.handleOralPass(match);
+    } else {
+      const pct = Math.round(match.matchRatio * 100);
+      new Notice(`辨識吻合度：${pct}%（未達 70% 門檻，可點「🔄 重試」或「⚡ 直接填入」）`, 3500);
+    }
   }
 
   /**
@@ -763,6 +812,7 @@ export class CardPanel {
       this.desktopVoiceInputEl.addEventListener("input", (e) => {
         if (!this.isOralMode || this.oralPassed) return;
         const val = (e.target as HTMLInputElement).value;
+        this.oralLatestTranscript = val;
         const match = evaluateOralMatch(val, this.oralTargetText);
         this.updateOralVisuals(match);
 
@@ -787,8 +837,8 @@ export class CardPanel {
     statusRow.createSpan({
       cls: "diary-copilot-oral-tip",
       text: isWebSpeechSupported
-        ? (Platform.isMobile ? "唸完自動判定填入 · 隨時可點⚡跳過" : "唸完自動判定填入 · 隨時可點⚡直接填入")
-        : (Platform.isMacOS ? "按兩次 Fn 語音聽寫 · 隨時可點⚡直接填入" : "按 Win+H 語音口說 · 隨時可點⚡直接填入"),
+        ? (Platform.isMobile ? "唸完點「⏹️ 說完了」或達標自動放入" : "唸完點「⏹️ 說完了」或達標自動放入")
+        : (Platform.isMacOS ? "按兩次 Fn 語音聽寫 · 隨時可點「⏹️ 說完了」" : "按 Win+H 語音口說 · 隨時可點「⏹️ 說完了」"),
     });
   }
 
@@ -815,7 +865,7 @@ export class CardPanel {
         this.oralLiveTextEl.setText(`「 ${match.spokenText} 」`);
         this.oralLiveTextEl.removeClass("is-empty");
       } else {
-        this.oralLiveTextEl.setText("正在聆聽... 請開始朗讀上方句子");
+        this.oralLiveTextEl.setText("正在聆聽... 請開始朗讀上方句子（可從容唸完）");
         this.oralLiveTextEl.addClass("is-empty");
       }
     } else if (this.desktopVoiceInputEl && this.desktopVoiceInputEl.value !== match.spokenText) {
@@ -857,11 +907,14 @@ export class CardPanel {
   restartOralShadowing() {
     if (!this.isOralMode) return;
     this.oralPassed = false;
+    this.isOralListening = true;
+    this.oralLatestTranscript = "";
     if (this.oralPassTimeout) {
       window.clearTimeout(this.oralPassTimeout);
       this.oralPassTimeout = null;
     }
 
+    this.renderHeaderActionsOral();
     this.renderOralWorkspace();
 
     if (globalSpeechRecognizer.isSupported()) {
@@ -871,6 +924,7 @@ export class CardPanel {
           globalSpeechRecognizer.start("en-US", {
             onResult: (transcript: string, isFinal: boolean) => {
               if (!this.isOralMode || this.oralPassed) return;
+              this.oralLatestTranscript = transcript;
               const match = evaluateOralMatch(transcript, this.oralTargetText, isFinal);
               this.updateOralVisuals(match);
 
@@ -878,12 +932,26 @@ export class CardPanel {
                 this.handleOralPass(match);
               }
             },
-            onError: () => {},
-            onEnd: () => {},
+            onError: () => {
+              this.isOralListening = false;
+              this.renderHeaderActionsOral();
+            },
+            onEnd: () => {
+              if (!this.isOralMode || this.oralPassed) return;
+              this.isOralListening = false;
+              this.renderHeaderActionsOral();
+              if (this.oralLatestTranscript) {
+                const match = evaluateOralMatch(this.oralLatestTranscript, this.oralTargetText, true);
+                this.updateOralVisuals(match);
+                if (match.isPass) {
+                  this.handleOralPass(match);
+                }
+              }
+            },
           });
         }
       }, 100);
-      new Notice("🔄 請對著麥克風重新開始跟讀！", 1500);
+      new Notice("🔄 請對著麥克風重新開始跟讀，唸完請點「⏹️ 說完了」！", 2500);
     } else {
       if (this.desktopVoiceInputEl) {
         this.desktopVoiceInputEl.value = "";
@@ -898,7 +966,9 @@ export class CardPanel {
    */
   private handleOralPass(match: OralMatchResult) {
     this.oralPassed = true;
+    this.isOralListening = false;
     globalSpeechRecognizer.stop();
+    this.renderHeaderActionsOral();
 
     // 1. Visual success feedback
     this.oralWorkspaceEl?.addClass("is-passed");
@@ -928,6 +998,8 @@ export class CardPanel {
    */
   private handleOralAdoptDirect() {
     this.oralPassed = true;
+    this.isOralListening = false;
+    this.oralLatestTranscript = "";
     globalSpeechRecognizer.stop();
     this.isOralMode = false;
     if (this.callbacks.onOralAdopt) {
@@ -943,6 +1015,8 @@ export class CardPanel {
    */
   private cancelOralShadowing() {
     this.oralPassed = false;
+    this.isOralListening = false;
+    this.oralLatestTranscript = "";
     globalSpeechRecognizer.stop();
     this.isOralMode = false;
     if (this.oralPassTimeout) {
@@ -974,6 +1048,8 @@ export class CardPanel {
   }
 
   destroy() {
+    this.isOralListening = false;
+    this.oralLatestTranscript = "";
     if (this.oralPassTimeout) {
       window.clearTimeout(this.oralPassTimeout);
       this.oralPassTimeout = null;

@@ -98,6 +98,9 @@ export class SpeechRecognizer {
   private currentLang = "en-US";
   private currentHandlers: SpeechRecognitionHandlers | null = null;
   private consecutiveErrors = 0;
+  private silenceTimer: number | null = null;
+  private maxSessionTimer: number | null = null;
+  private lastTranscript = "";
 
   isSupported(): boolean {
     // In Obsidian Electron Desktop (Windows/Mac/Linux), webkitSpeechRecognition is a non-functioning stub
@@ -108,7 +111,7 @@ export class SpeechRecognizer {
     return !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
   }
 
-  start(lang = "en-US", handlers: SpeechRecognitionHandlers): boolean {
+  start(lang = "en-US", handlers: SpeechRecognitionHandlers, silenceTimeoutMs = 5000): boolean {
     if (!this.isSupported()) {
       return false;
     }
@@ -118,12 +121,26 @@ export class SpeechRecognizer {
     this.currentLang = lang;
     this.currentHandlers = handlers;
     this.consecutiveErrors = 0;
+    this.lastTranscript = "";
 
-    this.initAndStart();
+    this.initAndStart(silenceTimeoutMs);
     return true;
   }
 
-  private initAndStart() {
+  private resetSilenceTimer(delayMs: number) {
+    if (this.silenceTimer) {
+      window.clearTimeout(this.silenceTimer);
+      this.silenceTimer = null;
+    }
+    this.silenceTimer = window.setTimeout(() => {
+      // Extended silence after speaking: smoothly stop recognition
+      if (this.shouldBeListening) {
+        this.stop();
+      }
+    }, delayMs);
+  }
+
+  private initAndStart(silenceTimeoutMs: number) {
     if (!this.shouldBeListening) return;
 
     try {
@@ -131,26 +148,43 @@ export class SpeechRecognizer {
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       this.recognition = new SpeechClass();
       this.recognition.lang = this.currentLang; // Locked to English (en-US)
-      this.recognition.continuous = false; // continuous=false is significantly more stable on Android & iOS WebView
+      // continuous=true allows users to pause, breathe, or speak long sentences without being abruptly cut off!
+      this.recognition.continuous = true;
       this.recognition.interimResults = true;
       this.recognition.maxAlternatives = 1;
+
+      // Max total session timeout (35 seconds) to prevent battery drain if user leaves microphone on
+      this.maxSessionTimer = window.setTimeout(() => {
+        if (this.shouldBeListening) {
+          this.stop();
+        }
+      }, 35000);
 
       this.recognition.onstart = () => {
         this.consecutiveErrors = 0;
         this.currentHandlers?.onStart?.();
+        // Initial silence timeout (give user 8s to start speaking)
+        this.resetSilenceTimer(8000);
       };
 
       this.recognition.onresult = (event: any) => {
         let fullTranscript = "";
         let isFinal = false;
         for (let i = 0; i < event.results.length; ++i) {
-          fullTranscript += event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            isFinal = true;
+          const res = event.results[i];
+          if (res && res[0]) {
+            fullTranscript += res[0].transcript + " ";
+            if (res.isFinal) {
+              isFinal = true;
+            }
           }
         }
-        if (fullTranscript.trim()) {
-          this.currentHandlers?.onResult?.(fullTranscript, isFinal);
+        const trimmed = fullTranscript.trim();
+        if (trimmed) {
+          this.lastTranscript = trimmed;
+          this.currentHandlers?.onResult?.(trimmed, isFinal);
+          // User spoke: extend silence timeout by silenceTimeoutMs (e.g. 5 seconds)
+          this.resetSilenceTimer(silenceTimeoutMs);
         }
       };
 
@@ -168,10 +202,8 @@ export class SpeechRecognizer {
       };
 
       this.recognition.onend = () => {
-        // IMPORTANT: NEVER auto-restart in onend on mobile / Android!
-        // On Android, starting a speech recognition session triggers an OS microphone chime sound.
-        // Auto-restarting here causes an infinite, annoying chime sound loop!
         this.shouldBeListening = false;
+        this.clearTimers();
         this.currentHandlers?.onEnd?.();
       };
 
@@ -179,13 +211,26 @@ export class SpeechRecognizer {
     } catch (err) {
       console.warn("[Diary Copilot Speech] start failed:", err);
       this.shouldBeListening = false;
+      this.clearTimers();
       this.currentHandlers?.onError?.(String(err));
+    }
+  }
+
+  private clearTimers() {
+    if (this.silenceTimer) {
+      window.clearTimeout(this.silenceTimer);
+      this.silenceTimer = null;
+    }
+    if (this.maxSessionTimer) {
+      window.clearTimeout(this.maxSessionTimer);
+      this.maxSessionTimer = null;
     }
   }
 
   stop() {
     this.shouldBeListening = false;
     this.consecutiveErrors = 0;
+    this.clearTimers();
     if (this.recognition) {
       try {
         this.recognition.onstart = null;
@@ -197,6 +242,10 @@ export class SpeechRecognizer {
       this.recognition = null;
     }
     this.currentHandlers?.onEnd?.();
+  }
+
+  getLastTranscript(): string {
+    return this.lastTranscript;
   }
 
   getIsListening(): boolean {
