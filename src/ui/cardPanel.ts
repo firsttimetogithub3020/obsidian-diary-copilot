@@ -57,6 +57,7 @@ export class CardPanel {
   private oralLiveTextEl: HTMLElement | null = null;
   private oralProgressFillEl: HTMLElement | null = null;
   private oralScoreBadgeEl: HTMLElement | null = null;
+  private desktopVoiceInputEl: HTMLInputElement | null = null;
 
   constructor(containerEl: HTMLElement, callbacks: CardPanelCallbacks) {
     this.containerEl = containerEl;
@@ -586,35 +587,45 @@ export class CardPanel {
     this.renderHeaderActionsOral();
     this.renderOralWorkspace();
 
-    if (!globalSpeechRecognizer.isSupported()) {
-      new Notice("💡 目前環境不支援 Web Speech 語音辨識，請使用鍵盤輸入", 3500);
-      return;
+    const isWebSpeechSupported = globalSpeechRecognizer.isSupported();
+
+    if (isWebSpeechSupported) {
+      new Notice("🎙️ 語音辨識已啟動，請對著麥克風唸出上方目標句子...", 2500);
+
+      globalSpeechRecognizer.start("en-US", {
+        onResult: (transcript: string, _isFinal: boolean) => {
+          if (!this.isOralMode || this.oralPassed) return;
+          const match = evaluateOralMatch(transcript, this.oralTargetText);
+          this.updateOralVisuals(match);
+
+          if (match.isPass) {
+            this.handleOralPass(match);
+          }
+        },
+        onError: (err: string) => {
+          if (!this.isOralMode) return;
+          if (err === "not-allowed" || err === "service-not-allowed") {
+            new Notice("⚠️ 麥克風權限未開啟，請允許瀏覽器/Obsidian存取麥克風");
+          } else if (err !== "no-speech" && err !== "aborted") {
+            console.warn("[Diary Copilot Oral Error]", err);
+          }
+        },
+        onEnd: () => {
+          // SpeechRecognizer auto-restarts persistently when shouldBeListening is true
+        },
+      });
+    } else {
+      // Desktop / Windows Electron: Focus voice input & prompt Win+H
+      new Notice(
+        Platform.isMacOS
+          ? "🎙️ Mac 請連按兩次 Fn 或 Control 啟動聽寫"
+          : "🎙️ Windows 請按快捷鍵 [Win + H] 啟動系統語音輸入！",
+        4500
+      );
+      if (this.desktopVoiceInputEl) {
+        window.setTimeout(() => this.desktopVoiceInputEl?.focus(), 60);
+      }
     }
-
-    new Notice("🎙️ 語音辨識已啟動，請對著手機唸出上方目標句子...", 2500);
-
-    globalSpeechRecognizer.start("en-US", {
-      onResult: (transcript: string, _isFinal: boolean) => {
-        if (!this.isOralMode || this.oralPassed) return;
-        const match = evaluateOralMatch(transcript, this.oralTargetText);
-        this.updateOralVisuals(match);
-
-        if (match.isPass) {
-          this.handleOralPass(match);
-        }
-      },
-      onError: (err: string) => {
-        if (!this.isOralMode) return;
-        if (err === "not-allowed" || err === "service-not-allowed") {
-          new Notice("⚠️ 麥克風權限未開啟，請允許瀏覽器/Obsidian存取麥克風");
-        } else if (err !== "no-speech" && err !== "aborted") {
-          console.warn("[Diary Copilot Oral Error]", err);
-        }
-      },
-      onEnd: () => {
-        // SpeechRecognizer auto-restarts persistently when shouldBeListening is true
-      },
-    });
   }
 
   /**
@@ -669,6 +680,7 @@ export class CardPanel {
     this.contentAreaEl.empty();
 
     const initialMatch = evaluateOralMatch("", this.oralTargetText);
+    const isWebSpeechSupported = globalSpeechRecognizer.isSupported();
 
     this.oralWorkspaceEl = this.contentAreaEl.createDiv({ cls: "diary-copilot-oral-workspace" });
 
@@ -685,13 +697,40 @@ export class CardPanel {
       this.oralTargetWordSpans.push(span);
     });
 
-    // 2. Live Spoken Transcript Bubble
-    const liveBox = this.oralWorkspaceEl.createDiv({ cls: "diary-copilot-oral-live-box" });
-    liveBox.createSpan({ cls: "diary-copilot-oral-live-icon", text: "🎙️" });
-    this.oralLiveTextEl = liveBox.createSpan({
-      cls: "diary-copilot-oral-live-text is-empty",
-      text: "正在聆聽... 請對著手機唸出上方句子",
-    });
+    // 2. Spoken Transcript Bubble (Mobile/Browser) OR Voice Input Box (Windows/Desktop)
+    if (isWebSpeechSupported) {
+      const liveBox = this.oralWorkspaceEl.createDiv({ cls: "diary-copilot-oral-live-box" });
+      liveBox.createSpan({ cls: "diary-copilot-oral-live-icon", text: "🎙️" });
+      this.oralLiveTextEl = liveBox.createSpan({
+        cls: "diary-copilot-oral-live-text is-empty",
+        text: "正在聆聽... 請對著麥克風唸出上方句子",
+      });
+      this.desktopVoiceInputEl = null;
+    } else {
+      const voiceWrapper = this.oralWorkspaceEl.createDiv({ cls: "diary-copilot-desktop-voice-wrapper" });
+      voiceWrapper.createSpan({ cls: "diary-copilot-desktop-voice-icon", text: "🎙️" });
+      this.desktopVoiceInputEl = voiceWrapper.createEl("input", {
+        cls: "diary-copilot-desktop-voice-input",
+        type: "text",
+        attr: {
+          placeholder: Platform.isMacOS
+            ? "連按兩次 Fn / Control 啟動聽寫（或打字跟讀）..."
+            : "請按 Win+H 啟動語音輸入（或打字跟讀）...",
+        },
+      });
+
+      this.desktopVoiceInputEl.addEventListener("input", (e) => {
+        if (!this.isOralMode || this.oralPassed) return;
+        const val = (e.target as HTMLInputElement).value;
+        const match = evaluateOralMatch(val, this.oralTargetText);
+        this.updateOralVisuals(match);
+
+        if (match.isPass) {
+          this.handleOralPass(match);
+        }
+      });
+      this.oralLiveTextEl = null;
+    }
 
     // 3. Progress Meter (Bar + 70% threshold mark)
     const progWrapper = this.oralWorkspaceEl.createDiv({ cls: "diary-copilot-oral-progress-wrapper" });
@@ -706,7 +745,9 @@ export class CardPanel {
 
     statusRow.createSpan({
       cls: "diary-copilot-oral-tip",
-      text: Platform.isMobile ? "唸完自動判定填入 · 隨時可點⚡跳過" : "唸完自動判定填入 · 隨時可點⚡直接填入",
+      text: isWebSpeechSupported
+        ? (Platform.isMobile ? "唸完自動判定填入 · 隨時可點⚡跳過" : "唸完自動判定填入 · 隨時可點⚡直接填入")
+        : (Platform.isMacOS ? "按兩次 Fn 語音聽寫 · 隨時可點⚡直接填入" : "按 Win+H 語音口說 · 隨時可點⚡直接填入"),
     });
   }
 
@@ -727,7 +768,7 @@ export class CardPanel {
       }
     });
 
-    // 2. Update Live Transcript
+    // 2. Update Live Transcript or Desktop Input
     if (this.oralLiveTextEl) {
       if (match.spokenText && match.spokenText.trim().length > 0) {
         this.oralLiveTextEl.setText(`「 ${match.spokenText} 」`);
@@ -736,6 +777,8 @@ export class CardPanel {
         this.oralLiveTextEl.setText("正在聆聽... 請開始朗讀上方句子");
         this.oralLiveTextEl.addClass("is-empty");
       }
+    } else if (this.desktopVoiceInputEl && this.desktopVoiceInputEl.value !== match.spokenText) {
+      this.desktopVoiceInputEl.value = match.spokenText;
     }
 
     // 3. Update Progress Bar
