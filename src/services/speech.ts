@@ -1,6 +1,7 @@
 /**
  * Speech Recognition Service for Diary Copilot Oral Shadowing
  * Automatically activates device microphone in English mode (en-US).
+ * Features auto-reconnect on mobile pauses & low-frustration error handling.
  */
 export interface SpeechRecognitionHandlers {
   onStart?: () => void;
@@ -11,7 +12,10 @@ export interface SpeechRecognitionHandlers {
 
 export class SpeechRecognizer {
   private recognition: any = null;
-  private isListening = false;
+  private shouldBeListening = false;
+  private currentLang = "en-US";
+  private currentHandlers: SpeechRecognitionHandlers | null = null;
+  private restartTimeout: number | null = null;
 
   isSupported(): boolean {
     return (
@@ -25,19 +29,29 @@ export class SpeechRecognizer {
       return false;
     }
 
+    this.stop();
+    this.shouldBeListening = true;
+    this.currentLang = lang;
+    this.currentHandlers = handlers;
+
+    this.initAndStart();
+    return true;
+  }
+
+  private initAndStart() {
+    if (!this.shouldBeListening) return;
+
     try {
-      this.stop();
       const SpeechClass =
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       this.recognition = new SpeechClass();
-      this.recognition.lang = lang; // Automatically lock to English!
-      this.recognition.continuous = true;
+      this.recognition.lang = this.currentLang; // Locked to English (en-US)
+      this.recognition.continuous = false; // continuous=false is significantly more stable on Android & iOS WebView
       this.recognition.interimResults = true;
       this.recognition.maxAlternatives = 1;
 
       this.recognition.onstart = () => {
-        this.isListening = true;
-        handlers.onStart?.();
+        this.currentHandlers?.onStart?.();
       };
 
       this.recognition.onresult = (event: any) => {
@@ -49,39 +63,70 @@ export class SpeechRecognizer {
             isFinal = true;
           }
         }
-        handlers.onResult?.(fullTranscript, isFinal);
+        if (fullTranscript.trim()) {
+          this.currentHandlers?.onResult?.(fullTranscript, isFinal);
+        }
       };
 
       this.recognition.onerror = (event: any) => {
-        this.isListening = false;
-        handlers.onError?.(event.error || "語音辨識錯誤");
+        const errorType = event.error;
+        // Ignore "no-speech" or "aborted" without stopping; keep listening
+        if (errorType === "no-speech" || errorType === "aborted") {
+          return;
+        }
+
+        if (errorType === "not-allowed" || errorType === "service-not-allowed") {
+          this.shouldBeListening = false;
+          this.currentHandlers?.onError?.("not-allowed");
+          return;
+        }
+
+        console.warn("Speech recognition error:", errorType);
       };
 
       this.recognition.onend = () => {
-        this.isListening = false;
-        handlers.onEnd?.();
+        // If user is still in listening mode, auto-restart seamlessly so microphone doesn't prematurely drop!
+        if (this.shouldBeListening) {
+          if (this.restartTimeout) window.clearTimeout(this.restartTimeout);
+          this.restartTimeout = window.setTimeout(() => {
+            if (this.shouldBeListening) {
+              this.initAndStart();
+            }
+          }, 80);
+        } else {
+          this.currentHandlers?.onEnd?.();
+        }
       };
 
       this.recognition.start();
-      return true;
     } catch (err) {
-      console.warn("SpeechRecognizer start error:", err);
-      return false;
+      console.warn("Speech recognition start failed:", err);
+      if (this.shouldBeListening) {
+        if (this.restartTimeout) window.clearTimeout(this.restartTimeout);
+        this.restartTimeout = window.setTimeout(() => {
+          if (this.shouldBeListening) this.initAndStart();
+        }, 200);
+      }
     }
   }
 
   stop() {
+    this.shouldBeListening = false;
+    if (this.restartTimeout) {
+      window.clearTimeout(this.restartTimeout);
+      this.restartTimeout = null;
+    }
     if (this.recognition) {
       try {
         this.recognition.stop();
       } catch {}
       this.recognition = null;
     }
-    this.isListening = false;
+    this.currentHandlers?.onEnd?.();
   }
 
   getIsListening(): boolean {
-    return this.isListening;
+    return this.shouldBeListening;
   }
 }
 

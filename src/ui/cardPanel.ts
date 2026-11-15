@@ -539,9 +539,27 @@ export class CardPanel {
     });
   }
 
+  isHidden(): boolean {
+    return this.panelEl ? this.panelEl.hasClass("is-hidden") : true;
+  }
+
+  show() {
+    if (this.panelEl) {
+      this.panelEl.removeClass("is-hidden");
+    }
+  }
+
   hide() {
     if (this.panelEl) {
       this.panelEl.addClass("is-hidden");
+    }
+  }
+
+  destroy() {
+    globalSpeechRecognizer.stop();
+    if (this.panelEl) {
+      this.panelEl.remove();
+      this.panelEl = null;
     }
   }
 }
