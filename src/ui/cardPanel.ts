@@ -242,7 +242,8 @@ export class CardPanel {
         this.panelEl?.removeClass("is-collapsed");
       }
 
-      const clampedHeight = Math.max(32, Math.min(initialHeight + deltaY, window.innerHeight * 0.75));
+      const minH = Platform.isMobile ? 52 : 46;
+      const clampedHeight = Math.max(minH, Math.min(initialHeight + deltaY, window.innerHeight * 0.75));
 
       this.panelEl.style.height = `${clampedHeight}px`;
       if (clampedHeight <= 95) {
@@ -275,7 +276,8 @@ export class CardPanel {
 
       if (pointerMoved) {
         const finalHeight = parseInt(this.panelEl.style.height, 10);
-        if (!isNaN(finalHeight) && finalHeight >= 32) {
+        const minH = Platform.isMobile ? 52 : 46;
+        if (!isNaN(finalHeight) && finalHeight >= minH) {
           this.hasUserManuallyResized = true;
           this.userManualHeight = finalHeight;
           this.callbacks.onHeightResize?.(finalHeight);
@@ -397,29 +399,36 @@ export class CardPanel {
     if (!this.panelEl) return;
 
     if (this.isKeyboardWriting) {
-      const writingHeight = Platform.isMobile ? "44px" : "42px";
+      const writingHeight = Platform.isMobile ? "52px" : "48px";
       this.panelEl.style.height = writingHeight;
       this.panelEl.addClass("is-compact");
+      this.panelEl.addClass("is-keyboard-writing");
+      this.panelEl.addClass("is-compact-idle");
       document.body.style.setProperty("--diary-copilot-panel-height", writingHeight);
       return;
     }
 
     if (this.isCollapsed) {
-      const collapsedHeight = Platform.isMobile ? 40 : 38;
+      const collapsedHeight = Platform.isMobile ? 52 : 46;
       this.panelEl.style.height = `${collapsedHeight}px`;
       this.panelEl.addClass("is-compact");
+      this.panelEl.addClass("is-collapsed");
       document.body.style.setProperty("--diary-copilot-panel-height", `${collapsedHeight}px`);
       return;
     }
 
     // In compact mode with no cards and no inquiry (idle single-row toolbar)
     if (this.copilotMode === "compact" && this.currentCards.length === 0 && !this.pinnedInquiryItem && !this.hasUserManuallyResized) {
-      const compactBarHeight = Platform.isMobile ? 44 : 42;
+      const compactBarHeight = Platform.isMobile ? 52 : 48;
       this.panelEl.style.height = `${compactBarHeight}px`;
       this.panelEl.addClass("is-compact");
+      this.panelEl.addClass("is-compact-idle");
       document.body.style.setProperty("--diary-copilot-panel-height", `${compactBarHeight}px`);
       return;
     }
+
+    // When cards or inquiries are present, or when in full mode:
+    this.panelEl.removeClass("is-compact-idle");
 
     // When Voice Stage is active on mobile, maintain compact, ergonomic height so note editor remains clearly visible
     if (this.isVoiceStageActive && Platform.isMobile && !this.hasUserManuallyResized) {
@@ -492,7 +501,7 @@ export class CardPanel {
     this.panelEl.addClass("is-animating");
     if (this.isCollapsed) {
       this.panelEl.addClass("is-collapsed");
-      const collapsedHeight = Platform.isMobile ? 40 : 38;
+      const collapsedHeight = Platform.isMobile ? 52 : 46;
       this.panelEl.style.height = `${collapsedHeight}px`;
       this.panelEl.addClass("is-compact");
       document.body.style.setProperty("--diary-copilot-panel-height", `${collapsedHeight}px`);
@@ -523,22 +532,22 @@ export class CardPanel {
       this.brandTextEl.setText("Diary Copilot");
     }
     if (this.toneWrapperEl) {
-      this.toneWrapperEl.style.display = "flex";
+      this.toneWrapperEl.style.display = (this.copilotMode === "compact" || this.pinnedInquiryItem) ? "none" : "flex";
     }
 
     this.renderHeaderActionsBrowse();
 
-    const empty = this.contentAreaEl.createDiv({ cls: "diary-copilot-empty-state" });
-    const defaultMsg = this.copilotMode === "compact"
-      ? "✍️ 精簡專注模式：專心記錄生活，隨時點選句子按「✨ 潤飾」獲得地道建議，或按「❓ 提問」獲得問答靈感，按「🎧 跟讀」朗讀全篇。"
-      : "✍️ 在上方筆記開始書寫英語，Copilot 將即時提供地道建議與跟寫練習...";
-    empty.createSpan({ text: message || defaultMsg });
+    if (this.copilotMode !== "compact") {
+      const empty = this.contentAreaEl.createDiv({ cls: "diary-copilot-empty-state" });
+      empty.createSpan({ text: message || "✍️ 在上方筆記開始書寫英語，Copilot 將即時提供地道建議與跟寫練習..." });
+    }
     this.applyPanelHeight();
   }
 
   setLoading(message = "思考地道表達中...") {
     if (!this.panelEl || !this.contentAreaEl) return;
     this.panelEl.removeClass("is-hidden");
+    this.panelEl.removeClass("is-compact-idle");
     this.panelEl.addClass("is-loading");
 
     if (this.statusDotEl) {
@@ -1082,6 +1091,10 @@ export class CardPanel {
     if (this.headerActionsEl) this.headerActionsEl.empty();
     if (this.headerAudioEl) this.headerAudioEl.empty();
     if (this.headerSysEl) this.headerSysEl.empty();
+
+    if (this.toneWrapperEl) {
+      this.toneWrapperEl.style.display = (this.copilotMode === "compact" || this.pinnedInquiryItem) ? "none" : "flex";
+    }
 
     // 1. Control Center Bar (Row 1 Right): All core functions in one clean row
     if (this.headerSysEl) {

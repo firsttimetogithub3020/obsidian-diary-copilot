@@ -30,10 +30,10 @@
 /* Resize Handle on top of panel */
 .diary-copilot-resize-handle {
   position: absolute;
-  top: -8px;
+  top: -16px;
   left: 50%;
   transform: translateX(-50%);
-  width: 180px;
+  width: 140px;
   height: 16px;
   cursor: ns-resize;
   z-index: 25;
@@ -47,7 +47,7 @@
 
 .diary-copilot-resize-handle::after {
   content: "";
-  width: 54px;
+  width: 50px;
   height: 4px;
   border-radius: 2px;
   background-color: var(--text-faint);
@@ -62,22 +62,22 @@
   height: 5px;
 }
 
-/* Touch-friendly Mobile Resize Handle (Android, iPad, iPhone) */
+/* Touch-friendly Mobile Resize Handle (Android, iPad, iPhone) - strictly above the panel border */
 .diary-copilot-panel.is-mobile .diary-copilot-resize-handle {
-  top: -14px;
+  top: -18px;
   left: 50%;
   transform: translateX(-50%);
-  width: 160px;
-  height: 28px;
+  width: 120px;
+  height: 18px;
   touch-action: none !important;
   -webkit-user-select: none !important;
   user-select: none !important;
 }
 
 .diary-copilot-panel.is-mobile .diary-copilot-resize-handle::after {
-  width: 56px;
-  height: 5px;
-  border-radius: 3px;
+  width: 44px;
+  height: 4px;
+  border-radius: 2px;
   background-color: var(--text-muted);
   opacity: 0.75;
 }
@@ -249,10 +249,10 @@
     gap: 4px !important;
   }
   .diary-copilot-header-sys .diary-copilot-action-btn {
-    padding: 3px 6px !important;
-    font-size: 11.5px !important;
-    height: 27px !important;
-    border-radius: 4px !important;
+    padding: 4px 7px !important;
+    font-size: 12px !important;
+    height: 32px !important;
+    border-radius: 6px !important;
   }
 }
 
@@ -1102,20 +1102,20 @@
 
 /* Mobile specific adaptations */
 .is-mobile .diary-copilot-panel {
-  padding: 3px 6px 3px;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
   height: var(--diary-copilot-panel-height, auto);
-  min-height: 50px;
+  min-height: 52px;
   max-height: 80vh;
   gap: 2px;
 }
 
 .is-mobile .diary-copilot-resize-handle {
   display: flex !important;
-  top: -14px;
+  top: -18px;
   left: 50%;
   transform: translateX(-50%);
-  width: 160px;
-  height: 28px;
+  width: 120px;
+  height: 18px;
 }
 
 .diary-copilot-panel.is-collapsed {
@@ -1129,7 +1129,7 @@
 
 .is-mobile .diary-copilot-panel.is-collapsed {
   min-height: 0 !important;
-  padding-bottom: 2px;
+  padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
 }
 
 .is-mobile .diary-copilot-brand-text {
@@ -1157,20 +1157,24 @@
 
 .is-mobile .diary-copilot-action-btn {
   position: relative;
-  padding: 3px 7px;
+  padding: 4px 8px;
   font-size: var(--diary-copilot-btn-font-size, 12px);
-  border-radius: 5px;
-  height: 27px;
+  border-radius: 6px;
+  height: 32px;
   box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .is-mobile .diary-copilot-action-btn::before {
   content: "";
   position: absolute;
-  top: -6px;
-  bottom: -6px;
-  left: -3px;
-  right: -3px;
+  top: -4px;
+  bottom: -4px;
+  left: -2px;
+  right: -2px;
 }
 
 .is-mobile .diary-copilot-pinned-inquiry-strip {
@@ -1240,8 +1244,8 @@
 
 /* Compact mode (when height <= 95px on mobile) */
 .diary-copilot-panel.is-compact {
-  padding-top: 4px;
-  padding-bottom: 4px;
+  padding-top: 6px;
+  padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
   gap: 2px;
 }
 
@@ -2245,24 +2249,36 @@
   margin-top: 6px;
 }
 
-/* Mobile Virtual Keyboard Active: Auto-collapse panel to single-row toolbar */
-.diary-copilot-panel.is-keyboard-writing {
-  height: 44px !important;
-  min-height: 44px !important;
-  max-height: 44px !important;
-  padding: 5px 10px !important;
-  overflow: hidden !important;
+/* Mobile Virtual Keyboard Active & Compact Idle: Auto-collapse panel to single-row toolbar */
+.diary-copilot-panel.is-keyboard-writing,
+.diary-copilot-panel.is-compact-idle {
+  height: calc(52px + env(safe-area-inset-bottom, 0px)) !important;
+  min-height: calc(52px + env(safe-area-inset-bottom, 0px)) !important;
+  max-height: calc(52px + env(safe-area-inset-bottom, 0px)) !important;
+  padding: 6px 10px calc(6px + env(safe-area-inset-bottom, 0px)) !important;
+  overflow: visible !important;
 }
 
 .diary-copilot-panel.is-keyboard-writing .diary-copilot-panel-content,
-.diary-copilot-panel.is-keyboard-writing .diary-copilot-resize-handle,
+.diary-copilot-panel.is-keyboard-writing .diary-copilot-header-row-2,
+.diary-copilot-panel.is-keyboard-writing .diary-copilot-tone-wrapper,
 .diary-copilot-panel.is-keyboard-writing .diary-copilot-pinned-strip,
-.diary-copilot-panel.is-keyboard-writing .diary-copilot-header-row-2 {
+.diary-copilot-panel.is-compact-idle .diary-copilot-panel-content,
+.diary-copilot-panel.is-compact-idle .diary-copilot-header-row-2,
+.diary-copilot-panel.is-compact-idle .diary-copilot-tone-wrapper,
+.diary-copilot-panel.is-compact-idle .diary-copilot-pinned-strip {
   display: none !important;
 }
 
-.diary-copilot-panel.is-keyboard-writing .diary-copilot-header-row-1 {
+.diary-copilot-panel.is-keyboard-writing .diary-copilot-header-row-1,
+.diary-copilot-panel.is-compact-idle .diary-copilot-header-row-1 {
   margin-bottom: 0 !important;
+  height: 36px !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
 }
 
 /* Shadowing Preparation Modal (Option A) */
