@@ -533,33 +533,86 @@ export class VoiceStage {
 
   // --- Inline Speech Shadowing Verification inside Card ---
   private startCardShadowing(targetText: string, cardEl: HTMLElement) {
+    // Clear any previous feedback in this card
+    const existingFeedback = cardEl.querySelector(".diary-copilot-voice-shadow-feedback");
+    if (existingFeedback) {
+      existingFeedback.remove();
+    }
+
     const feedbackBox = cardEl.createDiv({ cls: "diary-copilot-voice-shadow-feedback" });
-    feedbackBox.setText("🎙️ 請開口複誦上述句子...");
+
+    const statusRow = feedbackBox.createDiv({ cls: "shadow-status-row" });
+    const statusText = statusRow.createSpan({ cls: "shadow-status-text", text: "🎙️ 正在聆聽，請隨意開口複誦標準句..." });
+    const stopBtn = statusRow.createEl("button", {
+      cls: "diary-copilot-action-btn shadow-stop-btn",
+      text: "⏹️ 結束",
+    });
+    stopBtn.addEventListener("click", () => {
+      globalSpeechRecognizer.stop();
+      statusText.setText("⏹️ 已停止跟讀錄音");
+      stopBtn.remove();
+    });
+
+    const resultBox = feedbackBox.createDiv({ cls: "shadow-result-box" });
 
     if (globalSpeechRecognizer.isSupported()) {
-      globalSpeechRecognizer.start("en-US", {
-        onResult: (spoken, isFinal) => {
-          const evalRes = evaluateOralMatch(spoken, targetText, isFinal);
-          feedbackBox.setText(`吻合度：${Math.round(evalRes.matchRatio * 100)}% · ${evalRes.spokenText}`);
-          if (evalRes.isPass) {
-            globalSpeechRecognizer.stop();
-            feedbackBox.setText("🎉 完美過關！吻合度高！已自動填入並替換口說初稿！");
-            feedbackBox.addClass("is-passed");
-            window.setTimeout(async () => {
-              await this.callbacks.onAppendSentence(targetText, this.currentDraftInfo || undefined, "oral");
-              this.adoptedCount++;
-              this.currentDraftInfo = null;
-              if (this.currentFollowUpQ) this.activeTab = "interview";
-              this.currentTranscript = "";
-              this.currentRefineResult = null;
-              this.render();
-            }, 1200);
-          }
+      globalSpeechRecognizer.start(
+        "en-US",
+        {
+          onResult: (spoken, isFinal) => {
+            const evalRes = evaluateOralMatch(spoken, targetText, isFinal);
+            const scorePct = Math.round(evalRes.matchRatio * 100);
+            resultBox.setText(`吻合度：${scorePct}% · 聽到：${evalRes.spokenText}`);
+
+            if (evalRes.isPass) {
+              globalSpeechRecognizer.stop();
+              stopBtn.remove();
+              feedbackBox.addClass("is-passed");
+              statusText.setText(`🎉 完美過關！吻合度：${scorePct}%`);
+              resultBox.setText(`🗣️ 辨識語音：${evalRes.spokenText}`);
+
+              // Provide buttons: adopt immediately OR retry OR let user stay as long as they want!
+              const actRow = feedbackBox.createDiv({ cls: "shadow-pass-btn-row" });
+              const adoptBtn = actRow.createEl("button", {
+                cls: "diary-copilot-action-btn diary-copilot-direct-paste-btn",
+                text: "⚡ 立即填入取代",
+                attr: { title: "將此標準句填入筆記並取代初稿" },
+              });
+              const retryBtn = actRow.createEl("button", {
+                cls: "diary-copilot-action-btn",
+                text: "🔄 再練一次",
+                attr: { title: "再次練習此句發音" },
+              });
+
+              let isAdopted = false;
+              const doAdopt = async () => {
+                if (isAdopted) return;
+                isAdopted = true;
+                await this.callbacks.onAppendSentence(targetText, this.currentDraftInfo || undefined, "oral");
+                this.adoptedCount++;
+                this.currentDraftInfo = null;
+                if (this.currentFollowUpQ) this.activeTab = "interview";
+                this.currentTranscript = "";
+                this.currentRefineResult = null;
+                this.render();
+              };
+
+              adoptBtn.addEventListener("click", () => {
+                doAdopt();
+              });
+
+              retryBtn.addEventListener("click", () => {
+                feedbackBox.remove();
+                this.startCardShadowing(targetText, cardEl);
+              });
+            }
+          },
+          onError: (err) => {
+            statusText.setText(`辨識結束 (${err})`);
+          },
         },
-        onError: (err) => {
-          feedbackBox.setText(`辨識結束或請重新嘗試 (${err})`);
-        },
-      });
+        35000 // 35 seconds silence timeout: give ample relaxed time for long sentences
+      );
     } else {
       feedbackBox.setText("🎧 請聆聽上方示範發音，並使用鍵盤語音聽寫練讀。滿意後請點擊「⚡ 填入」。");
     }

@@ -7,7 +7,7 @@ import { SummaryManager } from "./engine/summary";
 import { SuggestionScheduler } from "./engine/scheduler";
 import { extractContextFromDoc, extractSentenceToPolish } from "./engine/context";
 import { CardPanel } from "./ui/cardPanel";
-import { ghostTextField, setGhostTextEffect } from "./ui/ghostText";
+import { ghostTextField, setGhostTextEffect, draftMarkField, setDraftMarkEffect } from "./ui/ghostText";
 import { createDiaryKeymap } from "./ui/keymap";
 import { openTodayDiary } from "./commands/openToday";
 import { tidyUpTodayDiary } from "./commands/tidyUp";
@@ -105,6 +105,7 @@ export default class DiaryCopilotPlugin extends Plugin {
     // Register UI & Keymap Editor Extensions
     this.registerEditorExtension([
       ghostTextField,
+      draftMarkField,
       createDiaryKeymap({
         getCurrentSuggestion: () => {
           return this.isPolishMode
@@ -716,20 +717,38 @@ export default class DiaryCopilotPlugin extends Plugin {
       return { from: 0, to: 0, rawInserted: "" };
     }
     const editor = activeView.editor;
-    const doc = editor.getValue();
+
+    // 1. Automatically sanitize any legacy raw HTML <span...> tags so note is clean Markdown
+    let doc = editor.getValue();
+    if (doc.includes("<span style=")) {
+      const sanitized = doc.replace(/<span style="[^"]*">([\s\S]*?)<\/span>/g, "$1");
+      if (sanitized !== doc) {
+        editor.setValue(sanitized);
+        doc = sanitized;
+      }
+    }
+
     const needsLeadingNewline = doc.length > 0 && !doc.endsWith("\n\n");
     const prefix = needsLeadingNewline ? (doc.endsWith("\n") ? "\n" : "\n\n") : "";
 
-    // Insert as gray draft text so user immediately sees their spoken words / grammar blind spots
-    const rawSpan = `<span style="color: var(--text-muted, #888888); font-style: italic;">${spokenText}</span>`;
-    const textToInsert = `${prefix}${rawSpan}\n`;
+    // PURE CLEAN MARKDOWN TEXT - ZERO HTML TAGS!
+    const cleanSpoken = spokenText.trim();
+    const textToInsert = `${prefix}${cleanSpoken}\n`;
 
     const fromOffset = doc.length + prefix.length;
-    const toOffset = fromOffset + rawSpan.length;
+    const toOffset = fromOffset + cleanSpoken.length;
 
     const lastLine = editor.lineCount() - 1;
     const lastLineLength = editor.getLine(lastLine).length;
     editor.replaceRange(textToInsert, { line: lastLine, ch: lastLineLength });
+
+    // Apply CodeMirror 6 inline draft mark decoration: renders as gray italic without touching document text!
+    const editorView = this.getEditorView();
+    if (editorView) {
+      editorView.dispatch({
+        effects: setDraftMarkEffect.of({ from: fromOffset, to: toOffset }),
+      });
+    }
 
     // Position cursor at the end of the newly inserted draft
     const newLastLine = editor.lineCount() - 1;
@@ -738,7 +757,7 @@ export default class DiaryCopilotPlugin extends Plugin {
     return {
       from: fromOffset,
       to: toOffset,
-      rawInserted: rawSpan,
+      rawInserted: cleanSpoken,
     };
   }
 
@@ -754,9 +773,18 @@ export default class DiaryCopilotPlugin extends Plugin {
     }
     if (activeView && activeView.editor) {
       const editor = activeView.editor;
-      const doc = editor.getValue();
+      let doc = editor.getValue();
 
-      // If draftInfo is present, locate and replace the gray draft span
+      // Clean up legacy HTML tags if any remain
+      if (doc.includes("<span style=")) {
+        const sanitized = doc.replace(/<span style="[^"]*">([\s\S]*?)<\/span>/g, "$1");
+        if (sanitized !== doc) {
+          editor.setValue(sanitized);
+          doc = sanitized;
+        }
+      }
+
+      // If draftInfo is present, locate and replace the draft text in the editor
       if (draftInfo && draftInfo.rawInserted) {
         let fromOffset = draftInfo.from;
         let toOffset = draftInfo.to;
@@ -774,9 +802,17 @@ export default class DiaryCopilotPlugin extends Plugin {
           const toPos = editor.offsetToPos(toOffset);
           editor.replaceRange(sentence, fromPos, toPos);
 
+          // Clear CodeMirror draft mark decoration
+          const editorView = this.getEditorView();
+          if (editorView) {
+            editorView.dispatch({
+              effects: setDraftMarkEffect.of(null),
+            });
+          }
+
           // Record adoption with the original spoken text as source for Tidy Up learning review
           this.recordAdoption(sentence, kind, draftInfo.sourceText);
-          new Notice(kind === "oral" ? "🎉 跟讀達標！已替換口說初稿" : "⚡ 已填入並替換口說初稿！", 2000);
+          new Notice(kind === "oral" ? "🎉 跟讀達標！已替換初稿" : "⚡ 已填入並替換初稿！", 2000);
           return;
         }
       }
@@ -788,6 +824,14 @@ export default class DiaryCopilotPlugin extends Plugin {
       const lastLine = editor.lineCount() - 1;
       const lastLineLength = editor.getLine(lastLine).length;
       editor.replaceRange(newText, { line: lastLine, ch: lastLineLength });
+
+      const editorView = this.getEditorView();
+      if (editorView) {
+        editorView.dispatch({
+          effects: setDraftMarkEffect.of(null),
+        });
+      }
+
       this.recordAdoption(sentence, kind, draftInfo?.sourceText);
       new Notice("📝 已收錄至今日日記初稿", 1500);
     }

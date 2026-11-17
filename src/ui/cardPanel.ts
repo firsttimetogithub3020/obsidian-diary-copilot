@@ -101,8 +101,8 @@ export class CardPanel {
   constructor(containerEl: HTMLElement, callbacks: CardPanelCallbacks) {
     this.containerEl = containerEl;
     this.callbacks = callbacks;
-    const isPhone = Platform.isPhone || (Platform.isMobile && window.innerWidth < 640);
-    this.isVoiceStageActive = isPhone;
+    // Default to general text editing mode directly, keeping maximum space for the editor!
+    this.isVoiceStageActive = false;
     this.render();
   }
 
@@ -987,24 +987,7 @@ export class CardPanel {
 
     // 1. System Actions (Row 1 Right)
     if (this.headerSysEl) {
-      // Toggle button between Note Cards and Voice Stage
-      const stageBtn = this.headerSysEl.createEl("button", {
-        cls: `diary-copilot-action-btn diary-copilot-stage-toggle-btn ${this.isVoiceStageActive ? "is-active" : ""}`,
-        text: Platform.isPhone
-          ? (this.isVoiceStageActive ? "📝 筆記" : "🎙️ 口說")
-          : (this.isVoiceStageActive ? "📝 筆記卡片" : "🎙️ 口說舞台"),
-        attr: {
-          "aria-label": this.isVoiceStageActive ? "切換至筆記卡片模式" : "切換至純語音口說對話舞台",
-          title: this.isVoiceStageActive ? "切換至筆記卡片模式" : "切換至純語音口說對話舞台",
-        },
-      });
-      stageBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        this.toggleVoiceStage();
-      });
-
-      // 🔄 檢查更新 (保留在電腦、平板與手機端；對話與卡片模式均顯示)
+      // 🔄 檢查更新 (保留在電腦、平板與手機端，始終常駐)
       const updateBtn = this.headerSysEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-update-btn",
         text: Platform.isPhone ? "🔄" : "🔄 檢查更新",
@@ -1281,7 +1264,7 @@ export class CardPanel {
             }
           }
         },
-      });
+      }, 35000);
     } else {
       // Desktop (Windows/Mac) & iOS (iPhone/iPad): Focus voice input & prompt native dictation
       new Notice(
@@ -1296,7 +1279,7 @@ export class CardPanel {
     }
   }
 
-  private scheduleAutoPass(delayMs = 2200) {
+  private scheduleAutoPass(delayMs = 6000) {
     if (this.oralAutoFinalizeTimeout) {
       window.clearTimeout(this.oralAutoFinalizeTimeout);
     }

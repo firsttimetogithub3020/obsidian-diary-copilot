@@ -139,3 +139,39 @@ export const ghostTextField = StateField.define<GhostTextState>({
   },
   provide: (f) => EditorView.decorations.from(f, (val) => val.deco),
 });
+
+export interface DraftMarkRange {
+  from: number;
+  to: number;
+}
+
+export const setDraftMarkEffect = StateEffect.define<DraftMarkRange | null>();
+
+export const draftMarkField = StateField.define<DecorationSet>({
+  create() {
+    return Decoration.none;
+  },
+  update(deco, tr) {
+    deco = deco.map(tr.changes);
+    for (const e of tr.effects) {
+      if (e.is(setDraftMarkEffect)) {
+        if (e.value === null) {
+          deco = Decoration.none;
+        } else {
+          const from = Math.min(e.value.from, e.value.to);
+          const to = Math.max(e.value.from, e.value.to);
+          if (from < to && to <= tr.state.doc.length) {
+            const mark = Decoration.mark({
+              class: "diary-copilot-draft-mark",
+            });
+            deco = Decoration.set([mark.range(from, to)]);
+          } else {
+            deco = Decoration.none;
+          }
+        }
+      }
+    }
+    return deco;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
