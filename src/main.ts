@@ -1334,11 +1334,9 @@ export default class DiaryCopilotPlugin extends Plugin {
     const docLength = editorView.state.doc.length;
     const fullDoc = editorView.state.doc.toString();
 
-    // On desktop, refocus editor; on mobile, keep keyboard down so cards and note remain unobstructed
+    // On desktop, refocus editor
     if (!Platform.isMobile) {
       editor.focus();
-    } else {
-      this.cardPanel?.dismissSoftKeyboard();
     }
 
     let targetPos = editor.posToOffset(editor.getCursor());
@@ -1394,9 +1392,6 @@ export default class DiaryCopilotPlugin extends Plugin {
         this.clearGhostText();
         this.cardPanel?.renderIdleState();
         this.recordAdoption(cleanText, kind, replacedText);
-        if (Platform.isMobile) {
-          this.cardPanel?.dismissSoftKeyboard();
-        }
         new Notice("⚡ 已成功填入替換！", 1500);
         return;
       } else {
@@ -1422,9 +1417,6 @@ export default class DiaryCopilotPlugin extends Plugin {
         this.clearGhostText();
         this.cardPanel?.renderIdleState();
         this.recordAdoption(cleanText, kind);
-        if (Platform.isMobile) {
-          this.cardPanel?.dismissSoftKeyboard();
-        }
         new Notice("⚡ 已成功填入筆記！", 1500);
         return;
       }
