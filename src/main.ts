@@ -620,6 +620,17 @@ export default class DiaryCopilotPlugin extends Plugin {
           onFullTextShadowingRequest: () => {
             this.handleFullTextShadowing();
           },
+          getCopilotMode: () => {
+            return this.settings.copilotMode || "compact";
+          },
+          onModeChange: async (mode: CopilotMode) => {
+            this.settings.copilotMode = mode;
+            await this.saveSettings();
+            if (mode === "compact") {
+              this.scheduler.clear();
+              this.clearGhostText();
+            }
+          },
           getEnglishLevel: () => {
             return this.settings.englishLevel;
           },
@@ -979,6 +990,12 @@ export default class DiaryCopilotPlugin extends Plugin {
     const filePath = this.activeView.file?.path || "";
     const paragraphSummary = this.summaryManager.getParagraphSummary(filePath);
     const styleSummary = this.data.styleSummary?.summary;
+
+    // In Compact Mode (精簡模式): Do NOT trigger real-time continuation cards!
+    // Compact mode focuses purely on: Inquiry Guided Questions -> Voice Answer -> Polish -> Shadowing.
+    if (this.settings.copilotMode === "compact") {
+      return;
+    }
 
     // Trigger scheduler
     this.scheduler.handleDocChange(context, styleSummary, paragraphSummary);

@@ -1,5 +1,5 @@
 import { Platform, Notice } from "obsidian";
-import { SuggestionItem, DiaryTone, InquiryItem, EnglishLevel } from "../types";
+import { SuggestionItem, DiaryTone, InquiryItem, EnglishLevel, CopilotMode } from "../types";
 import { DIARY_TONE_OPTIONS } from "../settings";
 import { speakSentence, stopAudio } from "../services/tts";
 import { globalSpeechRecognizer, evaluateOralMatch, OralMatchResult } from "../services/speech";
@@ -32,6 +32,8 @@ export interface CardPanelCallbacks {
   onGetSentenceToPolish?: () => { text: string; from: number; to: number } | null;
   onTidyUpRequest?: () => void;
   onFullTextShadowingRequest?: () => void;
+  getCopilotMode?: () => CopilotMode;
+  onModeChange?: (mode: CopilotMode) => Promise<void>;
   getEnglishLevel?: () => EnglishLevel;
   getDiaryContext?: () => string;
   getLlmClient?: () => any;
@@ -95,16 +97,42 @@ export class CardPanel {
   private oralScoreBadgeEl: HTMLElement | null = null;
   private desktopVoiceInputEl: HTMLInputElement | null = null;
 
-  // Voice Dialogue Stage State
+  // Mode state: "compact" (精簡模式: 問答引導 + 潤飾 + 長篇跟讀, 零續寫干擾) | "full" (完整模式: 續寫卡片 + 接續鍵 + 提問 + 潤飾)
+  private copilotMode: CopilotMode;
   private isVoiceStageActive: boolean;
   private voiceStage: VoiceStage | null = null;
 
   constructor(containerEl: HTMLElement, callbacks: CardPanelCallbacks) {
     this.containerEl = containerEl;
     this.callbacks = callbacks;
-    // Default to general text editing mode directly, keeping maximum space for the editor!
-    this.isVoiceStageActive = false;
+    this.copilotMode = this.callbacks.getCopilotMode?.() || "compact";
+    this.isVoiceStageActive = this.copilotMode === "compact";
     this.render();
+  }
+
+  public async toggleCopilotMode() {
+    this.copilotMode = this.copilotMode === "compact" ? "full" : "compact";
+    this.isVoiceStageActive = this.copilotMode === "compact";
+    await this.callbacks.onModeChange?.(this.copilotMode);
+    this.resetToAutoFit();
+    this.renderBrowseMode();
+    new Notice(
+      this.copilotMode === "compact"
+        ? "⚡ 已切換至精簡模式（引導問答 ＋ 地道潤飾 ＋ 長篇跟讀）"
+        : "🌟 已切換至完整模式（即時續寫卡片 ＋ 接續鍵 ＋ 提問潤飾）",
+      2500
+    );
+  }
+
+  public setCopilotMode(mode: CopilotMode) {
+    this.copilotMode = mode;
+    this.isVoiceStageActive = mode === "compact";
+    this.resetToAutoFit();
+    this.renderBrowseMode();
+  }
+
+  public hasPinnedInquiry(): boolean {
+    return !!this.pinnedInquiryItem;
   }
 
   private render() {
@@ -1002,13 +1030,13 @@ export class CardPanel {
 
     // 1. System Actions (Row 1 Right)
     if (this.headerSysEl) {
-      // 🎧 全螢幕跟讀 (全篇影子跟讀)
+      // 1. 🎧 長篇跟讀 (全篇沉浸影子跟讀)
       const shadowBtn = this.headerSysEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-shadow-all-btn",
-        text: Platform.isPhone ? "🎧 跟讀" : "🎧 全螢幕跟讀",
+        text: Platform.isPhone ? "🎧 跟讀" : "🎧 長篇跟讀",
         attr: {
-          "aria-label": "開啟全篇/全螢幕影子跟讀模式",
-          title: "開啟全篇/全螢幕影子跟讀模式",
+          "aria-label": "開啟全篇沉浸式影子跟讀模式",
+          title: "開啟全篇沉浸式影子跟讀模式",
         },
       });
       shadowBtn.addEventListener("click", (e) => {
@@ -1017,47 +1045,27 @@ export class CardPanel {
         this.callbacks.onFullTextShadowingRequest?.();
       });
 
-      // ❓ 提問引導 (開啟問答說寫日記模式)
-      const inqBtn = this.headerSysEl.createEl("button", {
-        cls: `diary-copilot-action-btn diary-copilot-inquiry-header-btn ${this.pinnedInquiryItem ? "is-active" : ""}`,
-        text: Platform.isPhone
-          ? (this.pinnedInquiryItem ? "✍️ 續寫" : "❓ 提問")
-          : (this.pinnedInquiryItem ? "✍️ 回純續寫" : "❓ 提問引導"),
+      // 2. 模式切換：⚡ 精簡 (跟讀與提問) ⇄ 🌟 完整 (跟寫與續寫卡片)
+      const isCompact = this.copilotMode === "compact";
+      const modeBtn = this.headerSysEl.createEl("button", {
+        cls: `diary-copilot-action-btn diary-copilot-mode-toggle-btn ${isCompact ? "is-compact" : "is-full"}`,
+        text: isCompact ? "⚡ 精簡" : "🌟 完整",
         attr: {
-          "aria-label": this.pinnedInquiryItem ? "關閉問句，回到平日即時續寫模式" : "開啟問答引導說寫日記模式",
-          title: this.pinnedInquiryItem ? "關閉問句，回到平日即時續寫模式" : "開啟問答引導說寫日記模式",
+          "aria-label": isCompact
+            ? "目前為精簡模式（引導提問＋潤飾＋長篇跟讀），點擊切換為完整模式（含即時續寫卡片）"
+            : "目前為完整模式（含即時續寫卡片＋接續鍵），點擊切換為精簡模式",
+          title: isCompact
+            ? "目前為精簡模式（引導提問＋潤飾＋長篇跟讀），點擊切換為完整模式（含即時續寫卡片）"
+            : "目前為完整模式（含即時續寫卡片＋接續鍵），點擊切換為精簡模式",
         },
       });
-      inqBtn.addEventListener("click", (e) => {
+      modeBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         e.preventDefault();
-        if (this.pinnedInquiryItem) {
-          this.clearPinnedInquiry();
-          this.callbacks.onFocusEditor?.();
-        } else {
-          this.resetToAutoFit();
-          this.callbacks.onInquiryRequest?.();
-        }
+        this.toggleCopilotMode();
       });
 
-      // 切換按鈕：在「筆記卡片」與「口說對話舞台」之間自由切換
-      const stageBtn = this.headerSysEl.createEl("button", {
-        cls: `diary-copilot-action-btn diary-copilot-stage-toggle-btn ${this.isVoiceStageActive ? "is-active" : ""}`,
-        text: Platform.isPhone
-          ? (this.isVoiceStageActive ? "📝 筆記" : "🎙️ 對話")
-          : (this.isVoiceStageActive ? "📝 筆記卡片" : "🎙️ 口說對話"),
-        attr: {
-          "aria-label": this.isVoiceStageActive ? "切換至筆記卡片模式" : "切換至口說對話舞台",
-          title: this.isVoiceStageActive ? "切換至筆記卡片模式" : "切換至口說對話舞台",
-        },
-      });
-      stageBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        this.toggleVoiceStage();
-      });
-
-      // 🔄 檢查更新 (保留在電腦、平板與手機端，始終常駐)
+      // 3. 🔄 檢查更新 (始終常駐)
       const updateBtn = this.headerSysEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-update-btn",
         text: Platform.isPhone ? "🔄" : "🔄 檢查更新",
@@ -1069,7 +1077,7 @@ export class CardPanel {
         this.callbacks.onCheckUpdate?.();
       });
 
-      // ✕ 關閉
+      // 4. ✕ 關閉
       const closeBtn = this.headerSysEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-close-btn",
         text: "✕",
@@ -1082,26 +1090,8 @@ export class CardPanel {
       });
     }
 
-    if (this.isVoiceStageActive) {
-      // 在對話模式中，頂部 Row 2 右側常駐「✨ 潤飾」按鈕，無論螢幕如何滑動皆 100% 可見
-      if (this.headerActionsEl) {
-        const polishBtn = this.headerActionsEl.createEl("button", {
-          cls: "diary-copilot-action-btn diary-copilot-polish-btn",
-          text: Platform.isMobile ? "✨ 潤飾" : "✨ 潤飾句子 / 回答",
-          attr: {
-            title: "提煉筆記中選取或最新輸入的一句話為 3 種地道卡片",
-          },
-        });
-        polishBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          if (this.voiceStage) {
-            this.voiceStage.triggerPolishFromHeader();
-          } else {
-            this.callbacks.onPolishRequest?.();
-          }
-        });
-      }
+    // 精簡模式下：Row 2 完全不渲染，維持極致簡潔單行！
+    if (this.copilotMode === "compact") {
       return;
     }
 

@@ -1715,6 +1715,38 @@
   border-color: #38bdf8;
 }
 
+.diary-copilot-action-btn.diary-copilot-mode-toggle-btn {
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.diary-copilot-action-btn.diary-copilot-mode-toggle-btn.is-compact {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.diary-copilot-action-btn.diary-copilot-mode-toggle-btn.is-compact:hover {
+  background: #38bdf8;
+  color: #0f172a;
+}
+
+.diary-copilot-action-btn.diary-copilot-mode-toggle-btn.is-full {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+}
+
+.diary-copilot-action-btn.diary-copilot-mode-toggle-btn.is-full:hover {
+  background: #fbbf24;
+  color: #0f172a;
+}
+
 .diary-copilot-action-btn.diary-copilot-stage-toggle-btn {
   font-weight: 600;
   color: var(--interactive-accent);

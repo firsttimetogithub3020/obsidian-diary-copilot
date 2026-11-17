@@ -9,6 +9,8 @@ export type DiaryTone =
   | "social-science"
   | "sinology";
 
+export type CopilotMode = "compact" | "full";
+
 export interface PluginSettings {
   geminiApiKey: string;
   model: string;
@@ -17,6 +19,7 @@ export interface PluginSettings {
   enableInAllFolders: boolean;
   englishLevel: EnglishLevel;
   diaryTone: DiaryTone;
+  copilotMode: CopilotMode;
   debounceMs: number;
   noPunctuationDebounceMs: number;
   guidanceDelaySec: number;

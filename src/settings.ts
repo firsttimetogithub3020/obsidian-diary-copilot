@@ -10,6 +10,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   enableInAllFolders: true,
   englishLevel: "upper-intermediate",
   diaryTone: "casual",
+  copilotMode: "compact",
   debounceMs: 180,
   noPunctuationDebounceMs: 350,
   guidanceDelaySec: 20,
@@ -120,6 +121,21 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
           } finally {
             btn.setButtonText("測試連線").setDisabled(false);
           }
+        });
+      });
+
+    // Copilot Operating Mode
+    new Setting(containerEl)
+      .setName("運作模式")
+      .setDesc("⚡ 精簡模式：專注於引導問句提問、語音回答、地道潤飾與長篇跟讀（零續寫干擾）；🌟 完整模式：額外包含打字即時續寫卡片與接續鍵。")
+      .addDropdown((dropdown) => {
+        dropdown.addOption("compact", "⚡ 精簡模式（長篇跟讀 ＋ 引導提問 ＋ 潤飾）");
+        dropdown.addOption("full", "🌟 完整模式（跟讀 ＋ 跟寫續寫卡片 ＋ 提問 ＋ 潤飾）");
+        dropdown.setValue(this.plugin.settings.copilotMode || "compact");
+        dropdown.onChange(async (val: "compact" | "full") => {
+          this.plugin.settings.copilotMode = val;
+          await this.plugin.saveSettings();
+          this.plugin.cardPanel?.setCopilotMode(val);
         });
       });
 
