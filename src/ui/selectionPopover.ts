@@ -126,20 +126,22 @@ export class SelectionPopover {
 
     this.popoverEl.empty();
 
+    const contentDiv = this.popoverEl.createDiv({ cls: "popover-content" });
+
     // Query text badge
-    const termSpan = this.popoverEl.createSpan({ cls: "popover-term" });
-    termSpan.setText(text.length > 25 ? text.slice(0, 22) + "..." : text);
+    const termSpan = contentDiv.createSpan({ cls: "popover-term" });
+    termSpan.setText(text.length > 28 ? text.slice(0, 26) + "..." : text);
 
     if (isLoading) {
-      const loadingSpan = this.popoverEl.createSpan({ cls: "popover-loading" });
-      loadingSpan.setText("⏳ 查詢中...");
+      const loadingSpan = contentDiv.createSpan({ cls: "popover-loading" });
+      loadingSpan.setText(" ⏳ 查詢中...");
     } else if (result) {
       if (result.pos) {
-        const posBadge = this.popoverEl.createSpan({ cls: "popover-pos" });
+        const posBadge = contentDiv.createSpan({ cls: "popover-pos" });
         posBadge.setText(result.pos);
       }
 
-      const transSpan = this.popoverEl.createSpan({ cls: "popover-translation" });
+      const transSpan = contentDiv.createSpan({ cls: "popover-translation" });
       transSpan.setText(result.translation || "");
     }
 
@@ -162,18 +164,6 @@ export class SelectionPopover {
         this.onPolish?.(query);
       });
     }
-
-    // Google Translate external search button
-    const gtransBtn = actions.createEl("button", {
-      cls: "popover-btn",
-      text: "🌐 Google 翻譯",
-      attr: { "aria-label": "在 Google 翻譯中開啟", title: "在 Google 翻譯中開啟完整釋義" },
-    });
-    gtransBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const url = `https://translate.google.com/?sl=auto&tl=zh-TW&text=${encodeURIComponent(text)}`;
-      window.open(url, "_blank");
-    });
 
     // Close button
     const closeBtn = actions.createEl("button", {

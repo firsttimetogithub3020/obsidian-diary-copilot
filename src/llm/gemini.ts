@@ -320,8 +320,8 @@ export class GeminiProvider implements LLMProvider {
     try {
       const isEnglish = /[a-zA-Z]/.test(text);
       const systemPrompt = isEnglish
-        ? "You are an ultra-fast concise English-to-Traditional Chinese dictionary and translator. For the given English word, phrase, or sentence, output a compact JSON object with exactly two keys: {\"pos\": \"詞性或類型 (e.g. n., v., adj., adv., phr., 句)\", \"translation\": \"簡明繁體中文翻譯/釋義\"}. Do not include markdown fences or any other text, only valid JSON."
-        : "You are an ultra-fast concise Chinese-to-English translator. For the given Chinese word, phrase, or sentence, output a compact JSON object with exactly two keys: {\"pos\": \"中英翻譯\", \"translation\": \"自然地道的英文翻譯\"}. Do not include markdown fences or any other text, only valid JSON.";
+        ? "You are an ultra-fast concise English-to-Traditional Chinese dictionary and translator. For the given English word or phrase, focus primarily on the exact part of speech and complete, concise definition in Traditional Chinese. Output a compact JSON object with exactly two keys: {\"pos\": \"標準詞性簡稱 (e.g. n., v., adj., adv., prep., phr., 句)\", \"translation\": \"完整清楚的繁體中文釋義 (完整呈現核心意思，簡明精準，不省略關鍵字義)\"}. Do not include markdown fences or any other text, only valid JSON."
+        : "You are an ultra-fast concise Chinese-to-English translator. For the given Chinese text, output a compact JSON object with exactly two keys: {\"pos\": \"中翻英\", \"translation\": \"完整自然道地的英文翻譯\"}. Do not include markdown fences or any other text, only valid JSON.";
 
       const response = await this.complete({
         systemPrompt,
