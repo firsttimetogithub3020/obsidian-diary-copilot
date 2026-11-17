@@ -492,6 +492,16 @@ export default class DiaryCopilotPlugin extends Plugin {
     const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
 
     if (activeMarkdownView && this.isEligibleNote(activeMarkdownView.file)) {
+      if (activeMarkdownView.editor) {
+        const val = activeMarkdownView.editor.getValue();
+        if (val.includes("<span style=")) {
+          const sanitized = val.replace(/<span style="[^"]*">([\s\S]*?)<\/span>/g, "$1");
+          if (sanitized !== val) {
+            activeMarkdownView.editor.setValue(sanitized);
+          }
+        }
+      }
+
       const isNewView = this.activeView !== activeMarkdownView;
       const fileChanged = this.currentFilePath !== (activeMarkdownView.file?.path || "");
 

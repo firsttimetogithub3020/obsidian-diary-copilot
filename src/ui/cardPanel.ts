@@ -987,6 +987,23 @@ export class CardPanel {
 
     // 1. System Actions (Row 1 Right)
     if (this.headerSysEl) {
+      // 切換按鈕：在「筆記卡片」與「口說對話舞台」之間自由切換
+      const stageBtn = this.headerSysEl.createEl("button", {
+        cls: `diary-copilot-action-btn diary-copilot-stage-toggle-btn ${this.isVoiceStageActive ? "is-active" : ""}`,
+        text: Platform.isPhone
+          ? (this.isVoiceStageActive ? "📝 筆記" : "🎙️ 對話")
+          : (this.isVoiceStageActive ? "📝 筆記卡片" : "🎙️ 口說對話"),
+        attr: {
+          "aria-label": this.isVoiceStageActive ? "切換至筆記卡片模式" : "切換至口說對話舞台",
+          title: this.isVoiceStageActive ? "切換至筆記卡片模式" : "切換至口說對話舞台",
+        },
+      });
+      stageBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.toggleVoiceStage();
+      });
+
       // 🔄 檢查更新 (保留在電腦、平板與手機端，始終常駐)
       const updateBtn = this.headerSysEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-update-btn",
