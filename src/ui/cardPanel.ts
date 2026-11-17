@@ -111,6 +111,11 @@ export class CardPanel {
 
     // Header bar (unified action bar across browse, locked, & oral modes)
     this.headerEl = this.panelEl.createDiv({ cls: "diary-copilot-panel-header" });
+    this.headerEl.addEventListener("click", () => {
+      if (this.isCollapsed) {
+        this.resetToAutoFit();
+      }
+    });
     
     // Row 1 (Top Row): Brand & Tone (Left) + System Actions (Right)
     const row1 = this.headerEl.createDiv({ cls: "diary-copilot-header-row diary-copilot-header-row-1" });
@@ -220,8 +225,13 @@ export class CardPanel {
       } catch {}
 
       const elapsed = Date.now() - pointerStartTime;
-      // Quick tap (< 350ms without moving) toggles Collapse (Header-only) vs Content-fit
-      if (!pointerMoved && elapsed < 350) {
+      if (this.isCollapsed) {
+        this.resetToAutoFit();
+        return;
+      }
+
+      // Quick tap (< 350ms without moving): ONLY toggle collapse on desktop mouse click, NEVER on mobile touch!
+      if (!Platform.isMobile && !pointerMoved && elapsed < 350) {
         this.toggleCollapse();
         this.callbacks.onFocusEditor?.();
         return;
@@ -309,6 +319,16 @@ export class CardPanel {
       this.panelEl.style.height = `${collapsedHeight}px`;
       this.panelEl.addClass("is-compact");
       document.body.style.setProperty("--diary-copilot-panel-height", `${collapsedHeight}px`);
+      return;
+    }
+
+    // When Voice Stage is active on mobile, ensure comfortable, spacious height (at least 320px or 58vh)
+    if (this.isVoiceStageActive && Platform.isMobile && !this.hasUserManuallyResized) {
+      const targetHeight = Math.max(320, Math.min(Math.round(window.innerHeight * 0.58), 520));
+      this.panelEl.style.height = `${targetHeight}px`;
+      this.panelEl.removeClass("is-compact");
+      this.panelEl.removeClass("is-collapsed");
+      document.body.style.setProperty("--diary-copilot-panel-height", `${targetHeight}px`);
       return;
     }
 
@@ -403,6 +423,10 @@ export class CardPanel {
 
   setLoading(message = "思考地道表達中...") {
     if (!this.panelEl || !this.contentAreaEl) return;
+    // When Voice Stage is active, do NOT overwrite title or trigger height resize
+    if (this.isVoiceStageActive) {
+      return;
+    }
     this.panelEl.removeClass("is-hidden");
     this.panelEl.addClass("is-loading");
 

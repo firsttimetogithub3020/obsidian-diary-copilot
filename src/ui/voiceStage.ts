@@ -33,6 +33,10 @@ export class VoiceStage {
   // Oral practice state within voice stage
   private practicingCardText: string | null = null;
 
+  private micHeroBtnEl: HTMLElement | null = null;
+  private micIconEl: HTMLElement | null = null;
+  private micLabelEl: HTMLElement | null = null;
+
   constructor(containerEl: HTMLElement, llm: GeminiClient, callbacks: VoiceStageCallbacks) {
     this.containerEl = containerEl;
     this.llm = llm;
@@ -152,31 +156,40 @@ export class VoiceStage {
   private renderMicHeroComponent(parentEl: HTMLElement, onSubmitSpoken: (text: string) => void) {
     const micContainer = parentEl.createDiv({ cls: "diary-copilot-voice-mic-container" });
 
-    // Language selector pills: allow user to speak Mandarin/mixed or English
+    // Language selector pills: allow user to speak Mandarin/mixed or English (ZERO DOM re-render on click!)
     const langRow = micContainer.createDiv({ cls: "diary-copilot-voice-lang-row" });
     const zhBtn = langRow.createEl("button", {
       cls: `diary-copilot-voice-lang-btn ${this.speechLang === "zh-TW" ? "is-active" : ""}`,
       text: "🇹🇼 說中文 / 中英混",
     });
-    zhBtn.addEventListener("click", () => {
-      this.speechLang = "zh-TW";
-      this.render();
-    });
-
     const enBtn = langRow.createEl("button", {
       cls: `diary-copilot-voice-lang-btn ${this.speechLang === "en-US" ? "is-active" : ""}`,
       text: "🇺🇸 說英文 (English)",
     });
-    enBtn.addEventListener("click", () => {
-      this.speechLang = "en-US";
-      this.render();
+
+    zhBtn.addEventListener("click", () => {
+      this.speechLang = "zh-TW";
+      zhBtn.addClass("is-active");
+      enBtn.removeClass("is-active");
+      if (this.isListening) {
+        this.stopListening();
+      }
     });
 
-    const micHeroBtn = micContainer.createEl("button", {
+    enBtn.addEventListener("click", () => {
+      this.speechLang = "en-US";
+      enBtn.addClass("is-active");
+      zhBtn.removeClass("is-active");
+      if (this.isListening) {
+        this.stopListening();
+      }
+    });
+
+    this.micHeroBtnEl = micContainer.createEl("button", {
       cls: `diary-copilot-voice-mic-hero ${this.isListening ? "is-listening" : ""}`,
     });
-    micHeroBtn.createSpan({ cls: "mic-icon", text: this.isListening ? "⏹️" : "🎙️" });
-    micHeroBtn.createSpan({
+    this.micIconEl = this.micHeroBtnEl.createSpan({ cls: "mic-icon", text: this.isListening ? "⏹️" : "🎙️" });
+    this.micLabelEl = this.micHeroBtnEl.createSpan({
       cls: "mic-label",
       text: this.isListening ? "正在聆聽... 說完請按此結束" : "按一下開始說話（無倒數限制）",
     });
@@ -215,7 +228,7 @@ export class VoiceStage {
     });
 
     // Wire speech recognition toggle
-    micHeroBtn.addEventListener("click", () => {
+    this.micHeroBtnEl.addEventListener("click", () => {
       if (this.isListening) {
         this.stopListening();
         if (this.currentTranscript.trim()) {
@@ -236,22 +249,22 @@ export class VoiceStage {
   private startListening(onResult: (transcript: string) => void) {
     if (globalSpeechRecognizer.isSupported()) {
       this.isListening = true;
+      this.updateMicVisuals(true);
       globalSpeechRecognizer.start(
         this.speechLang,
         {
           onResult: (t) => onResult(t),
           onError: () => {
             this.isListening = false;
-            this.render();
+            this.updateMicVisuals(false);
           },
           onEnd: () => {
             this.isListening = false;
-            this.render();
+            this.updateMicVisuals(false);
           },
         },
         12000
       );
-      this.render();
     } else {
       // Focus input field for iOS keyboard dictation / native Win+H
       const inputEl = this.containerEl.querySelector(".diary-copilot-voice-transcript-input") as HTMLInputElement;
@@ -262,7 +275,22 @@ export class VoiceStage {
 
   private stopListening() {
     this.isListening = false;
+    this.updateMicVisuals(false);
     globalSpeechRecognizer.stop();
+  }
+
+  private updateMicVisuals(isListening: boolean) {
+    if (this.micHeroBtnEl) {
+      if (isListening) {
+        this.micHeroBtnEl.addClass("is-listening");
+        this.micIconEl?.setText("⏹️");
+        this.micLabelEl?.setText("正在聆聽... 說完請按此結束");
+      } else {
+        this.micHeroBtnEl.removeClass("is-listening");
+        this.micIconEl?.setText("🎙️");
+        this.micLabelEl?.setText("按一下開始說話（無倒數限制）");
+      }
+    }
   }
 
   // --- Process Speech via Gemini LLM ---
