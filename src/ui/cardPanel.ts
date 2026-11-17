@@ -94,6 +94,8 @@ export class CardPanel {
   private currentItem: SuggestionItem | null = null;
   private isResizing = false;
   private isCollapsed = false;
+  private isCardsExpanded = !Platform.isMobile;
+  private foldBtnEl: HTMLElement | null = null;
   private activeTabIdx = 0;
   private currentCards: CardDescriptor[] = [];
   private isShadowTyping = false;
@@ -383,33 +385,82 @@ export class CardPanel {
   private onVisualViewportChange: (() => void) | null = null;
   private isKeyboardWriting = false;
 
+  public updateFoldButtonState() {
+    if (!this.foldBtnEl) return;
+    const areCardsShowing = this.isCardsExpanded && 
+      !this.isCollapsed && 
+      !this.panelEl.hasClass("is-cards-closed") && 
+      !this.panelEl.hasClass("is-keyboard-writing") && 
+      !this.panelEl.hasClass("is-compact-idle");
+
+    if (areCardsShowing) {
+      this.foldBtnEl.className = "diary-copilot-action-btn diary-copilot-fold-toggle-btn is-expanded";
+      this.foldBtnEl.setText("🔽 關閉字卡");
+      this.foldBtnEl.setAttribute("aria-label", "關閉建議字卡（回到功能列）");
+      this.foldBtnEl.setAttribute("title", "關閉建議字卡（回到功能列）");
+    } else {
+      this.foldBtnEl.className = "diary-copilot-action-btn diary-copilot-fold-toggle-btn is-folded";
+      this.foldBtnEl.setText("📖 展開字卡");
+      this.foldBtnEl.setAttribute("aria-label", "展開建議字卡");
+      this.foldBtnEl.setAttribute("title", "展開建議字卡");
+    }
+  }
+
   private setupKeyboardListeners() {
-    if (typeof window === "undefined" || !window.visualViewport) return;
+    if (typeof window === "undefined") return;
 
-    this.onVisualViewportChange = () => {
+    // 1. Capture focusin: When user focuses inside editor/contentEditable (outside copilot panel)
+    document.addEventListener("focusin", (e: FocusEvent) => {
       if (!Platform.isMobile) return;
-      const vv = window.visualViewport;
-      if (!vv) return;
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (this.panelEl && this.panelEl.contains(target)) return;
+      if (target.closest(".cm-editor, .cm-content, [contenteditable='true'], textarea, input")) {
+        // User focused editor to type -> immediately close cards!
+        this.closeCards(true);
+      }
+    }, true);
 
-      // Soft keyboard open detection on mobile:
-      // When soft keyboard opens, visualViewport.height is significantly reduced
-      const isKeyboardOpen = vv.height < window.innerHeight * 0.78;
+    // 2. Capture touchstart on mobile: When user touches editor area
+    document.addEventListener("touchstart", (e: TouchEvent) => {
+      if (!Platform.isMobile) return;
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (this.panelEl && this.panelEl.contains(target)) return;
+      if (target.closest(".cm-editor, .cm-content, .markdown-source-view, .cm-scroller")) {
+        // User tapped note editor -> immediately close cards!
+        this.closeCards(true);
+      }
+    }, { capture: true, passive: true });
 
-      if (isKeyboardOpen && !this.isKeyboardWriting) {
-        this.isKeyboardWriting = true;
-        this.panelEl?.addClass("is-keyboard-writing");
-        this.panelEl?.addClass("is-compact");
-        this.panelEl?.addClass("is-compact-idle");
-        this.applyPanelHeight();
-      } else if (!isKeyboardOpen && this.isKeyboardWriting) {
-        this.isKeyboardWriting = false;
-        this.panelEl?.removeClass("is-keyboard-writing");
-        this.applyPanelHeight();
+    // 3. Viewport and window resize detection
+    const handleViewportCheck = () => {
+      if (!Platform.isMobile) return;
+      const screenH = window.screen?.height || window.innerHeight;
+      const innerH = window.innerHeight;
+      const vvH = window.visualViewport ? window.visualViewport.height : innerH;
+
+      // In Android WebView and iOS, keyboard is open when innerH or visualViewport drops significantly below screen height
+      const isKeyboardOpen = (innerH < screenH * 0.72) || (vvH < screenH * 0.72) || (window.visualViewport && window.visualViewport.height < window.innerHeight * 0.78);
+
+      if (isKeyboardOpen) {
+        if (!this.isKeyboardWriting || this.isCardsExpanded) {
+          this.closeCards(true);
+        }
+      } else {
+        if (this.isKeyboardWriting) {
+          this.isKeyboardWriting = false;
+          this.panelEl?.removeClass("is-keyboard-writing");
+          this.updateFoldButtonState();
+        }
       }
     };
 
-    window.visualViewport.addEventListener("resize", this.onVisualViewportChange);
-    window.visualViewport.addEventListener("scroll", this.onVisualViewportChange);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", handleViewportCheck);
+      window.visualViewport.addEventListener("scroll", handleViewportCheck);
+    }
+    window.addEventListener("resize", handleViewportCheck);
   }
 
   public dismissSoftKeyboard() {
@@ -418,14 +469,65 @@ export class CardPanel {
       this.callbacks.onDismissKeyboard?.();
     } catch {}
     window.setTimeout(() => {
-      const vv = window.visualViewport;
-      const isKeyboardOpen = vv ? vv.height < window.innerHeight * 0.78 : false;
-      if (!isKeyboardOpen && this.isKeyboardWriting) {
-        this.isKeyboardWriting = false;
-        this.panelEl?.removeClass("is-keyboard-writing");
-        this.applyPanelHeight();
-      }
+      this.isKeyboardWriting = false;
+      this.panelEl?.removeClass("is-keyboard-writing");
+      this.updateFoldButtonState();
     }, 280);
+  }
+
+  public openCards() {
+    if (!this.panelEl) return;
+    this.dismissSoftKeyboard();
+    this.isCardsExpanded = true;
+    this.isCollapsed = false;
+    this.isKeyboardWriting = false;
+    this.panelEl.removeClass("is-cards-closed");
+    this.panelEl.removeClass("is-keyboard-writing");
+    this.panelEl.removeClass("is-collapsed");
+    this.panelEl.removeClass("is-compact-idle");
+    this.panelEl.removeClass("is-compact");
+
+    this.applyPanelHeight();
+    this.updateFoldButtonState();
+    new Notice("📖 已展開字卡", 1000);
+  }
+
+  public closeCards(forKeyboard = false) {
+    if (!this.panelEl) return;
+    this.isCardsExpanded = false;
+    this.isCollapsed = true;
+    if (forKeyboard) {
+      this.isKeyboardWriting = true;
+      this.panelEl.addClass("is-keyboard-writing");
+    }
+    this.panelEl.addClass("is-cards-closed");
+    this.panelEl.addClass("is-collapsed");
+    this.panelEl.addClass("is-compact");
+    this.panelEl.addClass("is-compact-idle");
+
+    const collapsedHeight = Platform.isMobile ? 60 : 46;
+    this.panelEl.style.height = `${collapsedHeight}px`;
+    document.body.style.setProperty("--diary-copilot-panel-height", `${collapsedHeight}px`);
+
+    this.updateFoldButtonState();
+    if (!forKeyboard) {
+      new Notice("🔽 已關閉字卡", 1000);
+    }
+  }
+
+  public toggleFoldCards() {
+    if (!this.panelEl) return;
+    const areCardsShowing = this.isCardsExpanded && 
+      !this.isCollapsed && 
+      !this.panelEl.hasClass("is-cards-closed") && 
+      !this.panelEl.hasClass("is-keyboard-writing") && 
+      !this.panelEl.hasClass("is-compact-idle");
+
+    if (areCardsShowing) {
+      this.closeCards(false);
+    } else {
+      this.openCards();
+    }
   }
 
   /**
@@ -434,22 +536,18 @@ export class CardPanel {
   public applyPanelHeight() {
     if (!this.panelEl) return;
 
-    if (this.isKeyboardWriting) {
-      const writingHeight = Platform.isMobile ? "60px" : "48px";
-      this.panelEl.style.height = writingHeight;
-      this.panelEl.addClass("is-compact");
-      this.panelEl.addClass("is-keyboard-writing");
-      this.panelEl.addClass("is-compact-idle");
-      document.body.style.setProperty("--diary-copilot-panel-height", writingHeight);
-      return;
-    }
-
-    if (this.isCollapsed) {
+    if (this.isKeyboardWriting || !this.isCardsExpanded || this.panelEl.hasClass("is-cards-closed") || this.isCollapsed) {
       const collapsedHeight = Platform.isMobile ? 60 : 46;
       this.panelEl.style.height = `${collapsedHeight}px`;
       this.panelEl.addClass("is-compact");
       this.panelEl.addClass("is-collapsed");
+      this.panelEl.addClass("is-cards-closed");
+      this.panelEl.addClass("is-compact-idle");
+      if (this.isKeyboardWriting) {
+        this.panelEl.addClass("is-keyboard-writing");
+      }
       document.body.style.setProperty("--diary-copilot-panel-height", `${collapsedHeight}px`);
+      this.updateFoldButtonState();
       return;
     }
 
@@ -460,34 +558,38 @@ export class CardPanel {
       this.panelEl.addClass("is-compact");
       this.panelEl.addClass("is-compact-idle");
       document.body.style.setProperty("--diary-copilot-panel-height", `${compactBarHeight}px`);
+      this.updateFoldButtonState();
       return;
     }
 
-    // When cards or inquiries are present, or when in full mode:
+    // When cards or inquiries are present:
     this.panelEl.removeClass("is-compact-idle");
+    this.panelEl.removeClass("is-cards-closed");
+    this.panelEl.removeClass("is-collapsed");
 
-    // When Voice Stage is active on mobile, maintain compact, ergonomic height so note editor remains clearly visible
+    // When Voice Stage is active on mobile
     if (this.isVoiceStageActive && Platform.isMobile && !this.hasUserManuallyResized) {
       const hasCards = this.voiceStage?.hasCards() || false;
-      const vpHeight = window.visualViewport?.height || window.innerHeight;
-      const isKeyboardOpen = vpHeight < window.innerHeight * 0.75;
-
-      let targetHeight: number;
-      if (isKeyboardOpen) {
-        // Virtual keyboard is active: keep panel low and concise
-        targetHeight = Math.min(Math.round(vpHeight * 0.45), 230);
-      } else if (hasCards) {
-        // 3 Cards showing: comfortable reading height with internal scrolling
-        targetHeight = Math.min(Math.round(window.innerHeight * 0.55), 390);
-      } else {
-        // Idle QA/Prompt view: set height so question card and in-panel polish button are fully displayed without scrolling
-        targetHeight = Math.min(Math.round(window.innerHeight * 0.42), 290);
-      }
+      const targetHeight = hasCards
+        ? Math.min(Math.round(window.innerHeight * 0.55), 390)
+        : Math.min(Math.round(window.innerHeight * 0.42), 290);
 
       this.panelEl.style.height = `${targetHeight}px`;
       this.panelEl.removeClass("is-compact");
       this.panelEl.removeClass("is-collapsed");
       document.body.style.setProperty("--diary-copilot-panel-height", `${targetHeight}px`);
+      this.updateFoldButtonState();
+      return;
+    }
+
+    // Mobile standard cards view
+    if (Platform.isMobile && !this.hasUserManuallyResized) {
+      const targetHeight = Math.min(Math.round(window.innerHeight * 0.55), 390);
+      this.panelEl.style.height = `${targetHeight}px`;
+      this.panelEl.removeClass("is-compact");
+      this.panelEl.removeClass("is-collapsed");
+      document.body.style.setProperty("--diary-copilot-panel-height", `${targetHeight}px`);
+      this.updateFoldButtonState();
       return;
     }
 
@@ -514,6 +616,7 @@ export class CardPanel {
         }
       });
     }
+    this.updateFoldButtonState();
   }
 
   /**
@@ -524,47 +627,8 @@ export class CardPanel {
     this.hasUserManuallyResized = false;
     this.userManualHeight = null;
     this.panelEl?.removeClass("is-collapsed");
+    this.panelEl?.removeClass("is-cards-closed");
     this.applyPanelHeight();
-  }
-
-  /**
-   * Toggles between Folded (cards hidden, single toolbar ~60px) and Expanded (cards displayed)
-   */
-  public toggleFoldCards() {
-    if (!this.panelEl) return;
-    const isFolded = this.isCollapsed || 
-      this.panelEl.hasClass("is-compact-idle") || 
-      this.panelEl.hasClass("is-keyboard-writing") || 
-      (this.panelEl.offsetHeight <= (Platform.isMobile ? 68 : 50));
-
-    this.panelEl.addClass("is-animating");
-    if (isFolded) {
-      // User clicks 展開:
-      // STRICT MOBILE RULE: When displaying cards, dismiss keyboard!
-      this.dismissSoftKeyboard();
-      this.isCollapsed = false;
-      this.panelEl.removeClass("is-collapsed");
-      this.panelEl.removeClass("is-compact-idle");
-      this.panelEl.removeClass("is-keyboard-writing");
-      this.panelEl.removeClass("is-compact");
-      this.hasUserManuallyResized = false;
-      this.userManualHeight = null;
-      this.applyPanelHeight();
-      this.updateHeaderLayout();
-      new Notice("📖 已展開字卡", 1200);
-    } else {
-      // User clicks 收摺:
-      this.isCollapsed = true;
-      this.panelEl.addClass("is-collapsed");
-      this.panelEl.addClass("is-compact");
-      this.panelEl.addClass("is-compact-idle");
-      const collapsedHeight = Platform.isMobile ? 60 : 46;
-      this.panelEl.style.height = `${collapsedHeight}px`;
-      document.body.style.setProperty("--diary-copilot-panel-height", `${collapsedHeight}px`);
-      this.updateHeaderLayout();
-      new Notice("🔽 已收摺字卡", 1200);
-    }
-    window.setTimeout(() => this.panelEl?.removeClass("is-animating"), 240);
   }
 
   /**
@@ -683,6 +747,10 @@ export class CardPanel {
       return;
     }
 
+    if (isPolishMode) {
+      this.openCards();
+    }
+
     this.renderBrowseMode();
   }
 
@@ -692,7 +760,7 @@ export class CardPanel {
     this.pinnedInquiryCategory = "closed";
     this.isShowingInquiryAnswers = false;
     this.activeTabIdx = 0;
-    this.resetToAutoFit();
+    this.openCards();
 
     this.panelEl.removeClass("is-hidden");
     this.panelEl.removeClass("is-loading");
@@ -1258,26 +1326,26 @@ export class CardPanel {
       polishBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         e.preventDefault();
-        this.dismissSoftKeyboard();
-        this.resetToAutoFit();
+        this.openCards();
         this.callbacks.onPolishRequest?.();
       });
 
-      // 4. 卡片顯示切換：📖 展開 ⇄ 🔽 收摺 (收摺=不出現建議字卡，展開=顯示建議字卡)
-      const isFolded = this.isCollapsed || 
-        this.panelEl.hasClass("is-compact-idle") || 
-        this.panelEl.hasClass("is-keyboard-writing") || 
-        (this.panelEl.offsetHeight <= (Platform.isMobile ? 68 : 50));
+      // 4. 卡片顯示切換：📖 展開字卡 ⇄ 🔽 關閉字卡
+      const areCardsShowing = this.isCardsExpanded && 
+        !this.isCollapsed && 
+        !this.panelEl.hasClass("is-cards-closed") && 
+        !this.panelEl.hasClass("is-keyboard-writing") && 
+        !this.panelEl.hasClass("is-compact-idle");
 
-      const foldBtn = this.headerSysEl.createEl("button", {
-        cls: `diary-copilot-action-btn diary-copilot-fold-toggle-btn ${isFolded ? "is-folded" : "is-expanded"}`,
-        text: isFolded ? (Platform.isPhone ? "📖 展開" : "📖 展開字卡") : (Platform.isPhone ? "🔽 收摺" : "🔽 收摺字卡"),
+      this.foldBtnEl = this.headerSysEl.createEl("button", {
+        cls: `diary-copilot-action-btn diary-copilot-fold-toggle-btn ${areCardsShowing ? "is-expanded" : "is-folded"}`,
+        text: areCardsShowing ? "🔽 關閉字卡" : "📖 展開字卡",
         attr: {
-          "aria-label": isFolded ? "展開建議字卡" : "收摺建議字卡（僅保留功能列）",
-          title: isFolded ? "展開建議字卡" : "收摺建議字卡（僅保留功能列）",
+          "aria-label": areCardsShowing ? "關閉建議字卡（回到功能列）" : "展開建議字卡",
+          title: areCardsShowing ? "關閉建議字卡（回到功能列）" : "展開建議字卡",
         },
       });
-      foldBtn.addEventListener("click", (e) => {
+      this.foldBtnEl.addEventListener("click", (e) => {
         e.stopPropagation();
         e.preventDefault();
         this.toggleFoldCards();

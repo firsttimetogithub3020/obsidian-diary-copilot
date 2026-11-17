@@ -2333,13 +2333,39 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
 .diary-copilot-panel.is-collapsed:not(.is-resizing) .diary-copilot-pinned-strip,
 .diary-copilot-panel.is-collapsed:not(.is-resizing) .diary-copilot-hero-card,
 .diary-copilot-panel.is-collapsed:not(.is-resizing) .diary-copilot-locked-card,
-.diary-copilot-panel.is-collapsed:not(.is-resizing) .diary-copilot-capsule-tabs {
+.diary-copilot-panel.is-collapsed:not(.is-resizing) .diary-copilot-capsule-tabs,
+.diary-copilot-panel.is-cards-closed:not(.is-resizing) .diary-copilot-panel-content,
+.diary-copilot-panel.is-cards-closed:not(.is-resizing) .diary-copilot-header-row-2,
+.diary-copilot-panel.is-cards-closed:not(.is-resizing) .diary-copilot-tone-wrapper,
+.diary-copilot-panel.is-cards-closed:not(.is-resizing) .diary-copilot-pinned-strip,
+.diary-copilot-panel.is-cards-closed:not(.is-resizing) .diary-copilot-hero-card,
+.diary-copilot-panel.is-cards-closed:not(.is-resizing) .diary-copilot-locked-card,
+.diary-copilot-panel.is-cards-closed:not(.is-resizing) .diary-copilot-capsule-tabs {
   display: none !important;
+}
+
+.is-mobile .diary-copilot-panel.is-cards-closed,
+.is-mobile .diary-copilot-panel.is-keyboard-writing,
+.is-mobile .diary-copilot-panel.is-collapsed {
+  height: 60px !important;
+  min-height: 60px !important;
+  max-height: 60px !important;
+  overflow: hidden !important;
+}
+
+body:not(.is-mobile) .diary-copilot-panel.is-cards-closed,
+body:not(.is-mobile) .diary-copilot-panel.is-keyboard-writing,
+body:not(.is-mobile) .diary-copilot-panel.is-collapsed {
+  height: 46px !important;
+  min-height: 46px !important;
+  max-height: 46px !important;
+  overflow: hidden !important;
 }
 
 .diary-copilot-action-btn.diary-copilot-fold-toggle-btn {
   font-weight: 600;
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
 .diary-copilot-action-btn.diary-copilot-fold-toggle-btn.is-expanded {
@@ -2355,9 +2381,11 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
 }
 
 .diary-copilot-panel.is-keyboard-writing .diary-copilot-header-row-1,
-.diary-copilot-panel.is-compact-idle .diary-copilot-header-row-1 {
+.diary-copilot-panel.is-compact-idle .diary-copilot-header-row-1,
+.diary-copilot-panel.is-cards-closed .diary-copilot-header-row-1,
+.diary-copilot-panel.is-collapsed .diary-copilot-header-row-1 {
   margin-bottom: 0 !important;
-  height: 36px !important;
+  height: 38px !important;
   display: flex !important;
   flex-direction: row !important;
   align-items: center !important;
