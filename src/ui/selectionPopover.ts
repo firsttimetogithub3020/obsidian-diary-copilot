@@ -50,11 +50,17 @@ export class SelectionPopover {
     window.addEventListener(
       "touchstart",
       (e) => {
-        if (this.popoverEl && !this.popoverEl.contains(e.target as Node)) {
-          this.hide();
-        }
+        if (!this.popoverEl) return;
+        const target = e.target as HTMLElement;
+        if (this.popoverEl.contains(target)) return;
+        window.setTimeout(() => {
+          const sel = window.getSelection();
+          if (!sel || sel.isCollapsed) {
+            this.hide();
+          }
+        }, 120);
       },
-      { passive: true, capture: true }
+      { passive: true }
     );
   }
 
@@ -64,9 +70,9 @@ export class SelectionPopover {
       return;
     }
 
-    const cleanText = selectedText.trim().replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "");
-    // Only lookup reasonable word or phrase lengths (1 to 80 chars, contains English letters)
-    if (cleanText.length === 0 || cleanText.length > 80 || !/[a-zA-Z]/.test(cleanText)) {
+    const cleanText = selectedText.trim().replace(/^[^a-zA-Z0-9\u4e00-\u9fa5]+|[^a-zA-Z0-9\u4e00-\u9fa5]+$/g, "");
+    // Support words, phrases, and sentences up to 350 chars
+    if (cleanText.length === 0 || cleanText.length > 350) {
       return;
     }
 
@@ -189,13 +195,16 @@ export class SelectionPopover {
     if (Platform.isMobile) {
       this.popoverEl.addClass("is-mobile-docked");
       const copilotPanel = document.querySelector(".diary-copilot-panel") as HTMLElement;
-      let panelBottomOffset = 48;
-      if (copilotPanel && copilotPanel.offsetHeight > 0) {
-        panelBottomOffset = copilotPanel.offsetHeight + 8;
+      let bottomPx = 76;
+      if (copilotPanel) {
+        const panelRect = copilotPanel.getBoundingClientRect();
+        if (panelRect.top > 0 && panelRect.top < window.innerHeight) {
+          bottomPx = Math.max(76, Math.round(window.innerHeight - panelRect.top + 8));
+        }
       }
       this.popoverEl.style.left = "10px";
       this.popoverEl.style.right = "10px";
-      this.popoverEl.style.bottom = `${panelBottomOffset}px`;
+      this.popoverEl.style.bottom = `${bottomPx}px`;
       this.popoverEl.style.top = "auto";
       this.popoverEl.style.visibility = "visible";
       return;

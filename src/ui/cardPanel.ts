@@ -260,15 +260,19 @@ export class CardPanel {
       e.stopPropagation();
 
       const deltaY = pointerStartY - e.clientY; // Upward drag increases height, downward decreases height
+      const minH = Platform.isMobile ? 60 : 46;
+      const clampedHeight = Math.max(minH, Math.min(initialHeight + deltaY, window.innerHeight * 0.75));
+
       if (Math.abs(deltaY) > 3) {
         pointerMoved = true;
         this.hasUserManuallyResized = true;
         this.isCollapsed = false;
         this.panelEl?.removeClass("is-collapsed");
+        if (clampedHeight > (Platform.isMobile ? 75 : 60)) {
+          this.panelEl?.removeClass("is-compact-idle");
+          this.panelEl?.removeClass("is-keyboard-writing");
+        }
       }
-
-      const minH = Platform.isMobile ? 60 : 46;
-      const clampedHeight = Math.max(minH, Math.min(initialHeight + deltaY, window.innerHeight * 0.75));
 
       this.panelEl.style.height = `${clampedHeight}px`;
       if (clampedHeight <= 95) {
@@ -288,14 +292,29 @@ export class CardPanel {
       } catch {}
 
       const elapsed = Date.now() - pointerStartTime;
-      if (this.isCollapsed) {
-        this.resetToAutoFit();
-        return;
-      }
 
-      // Quick tap (< 350ms without moving): ONLY toggle collapse on desktop mouse click, NEVER on mobile touch!
-      if (!Platform.isMobile && !pointerMoved && elapsed < 350) {
-        this.toggleCollapse();
+      // Quick tap (< 350ms without moving): One-tap Toggle Collapse / Expand on BOTH Mobile & Desktop!
+      if (!pointerMoved && elapsed < 350) {
+        const isCurrentlyCompact = this.isCollapsed || 
+          this.panelEl.hasClass("is-compact-idle") || 
+          (this.panelEl.offsetHeight <= (Platform.isMobile ? 68 : 50));
+
+        if (isCurrentlyCompact) {
+          // If in compact/idle/collapsed mode, tap expands smoothly to comfortable height
+          this.panelEl.removeClass("is-compact-idle");
+          this.panelEl.removeClass("is-collapsed");
+          this.panelEl.removeClass("is-compact");
+          this.panelEl.removeClass("is-keyboard-writing");
+          this.isCollapsed = false;
+          this.hasUserManuallyResized = true;
+          const targetHeight = Math.min(Math.round(window.innerHeight * 0.42), 320);
+          this.userManualHeight = targetHeight;
+          this.panelEl.style.height = `${targetHeight}px`;
+          document.body.style.setProperty("--diary-copilot-panel-height", `${targetHeight}px`);
+        } else {
+          // If already expanded, tap collapses it down to compact toolbar
+          this.toggleCollapse();
+        }
         return;
       }
 
@@ -305,6 +324,16 @@ export class CardPanel {
         if (!isNaN(finalHeight) && finalHeight >= minH) {
           this.hasUserManuallyResized = true;
           this.userManualHeight = finalHeight;
+          if (finalHeight <= minH + 15) {
+            this.panelEl.addClass("is-compact");
+            if (this.copilotMode === "compact" && this.currentCards.length === 0) {
+              this.panelEl.addClass("is-compact-idle");
+            }
+          } else {
+            this.panelEl.removeClass("is-compact");
+            this.panelEl.removeClass("is-compact-idle");
+            this.panelEl.removeClass("is-keyboard-writing");
+          }
           this.callbacks.onHeightResize?.(finalHeight);
         }
       }

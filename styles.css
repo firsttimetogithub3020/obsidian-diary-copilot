@@ -30,14 +30,14 @@
 /* Resize Handle on top of panel */
 .diary-copilot-resize-handle {
   position: absolute;
-  top: -16px;
+  top: -20px;
   left: 50%;
   transform: translateX(-50%);
-  width: 140px;
-  height: 16px;
+  width: 160px;
+  height: 24px;
   cursor: ns-resize;
-  z-index: 25;
-  display: flex;
+  z-index: 35;
+  display: flex !important;
   justify-content: center;
   align-items: center;
   touch-action: none !important;
@@ -47,44 +47,55 @@
 
 .diary-copilot-resize-handle::after {
   content: "";
-  width: 50px;
-  height: 4px;
-  border-radius: 2px;
-  background-color: var(--text-faint);
-  opacity: 0.6;
-  transition: opacity 0.15s ease, background-color 0.15s ease, height 0.15s ease;
+  width: 52px;
+  height: 5px;
+  border-radius: 3px;
+  background-color: var(--text-muted);
+  opacity: 0.85;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: opacity 0.15s ease, background-color 0.15s ease, height 0.15s ease, width 0.15s ease;
 }
 
 .diary-copilot-resize-handle:hover::after,
+.diary-copilot-resize-handle:active::after,
 .diary-copilot-panel.is-resizing .diary-copilot-resize-handle::after {
   opacity: 1;
   background-color: var(--interactive-accent);
-  height: 5px;
+  width: 64px;
+  height: 6px;
+  box-shadow: 0 0 8px var(--interactive-accent);
 }
 
 /* Touch-friendly Mobile Resize Handle (Android, iPad, iPhone) - strictly above the panel border */
 .diary-copilot-panel.is-mobile .diary-copilot-resize-handle {
-  top: -18px;
+  top: -24px;
   left: 50%;
   transform: translateX(-50%);
-  width: 120px;
-  height: 18px;
+  width: 180px;
+  height: 28px;
   touch-action: none !important;
   -webkit-user-select: none !important;
   user-select: none !important;
+  display: flex !important;
+  z-index: 35;
 }
 
 .diary-copilot-panel.is-mobile .diary-copilot-resize-handle::after {
-  width: 44px;
-  height: 4px;
-  border-radius: 2px;
+  width: 56px;
+  height: 5px;
+  border-radius: 3px;
   background-color: var(--text-muted);
-  opacity: 0.75;
+  opacity: 0.85;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
-.diary-copilot-panel.is-mobile.is-resizing .diary-copilot-resize-handle::after {
+.diary-copilot-panel.is-mobile.is-resizing .diary-copilot-resize-handle::after,
+.diary-copilot-panel.is-mobile .diary-copilot-resize-handle:active::after {
   background-color: var(--interactive-accent);
   opacity: 1;
+  width: 68px;
+  height: 6px;
+  box-shadow: 0 0 10px var(--interactive-accent);
 }
 
 /* Ensure editor content scroller reserves space above the card panel */
@@ -1147,11 +1158,11 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
 
 .is-mobile .diary-copilot-resize-handle {
   display: flex !important;
-  top: -18px;
+  top: -24px;
   left: 50%;
   transform: translateX(-50%);
-  width: 120px;
-  height: 18px;
+  width: 180px;
+  height: 28px;
 }
 
 .diary-copilot-panel.is-collapsed {
@@ -1425,7 +1436,6 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
   position: fixed !important;
   left: 10px !important;
   right: 10px !important;
-  bottom: calc(var(--diary-copilot-panel-height, 42px) + 8px) !important;
   top: auto !important;
   margin: 0 auto !important;
   width: auto !important;
@@ -2293,31 +2303,29 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
 }
 
 /* Mobile Virtual Keyboard Active & Compact Idle: Auto-collapse panel to single-row toolbar */
-.diary-copilot-panel.is-keyboard-writing,
-.diary-copilot-panel.is-compact-idle {
-  height: calc(60px + env(safe-area-inset-bottom, 0px)) !important;
-  min-height: calc(60px + env(safe-area-inset-bottom, 0px)) !important;
-  max-height: calc(60px + env(safe-area-inset-bottom, 0px)) !important;
-  padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px)) !important;
+.diary-copilot-panel.is-keyboard-writing:not(.is-resizing),
+.diary-copilot-panel.is-compact-idle:not(.is-resizing) {
+  min-height: calc(60px + env(safe-area-inset-bottom, 0px));
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
   overflow: visible !important;
 }
 
 .diary-copilot-panel.is-keyboard-writing .diary-copilot-resize-handle,
 .diary-copilot-panel.is-compact-idle .diary-copilot-resize-handle {
-  display: none !important;
+  display: flex !important;
 }
 
-.diary-copilot-panel.is-keyboard-writing .diary-copilot-panel-content,
-.diary-copilot-panel.is-keyboard-writing .diary-copilot-header-row-2,
-.diary-copilot-panel.is-keyboard-writing .diary-copilot-tone-wrapper,
-.diary-copilot-panel.is-keyboard-writing .diary-copilot-pinned-strip,
-.diary-copilot-panel.is-keyboard-writing .diary-copilot-hero-card,
-.diary-copilot-panel.is-keyboard-writing .diary-copilot-locked-card,
-.diary-copilot-panel.is-keyboard-writing .diary-copilot-capsule-tabs,
-.diary-copilot-panel.is-compact-idle .diary-copilot-panel-content,
-.diary-copilot-panel.is-compact-idle .diary-copilot-header-row-2,
-.diary-copilot-panel.is-compact-idle .diary-copilot-tone-wrapper,
-.diary-copilot-panel.is-compact-idle .diary-copilot-pinned-strip {
+.diary-copilot-panel.is-keyboard-writing:not(.is-resizing) .diary-copilot-panel-content,
+.diary-copilot-panel.is-keyboard-writing:not(.is-resizing) .diary-copilot-header-row-2,
+.diary-copilot-panel.is-keyboard-writing:not(.is-resizing) .diary-copilot-tone-wrapper,
+.diary-copilot-panel.is-keyboard-writing:not(.is-resizing) .diary-copilot-pinned-strip,
+.diary-copilot-panel.is-keyboard-writing:not(.is-resizing) .diary-copilot-hero-card,
+.diary-copilot-panel.is-keyboard-writing:not(.is-resizing) .diary-copilot-locked-card,
+.diary-copilot-panel.is-keyboard-writing:not(.is-resizing) .diary-copilot-capsule-tabs,
+.diary-copilot-panel.is-compact-idle:not(.is-resizing) .diary-copilot-panel-content,
+.diary-copilot-panel.is-compact-idle:not(.is-resizing) .diary-copilot-header-row-2,
+.diary-copilot-panel.is-compact-idle:not(.is-resizing) .diary-copilot-tone-wrapper,
+.diary-copilot-panel.is-compact-idle:not(.is-resizing) .diary-copilot-pinned-strip {
   display: none !important;
 }
 

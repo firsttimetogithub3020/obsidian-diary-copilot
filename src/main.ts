@@ -191,8 +191,8 @@ export default class DiaryCopilotPlugin extends Plugin {
         if (!sel || sel.isCollapsed) return;
 
         const rawText = sel.toString().trim();
-        const text = rawText.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "");
-        if (text.length > 0 && text.length <= 80 && /[a-zA-Z]/.test(text)) {
+        const text = rawText.replace(/^[^a-zA-Z0-9\u4e00-\u9fa5]+|[^a-zA-Z0-9\u4e00-\u9fa5]+$/g, "");
+        if (text.length > 0 && text.length <= 350) {
           try {
             const range = sel.getRangeAt(0);
             const rect = range.getBoundingClientRect();
@@ -964,8 +964,8 @@ export default class DiaryCopilotPlugin extends Plugin {
           this.lastSelectedRange = { from, to };
           this.lastSelectedTime = Date.now();
 
-          const cleanText = selectedText.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "");
-          if (cleanText.length > 0 && /[a-zA-Z]/.test(cleanText)) {
+          const cleanText = selectedText.replace(/^[^a-zA-Z0-9\u4e00-\u9fa5]+|[^a-zA-Z0-9\u4e00-\u9fa5]+$/g, "");
+          if (cleanText.length > 0) {
             const startCoords = update.view.coordsAtPos(from);
             const endCoords = update.view.coordsAtPos(to);
             if (startCoords && endCoords) {

@@ -318,11 +318,16 @@ export class GeminiProvider implements LLMProvider {
     if (!this.apiKey || !text.trim()) return null;
 
     try {
+      const isEnglish = /[a-zA-Z]/.test(text);
+      const systemPrompt = isEnglish
+        ? "You are an ultra-fast concise English-to-Traditional Chinese dictionary and translator. For the given English word, phrase, or sentence, output a compact JSON object with exactly two keys: {\"pos\": \"詞性或類型 (e.g. n., v., adj., adv., phr., 句)\", \"translation\": \"簡明繁體中文翻譯/釋義\"}. Do not include markdown fences or any other text, only valid JSON."
+        : "You are an ultra-fast concise Chinese-to-English translator. For the given Chinese word, phrase, or sentence, output a compact JSON object with exactly two keys: {\"pos\": \"中英翻譯\", \"translation\": \"自然地道的英文翻譯\"}. Do not include markdown fences or any other text, only valid JSON.";
+
       const response = await this.complete({
-        systemPrompt: "You are an ultra-fast concise English-to-Traditional Chinese dictionary. For the given English word or phrase, output a compact JSON object with exactly two keys: {\"pos\": \"詞性 (e.g. n., v., adj., adv., phr.)\", \"translation\": \"簡明繁體中文釋義\"}. Do not include markdown fences or any other text, only valid JSON.",
-        userPrompt: `Word or phrase: ${text.trim()}`,
+        systemPrompt,
+        userPrompt: `Translate or define: ${text.trim()}`,
         temperature: 0.1,
-        maxOutputTokens: 80,
+        maxOutputTokens: 200,
       });
 
       let clean = response.trim();
