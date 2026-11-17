@@ -576,6 +576,44 @@ export default class DiaryCopilotPlugin extends Plugin {
           onLocateDocText: (text: string) => {
             return this.locateDocText(text);
           },
+          onGetSentenceToPolish: () => {
+            const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+            if (!activeView || !activeView.editor) return null;
+            const editor = activeView.editor;
+            const selectedText = editor.getSelection();
+            if (selectedText && selectedText.trim().length > 0) {
+              const fromPos = editor.getCursor("from");
+              const toPos = editor.getCursor("to");
+              return {
+                text: selectedText.trim(),
+                from: editor.posToOffset(fromPos),
+                to: editor.posToOffset(toPos),
+              };
+            }
+            const docText = editor.getValue();
+            const cursor = editor.posToOffset(editor.getCursor());
+            const target = extractSentenceToPolish(docText, cursor);
+            if (target && target.sentence.trim().length > 0) {
+              return {
+                text: target.sentence.trim(),
+                from: target.from,
+                to: target.to,
+              };
+            }
+            const lines = docText.split("\n");
+            for (let i = lines.length - 1; i >= 0; i--) {
+              const trimmed = lines[i].trim();
+              if (trimmed.length > 0 && !trimmed.startsWith("#")) {
+                const idx = docText.lastIndexOf(trimmed);
+                return {
+                  text: trimmed,
+                  from: idx,
+                  to: idx + trimmed.length,
+                };
+              }
+            }
+            return null;
+          },
           onTidyUpRequest: () => {
             tidyUpTodayDiary(this.app, this);
           },

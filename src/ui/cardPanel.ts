@@ -29,6 +29,7 @@ export interface CardPanelCallbacks {
   ) => Promise<void>;
   getEditorSelection?: () => { text: string; from: number; to: number } | null;
   onLocateDocText?: (text: string) => { from: number; to: number } | null;
+  onGetSentenceToPolish?: () => { text: string; from: number; to: number } | null;
   onTidyUpRequest?: () => void;
   onFullTextShadowingRequest?: () => void;
   getEnglishLevel?: () => EnglishLevel;
@@ -724,6 +725,9 @@ export class CardPanel {
       getEditorSelection: () => {
         return this.callbacks.getEditorSelection?.() || null;
       },
+      onGetSentenceToPolish: () => {
+        return this.callbacks.onGetSentenceToPolish?.() || null;
+      },
       onLocateDocText: (text: string) => {
         return this.callbacks.onLocateDocText?.(text) || null;
       },
@@ -987,6 +991,21 @@ export class CardPanel {
 
     // 1. System Actions (Row 1 Right)
     if (this.headerSysEl) {
+      // 🎧 全螢幕跟讀 (全篇影子跟讀)
+      const shadowBtn = this.headerSysEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-shadow-all-btn",
+        text: Platform.isPhone ? "🎧 跟讀" : "🎧 全螢幕跟讀",
+        attr: {
+          "aria-label": "開啟全篇/全螢幕影子跟讀模式",
+          title: "開啟全篇/全螢幕影子跟讀模式",
+        },
+      });
+      shadowBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.callbacks.onFullTextShadowingRequest?.();
+      });
+
       // 切換按鈕：在「筆記卡片」與「口說對話舞台」之間自由切換
       const stageBtn = this.headerSysEl.createEl("button", {
         cls: `diary-copilot-action-btn diary-copilot-stage-toggle-btn ${this.isVoiceStageActive ? "is-active" : ""}`,
