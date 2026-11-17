@@ -14,6 +14,7 @@ import { tidyUpTodayDiary } from "./commands/tidyUp";
 import { buildPolishSystemPrompt, buildPolishUserPrompt, buildInquirySystemPrompt, buildInquiryUserPrompt } from "./llm/prompts";
 import { parseInquiryResponse } from "./engine/parser";
 import { SelectionPopover } from "./ui/selectionPopover";
+import { FullTextShadowingModal } from "./ui/fullTextShadowingModal";
 import { checkAndApplyPluginUpdate } from "./services/updater";
 import { globalSpeechRecognizer } from "./services/speech";
 
@@ -246,6 +247,20 @@ export default class DiaryCopilotPlugin extends Plugin {
           }
         }
         return false;
+      },
+    });
+
+    this.addCommand({
+      id: "full-text-shadowing",
+      name: "全篇沉浸影子跟讀 (Full-Text Shadowing)",
+      callback: () => this.handleFullTextShadowing(),
+    });
+
+    this.addCommand({
+      id: "toggle-voice-stage",
+      name: "切換口說對話舞台 / 筆記卡片模式",
+      callback: () => {
+        this.cardPanel?.toggleVoiceStage();
       },
     });
 
@@ -534,6 +549,24 @@ export default class DiaryCopilotPlugin extends Plugin {
               new Notice("🎉 口說跟讀成功！已自動填入標準句子", 2500);
             }
           },
+          onAppendDiarySentence: async (sentence: string) => {
+            await this.appendDiarySentence(sentence);
+          },
+          onTidyUpRequest: () => {
+            tidyUpTodayDiary(this.app, this);
+          },
+          onFullTextShadowingRequest: () => {
+            this.handleFullTextShadowing();
+          },
+          getEnglishLevel: () => {
+            return this.settings.englishLevel;
+          },
+          getDiaryContext: () => {
+            return this.getRecentDiaryContext();
+          },
+          getLlmClient: () => {
+            return this.llm;
+          },
         });
       } else if (fileChanged) {
         this.currentFilePath = activeMarkdownView.file?.path || "";
@@ -621,6 +654,68 @@ export default class DiaryCopilotPlugin extends Plugin {
 
       this.scheduler.refetch(context, styleSummary, paragraphSummary);
     }
+  }
+
+  getRecentDiaryContext(): string {
+    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (activeView && activeView.editor) {
+      return activeView.editor.getValue().slice(-600);
+    }
+    return "";
+  }
+
+  async appendDiarySentence(sentence: string) {
+    let activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!activeView || !activeView.file) {
+      await openTodayDiary(this.app, this);
+      activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    }
+    if (activeView && activeView.editor) {
+      const editor = activeView.editor;
+      const doc = editor.getValue();
+      const needsLeadingNewline = doc.length > 0 && !doc.endsWith("\n\n");
+      const prefix = needsLeadingNewline ? (doc.endsWith("\n") ? "\n" : "\n\n") : "";
+      const newText = `${prefix}${sentence}\n`;
+      const lastLine = editor.lineCount() - 1;
+      const lastLineLength = editor.getLine(lastLine).length;
+      editor.replaceRange(newText, { line: lastLine, ch: lastLineLength });
+      this.recordAdoption(sentence, "continue");
+      new Notice("📝 已收錄至今日日記初稿", 1500);
+    }
+  }
+
+  async handleFullTextShadowing() {
+    let activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!activeView || !activeView.file) {
+      await openTodayDiary(this.app, this);
+      activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    }
+    if (!activeView || !activeView.file) {
+      new Notice("請先開啟日記筆記");
+      return;
+    }
+    const file = activeView.file;
+    const content = await this.app.vault.read(file);
+
+    // Try to find "## English" section
+    const englishMatch = content.match(/##\s+English\s*\n([\s\S]*?)(?=\n##|$)/i);
+    let textToShadow = "";
+    if (englishMatch && englishMatch[1]?.trim()) {
+      textToShadow = englishMatch[1].trim();
+    } else {
+      // Strip frontmatter and markdown headings
+      textToShadow = content
+        .replace(/^---\n[\s\S]*?\n---\s*/, "")
+        .replace(/^#.*$/gm, "")
+        .trim();
+    }
+
+    if (!textToShadow) {
+      new Notice("目前日記尚無內容可供跟讀，請先輸入內容或點擊「整理今日日記」");
+      return;
+    }
+
+    new FullTextShadowingModal(this.app, this, textToShadow, file).open();
   }
 
   private handleEditorUpdate(update: ViewUpdate) {

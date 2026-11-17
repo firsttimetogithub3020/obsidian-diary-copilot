@@ -1,8 +1,9 @@
 import { Platform, Notice } from "obsidian";
-import { SuggestionItem, DiaryTone, InquiryItem } from "../types";
+import { SuggestionItem, DiaryTone, InquiryItem, EnglishLevel } from "../types";
 import { DIARY_TONE_OPTIONS } from "../settings";
-import { speakSentence } from "../services/tts";
+import { speakSentence, stopAudio } from "../services/tts";
 import { globalSpeechRecognizer, evaluateOralMatch, OralMatchResult } from "../services/speech";
+import { VoiceStage } from "./voiceStage";
 
 export interface CardPanelCallbacks {
   onAdopt: (text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }, isDirectPaste?: boolean) => void;
@@ -20,6 +21,12 @@ export interface CardPanelCallbacks {
   onOralInput?: (spokenText: string, targetText: string) => void;
   onFocusEditor?: () => void;
   onCardSelect?: (text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }) => void;
+  onAppendDiarySentence?: (sentence: string) => Promise<void>;
+  onTidyUpRequest?: () => void;
+  onFullTextShadowingRequest?: () => void;
+  getEnglishLevel?: () => EnglishLevel;
+  getDiaryContext?: () => string;
+  getLlmClient?: () => any;
 }
 
 interface CardDescriptor {
@@ -80,9 +87,15 @@ export class CardPanel {
   private oralScoreBadgeEl: HTMLElement | null = null;
   private desktopVoiceInputEl: HTMLInputElement | null = null;
 
+  // Voice Dialogue Stage State
+  private isVoiceStageActive: boolean;
+  private voiceStage: VoiceStage | null = null;
+
   constructor(containerEl: HTMLElement, callbacks: CardPanelCallbacks) {
     this.containerEl = containerEl;
     this.callbacks = callbacks;
+    const isPhone = Platform.isPhone || (Platform.isMobile && window.innerWidth < 640);
+    this.isVoiceStageActive = isPhone;
     this.render();
   }
 
@@ -435,8 +448,8 @@ export class CardPanel {
       this.isShowingInquiryAnswers = false;
     }
 
-    // If currently actively in oral mode, don't clobber unless dismissed
-    if (this.isOralMode) {
+    // If currently actively in oral mode or voice stage, don't clobber unless dismissed
+    if (this.isOralMode || this.isVoiceStageActive) {
       return;
     }
 
@@ -512,6 +525,11 @@ export class CardPanel {
     this.isOralMode = false;
     this.isShadowTyping = false;
     globalSpeechRecognizer.stop();
+
+    if (this.isVoiceStageActive) {
+      this.renderVoiceStage();
+      return;
+    }
 
     // 1. Update brand text & tone display
     if (this.pinnedInquiryItem) {
@@ -606,6 +624,65 @@ export class CardPanel {
     }
 
     this.applyPanelHeight();
+  }
+
+  private renderVoiceStage() {
+    if (!this.contentAreaEl) return;
+    this.contentAreaEl.empty();
+
+    if (this.brandTextEl) {
+      this.brandTextEl.setText("🎙️ 口說對話舞台");
+    }
+    if (this.toneWrapperEl) {
+      this.toneWrapperEl.style.display = "flex";
+    }
+
+    this.renderHeaderActionsBrowse();
+
+    const llm = this.callbacks.getLlmClient?.();
+    if (!llm) {
+      const empty = this.contentAreaEl.createDiv({ cls: "diary-copilot-empty-state" });
+      empty.createSpan({ text: "⚠️ LLM 尚未就緒，請檢查 Gemini API Key 設定" });
+      this.applyPanelHeight();
+      return;
+    }
+
+    this.voiceStage = new VoiceStage(this.contentAreaEl, llm, {
+      onAppendSentence: async (sentence: string) => {
+        await this.callbacks.onAppendDiarySentence?.(sentence);
+      },
+      onTidyUp: () => {
+        this.callbacks.onTidyUpRequest?.();
+      },
+      onFullTextShadowing: () => {
+        this.callbacks.onFullTextShadowingRequest?.();
+      },
+      onSwitchToClassic: () => {
+        this.toggleVoiceStage();
+      },
+      getEnglishLevel: () => {
+        return this.callbacks.getEnglishLevel?.() || "B1";
+      },
+      getTone: () => {
+        return this.callbacks.getTone?.() || "casual";
+      },
+      getDiaryContext: () => {
+        return this.callbacks.getDiaryContext?.() || "";
+      },
+    });
+
+    this.voiceStage.render();
+    this.applyPanelHeight();
+  }
+
+  public toggleVoiceStage() {
+    this.isVoiceStageActive = !this.isVoiceStageActive;
+    this.resetToAutoFit();
+    this.renderBrowseMode();
+  }
+
+  public isVoiceActive(): boolean {
+    return this.isVoiceStageActive;
   }
 
   /**
@@ -847,6 +924,64 @@ export class CardPanel {
     if (this.headerAudioEl) this.headerAudioEl.empty();
     if (this.headerSysEl) this.headerSysEl.empty();
 
+    // 1. System Actions (Row 1 Right)
+    if (this.headerSysEl) {
+      // Toggle button between Note Cards and Voice Stage
+      const stageBtn = this.headerSysEl.createEl("button", {
+        cls: `diary-copilot-action-btn diary-copilot-stage-toggle-btn ${this.isVoiceStageActive ? "is-active" : ""}`,
+        text: this.isVoiceStageActive ? "📝 筆記卡片" : "🎙️ 口說舞台",
+        attr: {
+          "aria-label": this.isVoiceStageActive ? "切換至筆記卡片模式" : "切換至純語音口說對話舞台",
+          title: this.isVoiceStageActive ? "切換至筆記卡片模式" : "切換至純語音口說對話舞台",
+        },
+      });
+      stageBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.toggleVoiceStage();
+      });
+
+      // 🔄 檢查更新
+      const updateBtn = this.headerSysEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-update-btn",
+        text: "🔄",
+        attr: { "aria-label": "立即檢查並更新 Diary Copilot", title: "立即檢查並更新 Diary Copilot" },
+      });
+      updateBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.callbacks.onCheckUpdate?.();
+      });
+
+      // ✕ 關閉
+      const closeBtn = this.headerSysEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-close-btn",
+        text: "✕",
+        attr: { "aria-label": "關閉 Copilot 面板", title: "關閉 Copilot 面板" },
+      });
+      closeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.callbacks.onClose?.();
+      });
+    }
+
+    if (this.isVoiceStageActive) {
+      if (this.headerActionsEl) {
+        const tidyBtn = this.headerActionsEl.createEl("button", {
+          cls: "diary-copilot-action-btn diary-copilot-stage-tidy-btn",
+          text: "✨ 整理今日日記",
+          attr: { title: "整理今日日記並開啟全篇影子跟讀" },
+        });
+        tidyBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          this.callbacks.onTidyUpRequest?.();
+        });
+      }
+      return;
+    }
+
     const activeCard = this.currentCards[this.activeTabIdx] || this.currentCards[0];
 
     if (activeCard && this.headerAudioEl) {
@@ -930,32 +1065,6 @@ export class CardPanel {
         e.preventDefault();
         this.resetToAutoFit();
         this.callbacks.onPolishRequest?.();
-      });
-    }
-
-    if (this.headerSysEl) {
-      // 6. 🔄 檢查更新 - Sys Group (Row 1 Right)
-      const updateBtn = this.headerSysEl.createEl("button", {
-        cls: "diary-copilot-action-btn diary-copilot-update-btn",
-        text: "🔄",
-        attr: { "aria-label": "立即檢查並更新 Diary Copilot", title: "立即檢查並更新 Diary Copilot" },
-      });
-      updateBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        this.callbacks.onCheckUpdate?.();
-      });
-
-      // 7. ✕ 關閉 - Sys Group (Row 1 Right)
-      const closeBtn = this.headerSysEl.createEl("button", {
-        cls: "diary-copilot-action-btn diary-copilot-close-btn",
-        text: "✕",
-        attr: { "aria-label": "關閉 Copilot 面板", title: "關閉 Copilot 面板" },
-      });
-      closeBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        this.callbacks.onClose?.();
       });
     }
   }

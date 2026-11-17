@@ -12,7 +12,31 @@ import { requestUrl, Notice, Platform } from "obsidian";
 let activeAudio: HTMLAudioElement | null = null;
 let activeBlobUrl: string | null = null;
 
-export async function speakSentence(text: string) {
+export function isAudioPlaying(): boolean {
+  if (activeAudio && !activeAudio.paused && !activeAudio.ended) return true;
+  if (typeof window !== "undefined" && "speechSynthesis" in window) {
+    return window.speechSynthesis.speaking;
+  }
+  return false;
+}
+
+export function splitTextIntoSentences(text: string): string[] {
+  if (!text) return [];
+  // Clean markdown headers / bullets
+  const clean = text
+    .replace(/^#+\s+/gm, "")
+    .replace(/^[-*+]\s+/gm, "")
+    .replace(/\[\[(.*?)\]\]/g, "$1")
+    .trim();
+
+  // Match sentences ending in punctuation
+  const rawSentences = clean.match(/[^.!?\n]+[.!?]+(?:\s+|$)|[^.!?\n]+$/g) || [clean];
+  return rawSentences
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && /[a-zA-Z]/.test(s));
+}
+
+export async function speakSentence(text: string, onEnd?: () => void, rate = 1.0) {
   if (!text || typeof window === "undefined") return;
   const cleanText = text.trim();
   if (!cleanText) return;
@@ -41,7 +65,7 @@ export async function speakSentence(text: string) {
       if (audioResp.status === 200 && audioResp.arrayBuffer && audioResp.arrayBuffer.byteLength > 200) {
         const blob = new Blob([audioResp.arrayBuffer], { type: "audio/mpeg" });
         const blobUrl = URL.createObjectURL(blob);
-        await playBlobAudio(blobUrl);
+        await playBlobAudio(blobUrl, rate, onEnd);
         return;
       }
     }
@@ -61,7 +85,7 @@ export async function speakSentence(text: string) {
     if (audioResp.status === 200 && audioResp.arrayBuffer && audioResp.arrayBuffer.byteLength > 500) {
       const blob = new Blob([audioResp.arrayBuffer], { type: "audio/mpeg" });
       const blobUrl = URL.createObjectURL(blob);
-      await playBlobAudio(blobUrl);
+      await playBlobAudio(blobUrl, rate, onEnd);
       return;
     }
   } catch (err) {
@@ -77,8 +101,15 @@ export async function speakSentence(text: string) {
 
       const utterance = new SpeechSynthesisUtterance(cleanText);
       utterance.lang = "en-US";
-      utterance.rate = 0.95;
+      utterance.rate = 0.95 * rate;
       utterance.pitch = 1.0;
+
+      utterance.onend = () => {
+        onEnd?.();
+      };
+      utterance.onerror = () => {
+        onEnd?.();
+      };
 
       const voices = synth.getVoices();
       if (voices && voices.length > 0) {
@@ -96,9 +127,10 @@ export async function speakSentence(text: string) {
   }
 
   new Notice("⚠️ 語音朗讀播放失敗，請檢查網路連線", 2500);
+  onEnd?.();
 }
 
-function stopAudio() {
+export function stopAudio() {
   if (activeAudio) {
     try {
       activeAudio.pause();
@@ -119,26 +151,32 @@ function stopAudio() {
   }
 }
 
-function playBlobAudio(blobUrl: string): Promise<void> {
+function playBlobAudio(blobUrl: string, rate = 1.0, onEnd?: () => void): Promise<void> {
   return new Promise((resolve) => {
     activeBlobUrl = blobUrl;
     const audio = new Audio(blobUrl);
     activeAudio = audio;
+    try {
+      audio.playbackRate = rate;
+    } catch {}
 
     audio.onended = () => {
       stopAudio();
+      onEnd?.();
       resolve();
     };
 
     audio.onerror = (e) => {
       console.warn("[Diary Copilot TTS] Blob Audio playback error:", e);
       stopAudio();
+      onEnd?.();
       resolve();
     };
 
     audio.play().catch((err) => {
       console.warn("[Diary Copilot TTS] Play promise rejected:", err);
       stopAudio();
+      onEnd?.();
       resolve();
     });
   });

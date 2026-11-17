@@ -1,6 +1,7 @@
 import { App, MarkdownView, Notice, TFile } from "obsidian";
 import type DiaryCopilotPlugin from "../main";
 import { buildTidySystemPrompt, buildTidyUserPrompt } from "../llm/prompts";
+import { FullTextShadowingModal } from "../ui/fullTextShadowingModal";
 
 export async function tidyUpTodayDiary(app: App, plugin: DiaryCopilotPlugin) {
   const activeView = app.workspace.getActiveViewOfType(MarkdownView);
@@ -222,6 +223,11 @@ ${expressionsMd.trim()}
 
     notice.hide();
     new Notice("🎉 今日日記整理完成！已自動同步至 Expressions 表達庫。");
+
+    // Launch Mode B: Full-Text Shadowing Stage (全篇連續沉浸影子跟讀)
+    if (finalEnglish && finalEnglish.length > 0) {
+      new FullTextShadowingModal(app, plugin, finalEnglish, file).open();
+    }
   } catch (err: any) {
     notice.hide();
     new Notice(`整理失敗：${err?.message || err}`);

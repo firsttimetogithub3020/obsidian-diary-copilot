@@ -282,5 +282,45 @@ Output ONLY valid JSON matching this exact structure:
   "openStyle2": "...",
   "openStyle3": "...",
   "openStyle4": "..."
+}
+`;
+}
+
+export interface VoiceRefinePromptInput {
+  spokenInput: string;
+  diaryContext?: string;
+  englishLevel: EnglishLevel;
+  tone?: DiaryTone;
+}
+
+export function buildVoiceRefineSystemPrompt(level: EnglishLevel, tone: DiaryTone = "casual"): string {
+  return `You are an expert AI Oral English Coach and Personal Diary Partner.
+The user speaks their thought in Chinese, mixed English/Chinese, or rough spoken English.
+Your task is to transform their spoken thought into 3 natural, authentic English diary expressions:
+1. "natural": Authentic, relaxed everyday native English (日常自然口語).
+2. "reflective": Deeper emotional introspection and self-talk (內心感受與深度反思).
+3. "idiomatic": Vivid, colorful, idiomatic native phrasing with natural idioms/collocations (地道片語與精煉表達).
+
+Also, formulate an empathetic, conversational follow-up question ("followUpQuestion" in English and "followUpChinese" in Traditional Chinese) to prompt the user's next spoken thought in conversation.
+
+Target English Level: ${level}
+Writing Tone: ${getToneInstructions(tone)}
+First-person perspective ("I", "my").
+Output STRICT JSON ONLY:
+{
+  "natural": "...",
+  "reflective": "...",
+  "idiomatic": "...",
+  "followUpQuestion": "...",
+  "followUpChinese": "..."
 }`;
+}
+
+export function buildVoiceRefineUserPrompt(input: VoiceRefinePromptInput): string {
+  let prompt = `<spoken_input>\n${input.spokenInput}\n</spoken_input>\n`;
+  if (input.diaryContext && input.diaryContext.trim().length > 0) {
+    prompt += `\n[Today's preceding diary context]:\n${input.diaryContext.trim()}\n`;
+  }
+  prompt += `\nPlease refine this spoken thought into the 3 styled expressions (natural, reflective, idiomatic) and propose a natural follow-up question with Traditional Chinese translation. Output strict JSON only.`;
+  return prompt;
 }

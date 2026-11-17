@@ -4,3 +4,4 @@ data.json
 *.map
 .DS_Store
 .env
+*.zip

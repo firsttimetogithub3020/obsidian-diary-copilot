@@ -112,3 +112,54 @@ export function parseInquiryResponse(raw: string): InquiryItem | null {
   }
   return null;
 }
+
+export interface VoiceRefineResult {
+  natural: string;
+  reflective: string;
+  idiomatic: string;
+  followUpQuestion?: string;
+  followUpChinese?: string;
+}
+
+export function parseVoiceRefineResponse(raw: string): VoiceRefineResult | null {
+  if (!raw || raw.trim().length === 0) return null;
+  let cleaned = raw.trim();
+  if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```$/, "");
+  }
+  try {
+    const parsed = JSON.parse(cleaned);
+    if (parsed && typeof parsed === "object") {
+      const nat = String(parsed.natural || parsed.option1 || "").trim();
+      const ref = String(parsed.reflective || parsed.option2 || "").trim();
+      const idi = String(parsed.idiomatic || parsed.option3 || "").trim();
+      if (nat || ref || idi) {
+        return {
+          natural: nat,
+          reflective: ref,
+          idiomatic: idi,
+          followUpQuestion: parsed.followUpQuestion ? String(parsed.followUpQuestion).trim() : undefined,
+          followUpChinese: parsed.followUpChinese ? String(parsed.followUpChinese).trim() : undefined,
+        };
+      }
+    }
+  } catch {
+    const extract = (field: string): string => {
+      const match = cleaned.match(new RegExp(`"${field}"\\s*:\\s*"([^"\\\\]*(?:\\\\.[^"\\\\]*)*)"`, "i"));
+      return match ? match[1].replace(/\\"/g, '"').replace(/\\n/g, " ").trim() : "";
+    };
+    const nat = extract("natural");
+    const ref = extract("reflective");
+    const idi = extract("idiomatic");
+    if (nat || ref || idi) {
+      return {
+        natural: nat,
+        reflective: ref,
+        idiomatic: idi,
+        followUpQuestion: extract("followUpQuestion") || undefined,
+        followUpChinese: extract("followUpChinese") || undefined,
+      };
+    }
+  }
+  return null;
+}

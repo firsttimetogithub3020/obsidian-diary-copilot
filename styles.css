@@ -1630,3 +1630,575 @@
   user-select: text !important;
   -webkit-user-select: text !important;
 }
+
+/* ==========================================================================
+   Voice Dialogue Stage (純語音對話舞台 & 影子跟讀)
+   ========================================================================== */
+
+.diary-copilot-action-btn.diary-copilot-stage-toggle-btn {
+  font-weight: 600;
+  color: var(--interactive-accent);
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--interactive-accent);
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.diary-copilot-action-btn.diary-copilot-stage-toggle-btn:hover {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.diary-copilot-action-btn.diary-copilot-stage-tidy-btn {
+  font-weight: 600;
+  color: var(--interactive-accent);
+  border: 1px solid var(--interactive-accent);
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+
+.diary-copilot-voice-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 6px 4px 12px;
+  box-sizing: border-box;
+}
+
+.diary-copilot-voice-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding-bottom: 8px;
+}
+
+.diary-copilot-voice-tab-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.diary-copilot-voice-tab-btn {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.diary-copilot-voice-tab-btn:hover {
+  color: var(--text-normal);
+  border-color: var(--interactive-accent);
+}
+
+.diary-copilot-voice-tab-btn.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+  font-weight: 600;
+}
+
+.diary-copilot-voice-mode-toggle-btn {
+  background: transparent;
+  border: 1px dashed var(--text-muted);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.diary-copilot-voice-mode-toggle-btn:hover {
+  color: var(--text-normal);
+  border-color: var(--text-normal);
+}
+
+.diary-copilot-voice-main-area {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.diary-copilot-voice-speech-section,
+.diary-copilot-voice-interview-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.diary-copilot-voice-prompt-title {
+  font-size: 13.5px;
+  color: var(--text-normal);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* Mic Hero Component */
+.diary-copilot-voice-mic-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.voice-mic-btn {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: none;
+  background: var(--interactive-accent);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.voice-mic-btn:hover {
+  transform: scale(1.05);
+}
+
+.voice-mic-btn.is-listening {
+  background: #e53e3e !important;
+  animation: diary-voice-pulse 1.4s infinite;
+}
+
+@keyframes diary-voice-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(229, 62, 62, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 16px rgba(229, 62, 62, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(229, 62, 62, 0);
+  }
+}
+
+.voice-mic-icon {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.voice-mic-hint {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.voice-manual-input-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 480px;
+  margin-top: 4px;
+}
+
+.voice-manual-input {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  font-size: 13px;
+  color: var(--text-normal);
+}
+
+.voice-manual-submit-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  cursor: pointer;
+  font-size: 12.5px;
+}
+
+.diary-copilot-voice-transcript-wrapper {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.voice-transcript-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-right: 6px;
+}
+
+.voice-transcript-text {
+  font-size: 13.5px;
+  color: var(--text-normal);
+  line-height: 1.4;
+}
+
+.voice-transcript-interim {
+  color: var(--text-muted);
+  font-style: italic;
+  margin-left: 4px;
+}
+
+/* Loading Box */
+.diary-copilot-voice-loading-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  color: var(--interactive-accent);
+  font-size: 13.5px;
+}
+
+/* Refined 3 Cards */
+.diary-copilot-voice-cards-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.diary-copilot-voice-card {
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.diary-copilot-voice-card:hover {
+  border-color: var(--interactive-accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.voice-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.voice-style-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--interactive-accent);
+  background: var(--background-secondary);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.voice-style-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.voice-card-en {
+  font-size: 14.5px;
+  color: var(--text-normal);
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.voice-card-zh {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Inline Oral Practice Box */
+.voice-card-oral-box {
+  background: var(--background-secondary);
+  border: 1px dashed var(--interactive-accent);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.voice-oral-prompt {
+  font-size: 12px;
+  color: var(--interactive-accent);
+  font-weight: 500;
+}
+
+.voice-oral-live-speech {
+  font-size: 13.5px;
+  color: var(--text-normal);
+  background: var(--background-primary);
+  padding: 6px 10px;
+  border-radius: 6px;
+  min-height: 24px;
+}
+
+.voice-oral-feedback {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.voice-oral-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Interview QA Cards */
+.diary-copilot-voice-interview-qcard {
+  background: var(--background-primary);
+  border: 1px solid var(--interactive-accent);
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.interview-q-en {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-normal);
+  line-height: 1.45;
+}
+
+.interview-q-zh {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.interview-q-audio-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.interview-answer-prompt {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+/* Bottom Global Bar */
+.diary-copilot-voice-bottom-bar {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 4px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.diary-copilot-voice-tidy-btn {
+  background: var(--interactive-accent) !important;
+  color: var(--text-on-accent) !important;
+  font-weight: 600;
+  font-size: 13.5px;
+  padding: 8px 18px !important;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.diary-copilot-voice-tidy-btn:hover {
+  transform: translateY(-1px);
+  opacity: 0.95;
+}
+
+/* ==========================================================================
+   Full-Text Shadowing Modal (全篇沉浸影子跟讀 - 提詞機歌詞滾動)
+   ========================================================================== */
+
+.diary-copilot-shadowing-modal {
+  display: flex;
+  flex-direction: column;
+  max-width: 680px;
+  width: 95vw;
+  max-height: 85vh;
+  box-sizing: border-box;
+}
+
+.diary-copilot-shadowing-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+}
+
+.diary-copilot-shadowing-header h3 {
+  margin: 0;
+  font-size: 17px;
+  color: var(--text-normal);
+}
+
+.diary-copilot-shadowing-speed-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.diary-copilot-shadowing-speed-group .speed-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.speed-btn {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.speed-btn.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+  font-weight: 600;
+}
+
+.diary-copilot-shadowing-teleprompter {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 48vh;
+  padding: 12px;
+  background: var(--background-secondary-alt);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  scroll-behavior: smooth;
+}
+
+.diary-copilot-shadowing-sentence {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--background-primary);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  opacity: 0.6;
+}
+
+.diary-copilot-shadowing-sentence:hover {
+  opacity: 0.85;
+}
+
+.diary-copilot-shadowing-sentence.is-active {
+  opacity: 1 !important;
+  border-color: var(--interactive-accent) !important;
+  background: var(--background-secondary) !important;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
+  transform: scale(1.015);
+}
+
+.sentence-num {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  min-width: 20px;
+}
+
+.diary-copilot-shadowing-sentence.is-active .sentence-num {
+  color: var(--interactive-accent);
+}
+
+.sentence-text {
+  font-size: 15.5px;
+  line-height: 1.55;
+  color: var(--text-normal);
+  word-break: break-word;
+}
+
+.diary-copilot-shadowing-sentence.is-active .sentence-text {
+  color: var(--text-normal);
+  font-weight: 600;
+}
+
+/* Audio Player Bottom Controls */
+.diary-copilot-shadowing-player {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.player-progress-container {
+  width: 100%;
+  height: 6px;
+  background: var(--background-modifier-border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.player-progress-bar {
+  height: 100%;
+  background: var(--interactive-accent);
+  transition: width 0.3s ease;
+}
+
+.player-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.player-ctrl-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.player-play-btn {
+  background: var(--interactive-accent) !important;
+  color: var(--text-on-accent) !important;
+  border: none;
+  font-weight: 600;
+}
+
+.player-replay-btn,
+.player-finish-btn {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-normal);
+}
+
+.player-status-text {
+  font-size: 13px;
+  color: var(--text-muted);
+}
