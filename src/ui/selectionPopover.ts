@@ -5,12 +5,14 @@ export interface SelectionPopoverOptions {
   app: App;
   llm: GeminiProvider;
   isEnabled: () => boolean;
+  onPolish?: (text: string) => void;
 }
 
 export class SelectionPopover {
   private app: App;
   private llm: GeminiProvider;
   private isEnabled: () => boolean;
+  private onPolish?: (text: string) => void;
 
   private popoverEl: HTMLElement | null = null;
   private cache = new Map<string, { pos: string; translation: string }>();
@@ -22,6 +24,7 @@ export class SelectionPopover {
     this.app = options.app;
     this.llm = options.llm;
     this.isEnabled = options.isEnabled;
+    this.onPolish = options.onPolish;
 
     this.setupGlobalDismissListeners();
   }
@@ -136,6 +139,22 @@ export class SelectionPopover {
     // Action buttons
     const actions = this.popoverEl.createDiv({ cls: "popover-actions" });
 
+    // AI Polish button directly in popover
+    if (this.onPolish) {
+      const polishBtn = actions.createEl("button", {
+        cls: "popover-btn popover-polish-btn",
+        text: "✨ 潤飾",
+        attr: { "aria-label": "以 AI 潤飾此句", title: "以 AI 潤飾此句並提供 4 種道地表達" },
+      });
+      polishBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        const query = text;
+        this.hide();
+        this.onPolish?.(query);
+      });
+    }
+
     // Google Translate external search button
     const gtransBtn = actions.createEl("button", {
       cls: "popover-btn",
@@ -163,14 +182,19 @@ export class SelectionPopover {
     this.popoverEl.style.display = "flex";
     this.popoverEl.style.visibility = "hidden";
 
-    // Mobile adaptation: Dock popover at the top of the mobile screen like a sleek status bar
-    // This completely avoids overlapping with Android/iOS native "Copy / Share" action bars, keyboard, and Copilot cards!
+    // Mobile adaptation: Dock popover cleanly right ABOVE the Copilot toolbar!
+    // Never docked at the very top where text is too small or obscured by notch/status bar.
     if (Platform.isMobile) {
       this.popoverEl.addClass("is-mobile-docked");
+      const copilotPanel = document.querySelector(".diary-copilot-panel") as HTMLElement;
+      let panelBottomOffset = 48;
+      if (copilotPanel && copilotPanel.offsetHeight > 0) {
+        panelBottomOffset = copilotPanel.offsetHeight + 8;
+      }
       this.popoverEl.style.left = "10px";
       this.popoverEl.style.right = "10px";
-      this.popoverEl.style.top = "14px";
-      this.popoverEl.style.bottom = "auto";
+      this.popoverEl.style.bottom = `${panelBottomOffset}px`;
+      this.popoverEl.style.top = "auto";
       this.popoverEl.style.visibility = "visible";
       return;
     }

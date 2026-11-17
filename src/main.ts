@@ -40,6 +40,9 @@ export default class DiaryCopilotPlugin extends Plugin {
   private isCopilotGloballyMuted = false;
   private selectionPopover: SelectionPopover | null = null;
   private ribbonIconEl: HTMLElement | null = null;
+  private lastSelectedText = "";
+  private lastSelectedRange: { from: number; to: number } | null = null;
+  private lastSelectedTime = 0;
 
   async onload() {
     await this.loadPluginData();
@@ -178,6 +181,7 @@ export default class DiaryCopilotPlugin extends Plugin {
       app: this.app,
       llm: this.llm,
       isEnabled: () => this.settings.enableSelectionLookup ?? true,
+      onPolish: (text) => this.handlePolishSentence(text),
     });
 
     // Global mouseup/touchend for selection lookup across note editor, suggestion cards, ghost text, and locked screens
@@ -953,8 +957,12 @@ export default class DiaryCopilotPlugin extends Plugin {
       if (!sel.empty) {
         const from = sel.from;
         const to = sel.to;
-        if (to - from <= 80) {
+        if (to - from <= 350) {
           const selectedText = update.view.state.sliceDoc(from, to).trim();
+          this.lastSelectedText = selectedText;
+          this.lastSelectedRange = { from, to };
+          this.lastSelectedTime = Date.now();
+
           const cleanText = selectedText.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "");
           if (cleanText.length > 0 && /[a-zA-Z]/.test(cleanText)) {
             const startCoords = update.view.coordsAtPos(from);
@@ -1026,7 +1034,7 @@ export default class DiaryCopilotPlugin extends Plugin {
     }
   }
 
-  async handlePolishSentence() {
+  async handlePolishSentence(explicitText?: string) {
     const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (!activeMarkdownView || !activeMarkdownView.file) {
       new Notice("請先在筆記編輯器內操作");
@@ -1046,22 +1054,48 @@ export default class DiaryCopilotPlugin extends Plugin {
     const docText = editor.getValue();
     const cursor = editor.posToOffset(editor.getCursor());
 
-    // 1. Prefer user's active editor selection if available
-    const selectedText = editor.getSelection();
     let target: SentenceToPolish | null = null;
-    if (selectedText && selectedText.trim().length > 0) {
-      const fromPos = editor.getCursor("from");
-      const toPos = editor.getCursor("to");
-      const fromOffset = editor.posToOffset(fromPos);
-      const toOffset = editor.posToOffset(toPos);
+
+    if (explicitText && explicitText.trim().length > 0) {
+      const trimmed = explicitText.trim();
+      const loc = this.locateDocText(trimmed);
       target = {
-        sentence: selectedText.trim(),
-        from: fromOffset,
-        to: toOffset,
-        surroundingContext: docText.slice(Math.max(0, fromOffset - 100), Math.min(docText.length, toOffset + 100)),
+        sentence: trimmed,
+        from: loc ? loc.from : cursor,
+        to: loc ? loc.to : cursor + trimmed.length,
+        surroundingContext: docText.slice(Math.max(0, cursor - 100), Math.min(docText.length, cursor + 100)),
       };
     } else {
-      target = extractSentenceToPolish(docText, cursor);
+      // 1. Prefer user's active editor selection if available
+      const selectedText = editor.getSelection();
+      if (selectedText && selectedText.trim().length > 0) {
+        const fromPos = editor.getCursor("from");
+        const toPos = editor.getCursor("to");
+        const fromOffset = editor.posToOffset(fromPos);
+        const toOffset = editor.posToOffset(toPos);
+        target = {
+          sentence: selectedText.trim(),
+          from: fromOffset,
+          to: toOffset,
+          surroundingContext: docText.slice(Math.max(0, fromOffset - 100), Math.min(docText.length, toOffset + 100)),
+        };
+      } else if (
+        this.lastSelectedText &&
+        Date.now() - this.lastSelectedTime < 10000 &&
+        this.lastSelectedRange
+      ) {
+        // Fallback: user selected a sentence on mobile, but touching the panel dropped the native selection
+        const from = this.lastSelectedRange.from;
+        const to = this.lastSelectedRange.to;
+        target = {
+          sentence: this.lastSelectedText,
+          from,
+          to,
+          surroundingContext: docText.slice(Math.max(0, from - 100), Math.min(docText.length, to + 100)),
+        };
+      } else {
+        target = extractSentenceToPolish(docText, cursor);
+      }
     }
 
     if (!target || target.sentence.length === 0) {

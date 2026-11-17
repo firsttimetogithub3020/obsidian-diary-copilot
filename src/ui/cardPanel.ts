@@ -107,13 +107,13 @@ export class CardPanel {
     this.containerEl = containerEl;
     this.callbacks = callbacks;
     this.copilotMode = this.callbacks.getCopilotMode?.() || "compact";
-    this.isVoiceStageActive = this.copilotMode === "compact";
+    this.isVoiceStageActive = false;
     this.render();
   }
 
   public async toggleCopilotMode() {
     this.copilotMode = this.copilotMode === "compact" ? "full" : "compact";
-    this.isVoiceStageActive = this.copilotMode === "compact";
+    this.isVoiceStageActive = false;
     await this.callbacks.onModeChange?.(this.copilotMode);
     this.resetToAutoFit();
     this.renderBrowseMode();
@@ -127,7 +127,7 @@ export class CardPanel {
 
   public setCopilotMode(mode: CopilotMode) {
     this.copilotMode = mode;
-    this.isVoiceStageActive = mode === "compact";
+    this.isVoiceStageActive = false;
     this.resetToAutoFit();
     this.renderBrowseMode();
   }
@@ -518,16 +518,15 @@ export class CardPanel {
     this.renderHeaderActionsBrowse();
 
     const empty = this.contentAreaEl.createDiv({ cls: "diary-copilot-empty-state" });
-    empty.createSpan({ text: message || "✍️ 在上方筆記開始書寫英語，Copilot 將即時提供地道建議與跟寫練習..." });
+    const defaultMsg = this.copilotMode === "compact"
+      ? "✍️ 精簡專注模式：專心記錄生活，隨時點選句子按「✨ 潤飾」獲得地道建議，或按「❓ 提問」獲得問答靈感，按「🎧 跟讀」朗讀全篇。"
+      : "✍️ 在上方筆記開始書寫英語，Copilot 將即時提供地道建議與跟寫練習...";
+    empty.createSpan({ text: message || defaultMsg });
     this.applyPanelHeight();
   }
 
   setLoading(message = "思考地道表達中...") {
     if (!this.panelEl || !this.contentAreaEl) return;
-    // When Voice Stage is active, do NOT overwrite title or trigger height resize
-    if (this.isVoiceStageActive) {
-      return;
-    }
     this.panelEl.removeClass("is-hidden");
     this.panelEl.addClass("is-loading");
 
@@ -573,8 +572,8 @@ export class CardPanel {
       this.isShowingInquiryAnswers = false;
     }
 
-    // If currently actively in oral mode or voice stage, don't clobber unless dismissed
-    if (this.isOralMode || this.isVoiceStageActive) {
+    // If currently actively in oral mode, don't clobber unless dismissed
+    if (this.isOralMode) {
       return;
     }
 
@@ -650,11 +649,6 @@ export class CardPanel {
     this.isOralMode = false;
     this.isShadowTyping = false;
     globalSpeechRecognizer.stop();
-
-    if (this.isVoiceStageActive) {
-      this.renderVoiceStage();
-      return;
-    }
 
     // 1. Update brand text & tone display
     if (this.pinnedInquiryItem) {
@@ -1189,8 +1183,9 @@ export class CardPanel {
       });
     }
 
-    // 精簡模式下：Row 2 完全不渲染，維持極致簡潔單行！
-    if (this.copilotMode === "compact") {
+    // 精簡模式下：若無卡片且無固定問題，Row 2 完全不渲染，維持極致簡潔單行！
+    // 若有卡片（例如點擊潤飾後顯示的 4 種表達），則顯示 Row 2 (🔊 朗讀, 🎙️ 跟讀, ⚡ 接續填入)
+    if (this.copilotMode === "compact" && this.currentCards.length === 0 && !this.pinnedInquiryItem) {
       if (this.headerEl) {
         const row2 = this.headerEl.querySelector(".diary-copilot-header-row-2") as HTMLElement;
         if (row2) row2.style.display = "none";
