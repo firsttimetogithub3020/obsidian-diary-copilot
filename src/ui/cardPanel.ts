@@ -634,7 +634,7 @@ export class CardPanel {
       this.brandTextEl.setText("🎙️ 口說對話舞台");
     }
     if (this.toneWrapperEl) {
-      this.toneWrapperEl.style.display = "flex";
+      this.toneWrapperEl.style.display = (Platform.isPhone || window.innerWidth < 640) ? "none" : "flex";
     }
 
     this.renderHeaderActionsBrowse();
@@ -941,17 +941,19 @@ export class CardPanel {
         this.toggleVoiceStage();
       });
 
-      // 🔄 檢查更新
-      const updateBtn = this.headerSysEl.createEl("button", {
-        cls: "diary-copilot-action-btn diary-copilot-update-btn",
-        text: "🔄",
-        attr: { "aria-label": "立即檢查並更新 Diary Copilot", title: "立即檢查並更新 Diary Copilot" },
-      });
-      updateBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        this.callbacks.onCheckUpdate?.();
-      });
+      // 🔄 檢查更新 (保留在電腦與平板端；手機端為讓標題與按鈕完全舒展而收起)
+      if (!Platform.isPhone) {
+        const updateBtn = this.headerSysEl.createEl("button", {
+          cls: "diary-copilot-action-btn diary-copilot-update-btn",
+          text: "🔄",
+          attr: { "aria-label": "立即檢查並更新 Diary Copilot", title: "立即檢查並更新 Diary Copilot" },
+        });
+        updateBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          this.callbacks.onCheckUpdate?.();
+        });
+      }
 
       // ✕ 關閉
       const closeBtn = this.headerSysEl.createEl("button", {
@@ -967,18 +969,7 @@ export class CardPanel {
     }
 
     if (this.isVoiceStageActive) {
-      if (this.headerActionsEl) {
-        const tidyBtn = this.headerActionsEl.createEl("button", {
-          cls: "diary-copilot-action-btn diary-copilot-stage-tidy-btn",
-          text: "✨ 整理今日日記",
-          attr: { title: "整理今日日記並開啟全篇影子跟讀" },
-        });
-        tidyBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          this.callbacks.onTidyUpRequest?.();
-        });
-      }
+      // In Voice Stage, Row 2 is completely hidden/empty to maximize screen space for voice cards
       return;
     }
 

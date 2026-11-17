@@ -42,7 +42,7 @@ export class VoiceStage {
     this.containerEl.empty();
     const stageEl = this.containerEl.createDiv({ cls: "diary-copilot-voice-stage" });
 
-    // 1. Stage Top Nav: Sub-header with Tab Selector and Switcher
+    // 1. Stage Top Nav: Sub-header with Tab Selector
     const navBar = stageEl.createDiv({ cls: "diary-copilot-voice-nav" });
 
     const tabGroup = navBar.createDiv({ cls: "diary-copilot-voice-tab-group" });
@@ -62,17 +62,6 @@ export class VoiceStage {
     interviewTabBtn.addEventListener("click", () => {
       this.activeTab = "interview";
       this.render();
-    });
-
-    // Right: Mode Switcher back to Classic Note View
-    const rightNav = navBar.createDiv({ cls: "diary-copilot-voice-nav-right" });
-    const switchBtn = rightNav.createEl("button", {
-      cls: "diary-copilot-voice-mode-toggle-btn",
-      text: "📝 筆記卡片模式",
-      attr: { title: "切換回編輯器卡片模式" },
-    });
-    switchBtn.addEventListener("click", () => {
-      this.callbacks.onSwitchToClassic();
     });
 
     // 2. Main Stage Content Area
@@ -124,26 +113,26 @@ export class VoiceStage {
     const interviewSection = parentEl.createDiv({ cls: "diary-copilot-voice-interview-section" });
 
     const qCard = interviewSection.createDiv({ cls: "diary-copilot-voice-interview-qcard" });
-    const qBadge = qCard.createSpan({ cls: "diary-copilot-hero-badge", text: "💭 今日訪談引導" });
+    const qHeader = qCard.createDiv({ cls: "interview-qcard-header" });
+    qHeader.createSpan({ cls: "diary-copilot-hero-badge", text: "💭 今日訪談引導" });
 
     const questionEn = this.currentFollowUpQ?.en || "What was the most meaningful or memorable thing that happened today?";
     const questionZh = this.currentFollowUpQ?.zh || "今天發生了什麼最有意義、或是最讓你印象深刻的事？";
 
-    const qBody = qCard.createDiv({ cls: "interview-q-en", text: questionEn });
-    qCard.createDiv({ cls: "interview-q-zh", text: `(${questionZh})` });
-
-    const audioRow = qCard.createDiv({ cls: "interview-q-audio-row" });
-    const listenQBtn = audioRow.createEl("button", {
-      cls: "diary-copilot-action-btn",
+    const listenQBtn = qHeader.createEl("button", {
+      cls: "diary-copilot-action-btn interview-listen-btn",
       text: "🔊 聽問題發音",
     });
     listenQBtn.addEventListener("click", () => {
       speakSentence(questionEn);
     });
 
+    const qBody = qCard.createDiv({ cls: "interview-q-en", text: questionEn });
+    qCard.createDiv({ cls: "interview-q-zh", text: questionZh });
+
     // Answer Mic Hero
     const answerPrompt = interviewSection.createDiv({ cls: "diary-copilot-voice-prompt-title" });
-    answerPrompt.setText("🎙️ 開口回答問題（講中文或英文皆可，AI 自動精修為道地日記）：");
+    answerPrompt.setText("🎙️ 開口回答問題（講中文或英文皆可，AI 自動轉化為道地日記）：");
 
     this.renderMicHeroComponent(interviewSection, (spokenText) => {
       this.processSpokenThought(spokenText);

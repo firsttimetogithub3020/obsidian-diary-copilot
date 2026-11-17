@@ -93,7 +93,8 @@
 }
 
 .diary-copilot-panel.is-loading {
-  opacity: 0.45;
+  /* ALWAYS keep solid 100% opacity to prevent underlying note text and backlinks bleed-through */
+  opacity: 1 !important;
 }
 
 .diary-copilot-panel.is-hidden {
@@ -244,22 +245,44 @@
 }
 
 .diary-copilot-status-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   display: inline-block;
   background-color: var(--color-green, #4caf50);
+  opacity: 0.9;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.diary-copilot-status-dot.is-idle,
+.diary-copilot-status-dot.idle {
+  background-color: var(--color-green, #4caf50);
+  opacity: 0.9;
+}
+
+.diary-copilot-status-dot.is-thinking,
+.diary-copilot-status-dot.loading {
+  background-color: var(--interactive-accent);
+  opacity: 1;
+  animation: diary-copilot-gentle-breathe 2s ease-in-out infinite;
+}
+
+.diary-copilot-status-dot.is-error,
+.diary-copilot-status-dot.error {
+  background-color: var(--text-error, #ef4444);
   opacity: 0.85;
 }
 
-.diary-copilot-status-dot.loading {
-  background-color: var(--text-muted);
-  opacity: 0.6;
-}
-
-.diary-copilot-status-dot.error {
-  background-color: var(--text-faint);
-  opacity: 0.4;
+@keyframes diary-copilot-gentle-breathe {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
 }
 
 /* Tone Selector in Middle of Header */
@@ -1744,256 +1767,124 @@
 }
 
 /* Mic Hero Component */
-.diary-copilot-voice-mic-hero {
+.diary-copilot-voice-mic-container {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 10px;
-  padding: 14px;
-  background: var(--background-secondary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 12px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  width: 100%;
 }
 
-.voice-mic-btn {
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
-  border: none;
-  background: var(--interactive-accent);
-  color: #fff;
-  cursor: pointer;
-  display: flex;
+.diary-copilot-voice-mic-hero {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  gap: 8px;
+  padding: 10px 22px;
+  border-radius: 24px;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.16);
+  transition: transform 0.15s ease, background-color 0.15s ease;
 }
 
-.voice-mic-btn:hover {
-  transform: scale(1.05);
+.diary-copilot-voice-mic-hero:hover {
+  transform: scale(1.03);
 }
 
-.voice-mic-btn.is-listening {
+.diary-copilot-voice-mic-hero.is-listening {
   background: #e53e3e !important;
   animation: diary-voice-pulse 1.4s infinite;
 }
 
-@keyframes diary-voice-pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(229, 62, 62, 0.6);
-  }
-  70% {
-    box-shadow: 0 0 0 16px rgba(229, 62, 62, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(229, 62, 62, 0);
-  }
-}
-
-.voice-mic-icon {
-  font-size: 26px;
+.diary-copilot-voice-mic-hero .mic-icon {
+  font-size: 18px;
   line-height: 1;
 }
 
-.voice-mic-hint {
-  font-size: 12.5px;
-  color: var(--text-muted);
-}
-
-.voice-manual-input-box {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  max-width: 480px;
-  margin-top: 4px;
-}
-
-.voice-manual-input {
-  flex: 1;
-  padding: 6px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--background-modifier-border);
-  background: var(--background-primary);
-  font-size: 13px;
-  color: var(--text-normal);
-}
-
-.voice-manual-submit-btn {
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: none;
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
-  cursor: pointer;
-  font-size: 12.5px;
+.diary-copilot-voice-mic-hero .mic-label {
+  font-size: 13.5px;
+  font-weight: 600;
 }
 
 .diary-copilot-voice-transcript-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   width: 100%;
-  padding: 8px 12px;
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 8px;
   box-sizing: border-box;
 }
 
-.voice-transcript-tag {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  margin-right: 6px;
-}
-
-.voice-transcript-text {
-  font-size: 13.5px;
-  color: var(--text-normal);
-  line-height: 1.4;
-}
-
-.voice-transcript-interim {
-  color: var(--text-muted);
-  font-style: italic;
-  margin-left: 4px;
-}
-
-/* Loading Box */
-.diary-copilot-voice-loading-box {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 20px;
-  color: var(--interactive-accent);
-  font-size: 13.5px;
-}
-
-/* Refined 3 Cards */
-.diary-copilot-voice-cards-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 4px;
-}
-
-.diary-copilot-voice-card {
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 10px;
-  padding: 10px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.diary-copilot-voice-card:hover {
-  border-color: var(--interactive-accent);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.voice-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.voice-style-badge {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--interactive-accent);
-  background: var(--background-secondary);
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-
-.voice-style-actions {
-  display: flex;
-  gap: 6px;
-}
-
-.voice-card-en {
-  font-size: 14.5px;
-  color: var(--text-normal);
-  line-height: 1.5;
-  font-weight: 500;
-}
-
-.voice-card-zh {
-  font-size: 12.5px;
-  color: var(--text-muted);
-  line-height: 1.4;
-}
-
-/* Inline Oral Practice Box */
-.voice-card-oral-box {
-  background: var(--background-secondary);
-  border: 1px dashed var(--interactive-accent);
+.diary-copilot-voice-transcript-input {
+  flex: 1;
+  padding: 7px 12px;
   border-radius: 8px;
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.voice-oral-prompt {
-  font-size: 12px;
-  color: var(--interactive-accent);
-  font-weight: 500;
-}
-
-.voice-oral-live-speech {
-  font-size: 13.5px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary) !important;
   color: var(--text-normal);
-  background: var(--background-primary);
-  padding: 6px 10px;
-  border-radius: 6px;
-  min-height: 24px;
+  font-size: 13px;
+  line-height: 1.4;
+  outline: none;
+  box-sizing: border-box;
 }
 
-.voice-oral-feedback {
-  font-size: 12px;
-  color: var(--text-muted);
+.diary-copilot-voice-transcript-input:focus {
+  border-color: var(--interactive-accent);
 }
 
-.voice-oral-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.diary-copilot-voice-send-btn {
+  padding: 7px 14px;
+  border-radius: 8px;
+  background: var(--interactive-accent) !important;
+  color: var(--text-on-accent) !important;
+  font-weight: 600;
+  font-size: 12.5px;
+  flex-shrink: 0;
+  cursor: pointer;
 }
 
 /* Interview QA Cards */
 .diary-copilot-voice-interview-qcard {
-  background: var(--background-primary);
+  background: var(--background-primary) !important;
+  opacity: 1 !important;
   border: 1px solid var(--interactive-accent);
-  border-radius: 10px;
-  padding: 14px;
+  border-radius: 12px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+}
+
+.interview-qcard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.interview-listen-btn {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
 }
 
 .interview-q-en {
-  font-size: 15px;
+  font-size: 16.5px;
   font-weight: 600;
   color: var(--text-normal);
-  line-height: 1.45;
+  line-height: 1.5;
+  user-select: text !important;
+  -webkit-user-select: text !important;
 }
 
 .interview-q-zh {
   font-size: 13px;
   color: var(--text-muted);
-  line-height: 1.4;
-}
-
-.interview-q-audio-row {
-  display: flex;
-  gap: 8px;
-  margin-top: 4px;
+  line-height: 1.45;
+  opacity: 0.9;
 }
 
 .interview-answer-prompt {
