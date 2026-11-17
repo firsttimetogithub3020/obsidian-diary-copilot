@@ -246,11 +246,13 @@
     display: none !important;
   }
   .diary-copilot-header-sys {
-    gap: 3px !important;
+    gap: 4px !important;
   }
   .diary-copilot-header-sys .diary-copilot-action-btn {
-    padding: 2px 5px !important;
-    font-size: 11px !important;
+    padding: 3px 6px !important;
+    font-size: 11.5px !important;
+    height: 27px !important;
+    border-radius: 4px !important;
   }
 }
 
@@ -1150,15 +1152,15 @@
 }
 
 .is-mobile .diary-copilot-header-actions {
-  gap: 2px;
+  gap: 3px;
 }
 
 .is-mobile .diary-copilot-action-btn {
   position: relative;
-  padding: 1px 4px;
-  font-size: var(--diary-copilot-btn-font-size, 11px);
-  border-radius: 3px;
-  height: 22px;
+  padding: 3px 7px;
+  font-size: var(--diary-copilot-btn-font-size, 12px);
+  border-radius: 5px;
+  height: 27px;
   box-sizing: border-box;
 }
 
@@ -1238,9 +1240,9 @@
 
 /* Compact mode (when height <= 95px on mobile) */
 .diary-copilot-panel.is-compact {
-  padding-top: 2px;
-  padding-bottom: 2px;
-  gap: 1px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  gap: 2px;
 }
 
 .diary-copilot-panel.is-compact .diary-copilot-panel-header {
@@ -2245,10 +2247,10 @@
 
 /* Mobile Virtual Keyboard Active: Auto-collapse panel to single-row toolbar */
 .diary-copilot-panel.is-keyboard-writing {
-  height: 38px !important;
-  min-height: 38px !important;
-  max-height: 38px !important;
-  padding: 3px 8px !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
+  padding: 5px 10px !important;
   overflow: hidden !important;
 }
 

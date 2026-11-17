@@ -397,16 +397,27 @@ export class CardPanel {
     if (!this.panelEl) return;
 
     if (this.isKeyboardWriting) {
-      this.panelEl.style.height = "38px";
+      const writingHeight = Platform.isMobile ? "44px" : "42px";
+      this.panelEl.style.height = writingHeight;
       this.panelEl.addClass("is-compact");
+      document.body.style.setProperty("--diary-copilot-panel-height", writingHeight);
       return;
     }
 
     if (this.isCollapsed) {
-      const collapsedHeight = Platform.isMobile ? 32 : 36;
+      const collapsedHeight = Platform.isMobile ? 40 : 38;
       this.panelEl.style.height = `${collapsedHeight}px`;
       this.panelEl.addClass("is-compact");
       document.body.style.setProperty("--diary-copilot-panel-height", `${collapsedHeight}px`);
+      return;
+    }
+
+    // In compact mode with no cards and no inquiry (idle single-row toolbar)
+    if (this.copilotMode === "compact" && this.currentCards.length === 0 && !this.pinnedInquiryItem && !this.hasUserManuallyResized) {
+      const compactBarHeight = Platform.isMobile ? 44 : 42;
+      this.panelEl.style.height = `${compactBarHeight}px`;
+      this.panelEl.addClass("is-compact");
+      document.body.style.setProperty("--diary-copilot-panel-height", `${compactBarHeight}px`);
       return;
     }
 
@@ -481,7 +492,7 @@ export class CardPanel {
     this.panelEl.addClass("is-animating");
     if (this.isCollapsed) {
       this.panelEl.addClass("is-collapsed");
-      const collapsedHeight = Platform.isMobile ? 32 : 36;
+      const collapsedHeight = Platform.isMobile ? 40 : 38;
       this.panelEl.style.height = `${collapsedHeight}px`;
       this.panelEl.addClass("is-compact");
       document.body.style.setProperty("--diary-copilot-panel-height", `${collapsedHeight}px`);
