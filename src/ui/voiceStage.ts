@@ -7,7 +7,12 @@ import { speakSentence, stopAudio } from "../services/tts";
 import { globalSpeechRecognizer, evaluateOralMatch } from "../services/speech";
 
 export interface VoiceStageCallbacks {
-  onAppendSentence: (sentence: string) => Promise<void>;
+  onInsertSpokenDraft?: (spokenText: string) => Promise<{ from: number; to: number; rawInserted: string }>;
+  onAppendSentence: (
+    sentence: string,
+    draftInfo?: { from: number; to: number; sourceText: string; rawInserted: string },
+    kind?: "continue" | "oral"
+  ) => Promise<void>;
   onTidyUp: () => void;
   onFullTextShadowing: () => void;
   onSwitchToClassic: () => void;
@@ -29,6 +34,9 @@ export class VoiceStage {
   private currentRefineResult: VoiceRefineResult | null = null;
   private currentFollowUpQ: { en: string; zh?: string } | null = null;
   private adoptedCount = 0;
+
+  // Active spoken draft tracking for replacement
+  private currentDraftInfo: { from: number; to: number; sourceText: string; rawInserted: string } | null = null;
 
   // Oral practice state within voice stage
   private practicingCardText: string | null = null;
@@ -298,6 +306,22 @@ export class VoiceStage {
     if (!spoken.trim()) return;
     this.isLoading = true;
     this.currentRefineResult = null;
+
+    // Immediately display spoken draft as gray text in editor so user sees their blind spots
+    try {
+      if (this.callbacks.onInsertSpokenDraft) {
+        const range = await this.callbacks.onInsertSpokenDraft(spoken.trim());
+        if (range && range.rawInserted) {
+          this.currentDraftInfo = {
+            ...range,
+            sourceText: spoken.trim(),
+          };
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to insert spoken draft into editor", err);
+    }
+
     this.render();
 
     try {
@@ -382,15 +406,17 @@ export class VoiceStage {
         this.startCardShadowing(c.text, cardEl);
       });
 
-      // 3. ⚡ 直接加入今日日記
+      // 3. ⚡ 填入 (取代筆記中的口說灰字)
       const appendBtn = actRow.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-direct-paste-btn",
-        text: "⚡ 加入日記",
+        text: "⚡ 填入",
+        attr: { title: "填入編輯區，取代口說初稿灰字" },
       });
       appendBtn.addEventListener("click", async () => {
-        await this.callbacks.onAppendSentence(c.text);
+        await this.callbacks.onAppendSentence(c.text, this.currentDraftInfo || undefined, "continue");
         this.adoptedCount++;
-        new Notice("🎉 已加入今日日記！", 2500);
+        this.currentDraftInfo = null;
+        new Notice("🎉 已填入並替換口說初稿！", 2500);
 
         // If follow-up question exists, transition to interview
         if (this.currentFollowUpQ) {
@@ -415,11 +441,12 @@ export class VoiceStage {
           feedbackBox.setText(`吻合度：${Math.round(evalRes.matchRatio * 100)}% · ${evalRes.spokenText}`);
           if (evalRes.isPass) {
             globalSpeechRecognizer.stop();
-            feedbackBox.setText("🎉 完美過關！吻合度高！已自動為您加入今日日記！");
+            feedbackBox.setText("🎉 完美過關！吻合度高！已自動填入並替換口說初稿！");
             feedbackBox.addClass("is-passed");
             window.setTimeout(async () => {
-              await this.callbacks.onAppendSentence(targetText);
+              await this.callbacks.onAppendSentence(targetText, this.currentDraftInfo || undefined, "oral");
               this.adoptedCount++;
+              this.currentDraftInfo = null;
               if (this.currentFollowUpQ) this.activeTab = "interview";
               this.currentTranscript = "";
               this.currentRefineResult = null;
@@ -432,7 +459,7 @@ export class VoiceStage {
         },
       });
     } else {
-      feedbackBox.setText("🎧 請聆聽上方示範發音，並使用鍵盤語音聽寫練讀。滿意後請點擊「⚡ 加入日記」。");
+      feedbackBox.setText("🎧 請聆聽上方示範發音，並使用鍵盤語音聽寫練讀。滿意後請點擊「⚡ 填入」。");
     }
   }
 }

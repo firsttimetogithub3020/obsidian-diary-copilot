@@ -549,8 +549,15 @@ export default class DiaryCopilotPlugin extends Plugin {
               new Notice("🎉 口說跟讀成功！已自動填入標準句子", 2500);
             }
           },
-          onAppendDiarySentence: async (sentence: string) => {
-            await this.appendDiarySentence(sentence);
+          onInsertSpokenDraft: async (spokenText: string) => {
+            return await this.insertSpokenDraft(spokenText);
+          },
+          onAppendDiarySentence: async (
+            sentence: string,
+            draftInfo?: { from: number; to: number; sourceText: string; rawInserted: string },
+            kind?: "continue" | "oral"
+          ) => {
+            await this.appendDiarySentence(sentence, draftInfo, kind);
           },
           onTidyUpRequest: () => {
             tidyUpTodayDiary(this.app, this);
@@ -664,7 +671,47 @@ export default class DiaryCopilotPlugin extends Plugin {
     return "";
   }
 
-  async appendDiarySentence(sentence: string) {
+  async insertSpokenDraft(spokenText: string): Promise<{ from: number; to: number; rawInserted: string }> {
+    let activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!activeView || !activeView.file) {
+      await openTodayDiary(this.app, this);
+      activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    }
+    if (!activeView || !activeView.editor) {
+      return { from: 0, to: 0, rawInserted: "" };
+    }
+    const editor = activeView.editor;
+    const doc = editor.getValue();
+    const needsLeadingNewline = doc.length > 0 && !doc.endsWith("\n\n");
+    const prefix = needsLeadingNewline ? (doc.endsWith("\n") ? "\n" : "\n\n") : "";
+
+    // Insert as gray draft text so user immediately sees their spoken words / grammar blind spots
+    const rawSpan = `<span style="color: var(--text-muted, #888888); font-style: italic;">${spokenText}</span>`;
+    const textToInsert = `${prefix}${rawSpan}\n`;
+
+    const fromOffset = doc.length + prefix.length;
+    const toOffset = fromOffset + rawSpan.length;
+
+    const lastLine = editor.lineCount() - 1;
+    const lastLineLength = editor.getLine(lastLine).length;
+    editor.replaceRange(textToInsert, { line: lastLine, ch: lastLineLength });
+
+    // Position cursor at the end of the newly inserted draft
+    const newLastLine = editor.lineCount() - 1;
+    editor.setCursor({ line: newLastLine, ch: editor.getLine(newLastLine).length });
+
+    return {
+      from: fromOffset,
+      to: toOffset,
+      rawInserted: rawSpan,
+    };
+  }
+
+  async appendDiarySentence(
+    sentence: string,
+    draftInfo?: { from: number; to: number; sourceText: string; rawInserted: string },
+    kind: "continue" | "oral" = "continue"
+  ) {
     let activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (!activeView || !activeView.file) {
       await openTodayDiary(this.app, this);
@@ -673,13 +720,40 @@ export default class DiaryCopilotPlugin extends Plugin {
     if (activeView && activeView.editor) {
       const editor = activeView.editor;
       const doc = editor.getValue();
+
+      // If draftInfo is present, locate and replace the gray draft span
+      if (draftInfo && draftInfo.rawInserted) {
+        let fromOffset = draftInfo.from;
+        let toOffset = draftInfo.to;
+
+        if (doc.slice(fromOffset, toOffset) !== draftInfo.rawInserted) {
+          const foundIdx = doc.lastIndexOf(draftInfo.rawInserted);
+          if (foundIdx !== -1) {
+            fromOffset = foundIdx;
+            toOffset = foundIdx + draftInfo.rawInserted.length;
+          }
+        }
+
+        if (doc.slice(fromOffset, toOffset) === draftInfo.rawInserted) {
+          const fromPos = editor.offsetToPos(fromOffset);
+          const toPos = editor.offsetToPos(toOffset);
+          editor.replaceRange(sentence, fromPos, toPos);
+
+          // Record adoption with the original spoken text as source for Tidy Up learning review
+          this.recordAdoption(sentence, kind, draftInfo.sourceText);
+          new Notice(kind === "oral" ? "🎉 跟讀達標！已替換口說初稿" : "⚡ 已填入並替換口說初稿！", 2000);
+          return;
+        }
+      }
+
+      // Fallback: append to the bottom of the diary
       const needsLeadingNewline = doc.length > 0 && !doc.endsWith("\n\n");
       const prefix = needsLeadingNewline ? (doc.endsWith("\n") ? "\n" : "\n\n") : "";
       const newText = `${prefix}${sentence}\n`;
       const lastLine = editor.lineCount() - 1;
       const lastLineLength = editor.getLine(lastLine).length;
       editor.replaceRange(newText, { line: lastLine, ch: lastLineLength });
-      this.recordAdoption(sentence, "continue");
+      this.recordAdoption(sentence, kind, draftInfo?.sourceText);
       new Notice("📝 已收錄至今日日記初稿", 1500);
     }
   }

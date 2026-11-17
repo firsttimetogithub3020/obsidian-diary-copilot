@@ -117,6 +117,9 @@ export async function tidyUpTodayDiary(app: App, plugin: DiaryCopilotPlugin) {
       .map((a) => a.source)
       .filter((s): s is string => !!s && s.trim().length > 0);
 
+    // Clean any inline draft styling tags from text before sending to LLM
+    draftTextToProcess = draftTextToProcess.replace(/<span style="[^"]*">([\s\S]*?)<\/span>/g, "$1");
+
     // 4. Call LLM
     const systemPrompt = buildTidySystemPrompt(plugin.settings.englishLevel, plugin.settings.diaryTone);
     const userPrompt = buildTidyUserPrompt({
@@ -184,8 +187,24 @@ export async function tidyUpTodayDiary(app: App, plugin: DiaryCopilotPlugin) {
     const chineseTranslation = (result.chinese_translation || result.chinese_original || "").trim();
 
     // Prepare original draft content
-    let draftSectionContent = originalDraftText.trim();
-    if (replacedDraftSnippets.length > 0) {
+    let draftSectionContent = originalDraftText.replace(/<span style="[^"]*">([\s\S]*?)<\/span>/g, "$1").trim();
+
+    // Gather adoptions with source (oral/written blind spots replaced by polished sentences)
+    const adoptionsWithSource = todayAdoptions.filter(
+      (a) => a.source && a.source.trim().length > 0
+    );
+
+    if (adoptionsWithSource.length > 0) {
+      draftSectionContent += `\n\n### 💡 口說與寫作初稿盲點替換紀錄\n`;
+      const seen = new Set<string>();
+      for (const item of adoptionsWithSource) {
+        const key = `${item.source?.trim()} -> ${item.text.trim()}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          draftSectionContent += `- 🗣️ **原始口說初稿**：\`${item.source?.trim()}\`\n  ➔ ⚡ **升級道地句**：${item.text.trim()}\n`;
+        }
+      }
+    } else if (replacedDraftSnippets.length > 0) {
       const uniqueSnippets = Array.from(new Set(replacedDraftSnippets));
       draftSectionContent += `\n\n> 💡 寫作時替換之初稿片段：${uniqueSnippets.join(" · ")}`;
     }

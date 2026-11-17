@@ -21,7 +21,12 @@ export interface CardPanelCallbacks {
   onOralInput?: (spokenText: string, targetText: string) => void;
   onFocusEditor?: () => void;
   onCardSelect?: (text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }) => void;
-  onAppendDiarySentence?: (sentence: string) => Promise<void>;
+  onInsertSpokenDraft?: (spokenText: string) => Promise<{ from: number; to: number; rawInserted: string }>;
+  onAppendDiarySentence?: (
+    sentence: string,
+    draftInfo?: { from: number; to: number; sourceText: string; rawInserted: string },
+    kind?: "continue" | "oral"
+  ) => Promise<void>;
   onTidyUpRequest?: () => void;
   onFullTextShadowingRequest?: () => void;
   getEnglishLevel?: () => EnglishLevel;
@@ -672,8 +677,14 @@ export class CardPanel {
     }
 
     this.voiceStage = new VoiceStage(this.contentAreaEl, llm, {
-      onAppendSentence: async (sentence: string) => {
-        await this.callbacks.onAppendDiarySentence?.(sentence);
+      onInsertSpokenDraft: async (spokenText: string) => {
+        if (this.callbacks.onInsertSpokenDraft) {
+          return await this.callbacks.onInsertSpokenDraft(spokenText);
+        }
+        return { from: 0, to: 0, rawInserted: "" };
+      },
+      onAppendSentence: async (sentence: string, draftInfo?: { from: number; to: number; sourceText: string; rawInserted: string }, kind?: "continue" | "oral") => {
+        await this.callbacks.onAppendDiarySentence?.(sentence, draftInfo, kind);
       },
       onTidyUp: () => {
         this.callbacks.onTidyUpRequest?.();
