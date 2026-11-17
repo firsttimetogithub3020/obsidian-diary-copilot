@@ -24,6 +24,7 @@ export class VoiceStage {
   private activeTab: "free" | "interview" = "free";
   private isListening = false;
   private isLoading = false;
+  private speechLang: "zh-TW" | "en-US" = "zh-TW";
   private currentTranscript = "";
   private currentRefineResult: VoiceRefineResult | null = null;
   private currentFollowUpQ: { en: string; zh?: string } | null = null;
@@ -151,13 +152,33 @@ export class VoiceStage {
   private renderMicHeroComponent(parentEl: HTMLElement, onSubmitSpoken: (text: string) => void) {
     const micContainer = parentEl.createDiv({ cls: "diary-copilot-voice-mic-container" });
 
+    // Language selector pills: allow user to speak Mandarin/mixed or English
+    const langRow = micContainer.createDiv({ cls: "diary-copilot-voice-lang-row" });
+    const zhBtn = langRow.createEl("button", {
+      cls: `diary-copilot-voice-lang-btn ${this.speechLang === "zh-TW" ? "is-active" : ""}`,
+      text: "🇹🇼 說中文 / 中英混",
+    });
+    zhBtn.addEventListener("click", () => {
+      this.speechLang = "zh-TW";
+      this.render();
+    });
+
+    const enBtn = langRow.createEl("button", {
+      cls: `diary-copilot-voice-lang-btn ${this.speechLang === "en-US" ? "is-active" : ""}`,
+      text: "🇺🇸 說英文 (English)",
+    });
+    enBtn.addEventListener("click", () => {
+      this.speechLang = "en-US";
+      this.render();
+    });
+
     const micHeroBtn = micContainer.createEl("button", {
       cls: `diary-copilot-voice-mic-hero ${this.isListening ? "is-listening" : ""}`,
     });
     micHeroBtn.createSpan({ cls: "mic-icon", text: this.isListening ? "⏹️" : "🎙️" });
     micHeroBtn.createSpan({
       cls: "mic-label",
-      text: this.isListening ? "正在聆聽... 點此結束" : "按一下開始說話",
+      text: this.isListening ? "正在聆聽... 說完請按此結束" : "按一下開始說話（無倒數限制）",
     });
 
     // Speech Transcript Input Box (works across Android Web Speech and iOS Keyboard Dictation)
@@ -201,30 +222,35 @@ export class VoiceStage {
           onSubmitSpoken(this.currentTranscript.trim());
         }
       } else {
-        this.startListening((transcript, isFinal) => {
+        this.currentTranscript = "";
+        textInput.value = "";
+        this.startListening((transcript) => {
           this.currentTranscript = transcript;
           textInput.value = transcript;
-          if (isFinal && transcript.trim()) {
-            this.stopListening();
-            onSubmitSpoken(transcript.trim());
-          }
+          // Notice: Continuous speaking without premature cut-off! User taps mic button to finish and submit.
         });
       }
     });
   }
 
-  private startListening(onResult: (transcript: string, isFinal: boolean) => void) {
+  private startListening(onResult: (transcript: string) => void) {
     if (globalSpeechRecognizer.isSupported()) {
       this.isListening = true;
-      globalSpeechRecognizer.start("en-US", {
-        onResult: (t, final) => onResult(t, final),
-        onError: () => {
-          this.isListening = false;
+      globalSpeechRecognizer.start(
+        this.speechLang,
+        {
+          onResult: (t) => onResult(t),
+          onError: () => {
+            this.isListening = false;
+            this.render();
+          },
+          onEnd: () => {
+            this.isListening = false;
+            this.render();
+          },
         },
-        onEnd: () => {
-          this.isListening = false;
-        },
-      });
+        12000
+      );
       this.render();
     } else {
       // Focus input field for iOS keyboard dictation / native Win+H
@@ -259,9 +285,11 @@ export class VoiceStage {
         tone,
       });
 
-      let fullResponse = "";
-      await this.llm.generateStream(sysPrompt, userPrompt, (chunk) => {
-        fullResponse += chunk;
+      const fullResponse = await this.llm.complete({
+        systemPrompt: sysPrompt,
+        userPrompt,
+        temperature: 0.4,
+        maxOutputTokens: 1200,
       });
 
       const parsed = parseVoiceRefineResponse(fullResponse);

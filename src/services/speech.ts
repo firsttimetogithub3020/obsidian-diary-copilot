@@ -226,7 +226,7 @@ export class SpeechRecognizer {
     return !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
   }
 
-  start(lang = "en-US", handlers: SpeechRecognitionHandlers, silenceTimeoutMs = 5000): boolean {
+  start(lang = "en-US", handlers: SpeechRecognitionHandlers, silenceTimeoutMs = 12000): boolean {
     if (!this.isSupported()) {
       return false;
     }
@@ -262,24 +262,24 @@ export class SpeechRecognizer {
       const SpeechClass =
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       this.recognition = new SpeechClass();
-      this.recognition.lang = this.currentLang; // Locked to English (en-US)
+      this.recognition.lang = this.currentLang;
       // continuous=true allows users to pause, breathe, or speak long sentences without being abruptly cut off!
       this.recognition.continuous = true;
       this.recognition.interimResults = true;
       this.recognition.maxAlternatives = 1;
 
-      // Max total session timeout (35 seconds) to prevent battery drain if user leaves microphone on
+      // Max total session timeout (120 seconds / 2 minutes) for continuous journaling thoughts
       this.maxSessionTimer = window.setTimeout(() => {
         if (this.shouldBeListening) {
           this.stop();
         }
-      }, 35000);
+      }, 120000);
 
       this.recognition.onstart = () => {
         this.consecutiveErrors = 0;
         this.currentHandlers?.onStart?.();
-        // Initial silence timeout (give user 8s to start speaking)
-        this.resetSilenceTimer(8000);
+        // Initial silence timeout (give user 15s to think and start speaking)
+        this.resetSilenceTimer(15000);
       };
 
       this.recognition.onresult = (event: any) => {

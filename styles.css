@@ -1775,6 +1775,36 @@
   width: 100%;
 }
 
+.diary-copilot-voice-lang-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.diary-copilot-voice-lang-btn {
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 14px;
+  padding: 3px 10px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.diary-copilot-voice-lang-btn:hover {
+  color: var(--text-normal);
+  border-color: var(--interactive-accent);
+}
+
+.diary-copilot-voice-lang-btn.is-active {
+  background: var(--background-modifier-hover);
+  border-color: var(--interactive-accent);
+  color: var(--interactive-accent);
+  font-weight: 600;
+}
+
 .diary-copilot-voice-mic-hero {
   display: inline-flex;
   align-items: center;
