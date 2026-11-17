@@ -1339,28 +1339,51 @@ export default class DiaryCopilotPlugin extends Plugin {
       editor.focus();
     }
 
-    let targetPos = editor.posToOffset(editor.getCursor());
+    const currentCursor = editor.posToOffset(editor.getCursor());
+    let targetPos = currentCursor;
     let replacedText = "";
 
     // Exit inquiry mode
     this.isInquiryMode = false;
     this.currentInquiryItem = null;
 
-    // Check if there is an exact original sentence to replace (e.g. from polish mode)
-    const polishSource = this.currentPolishItem?.translationSource || (this.cardPanel?.getCurrentItem() as any)?.translationSource;
-    let from = sourceRange ? Math.min(sourceRange.from, sourceRange.to) : -1;
-    let to = sourceRange ? Math.max(sourceRange.from, sourceRange.to) : -1;
+    let from = -1;
+    let to = -1;
 
-    if (polishSource && polishSource.trim()) {
-      const matchIdx = fullDoc.indexOf(polishSource.trim());
-      if (matchIdx !== -1) {
-        from = matchIdx;
-        to = matchIdx + polishSource.trim().length;
+    // Replacement should ONLY occur in 3 specific situations:
+    // 1. In Polish Mode: replacing the specific sentence that was polished
+    if (this.isPolishMode && this.currentPolishItem) {
+      const polishSource = this.currentPolishItem.translationSource?.trim();
+      const pRange = this.currentPolishItem.sourceRange;
+
+      if (pRange) {
+        from = Math.min(pRange.from, pRange.to);
+        to = Math.max(pRange.from, pRange.to);
+      }
+
+      // If text at pRange does not match polishSource, search ONLY in a local window around pRange / cursor, NEVER from index 0!
+      if (polishSource && polishSource.length > 0) {
+        const expected = fullDoc.slice(Math.max(0, from), Math.min(docLength, to)).trim();
+        if (expected !== polishSource) {
+          const anchor = (pRange && pRange.from >= 0) ? pRange.from : currentCursor;
+          const searchStart = Math.max(0, anchor - 200);
+          const searchEnd = Math.min(docLength, anchor + 200);
+          const localSlice = fullDoc.slice(searchStart, searchEnd);
+          const localIdx = localSlice.indexOf(polishSource);
+          if (localIdx !== -1) {
+            from = searchStart + localIdx;
+            to = from + polishSource.length;
+          }
+        }
       }
     }
-
-    // Fallback: If no range was determined, check if editor has selected text
-    if (from < 0 || to < 0) {
+    // 2. Translation Mode: replacing Chinese segment
+    else if (kind === "translation" && sourceRange) {
+      from = Math.min(sourceRange.from, sourceRange.to);
+      to = Math.max(sourceRange.from, sourceRange.to);
+    }
+    // 3. Explicit editor selection: replacing what user highlighted
+    else {
       const selected = editor.getSelection();
       if (selected && selected.trim().length > 0) {
         const fromPos = editor.getCursor("from");
