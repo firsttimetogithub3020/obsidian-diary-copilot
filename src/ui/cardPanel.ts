@@ -267,7 +267,7 @@ export class CardPanel {
         this.panelEl?.removeClass("is-collapsed");
       }
 
-      const minH = Platform.isMobile ? 52 : 46;
+      const minH = Platform.isMobile ? 60 : 46;
       const clampedHeight = Math.max(minH, Math.min(initialHeight + deltaY, window.innerHeight * 0.75));
 
       this.panelEl.style.height = `${clampedHeight}px`;
@@ -301,7 +301,7 @@ export class CardPanel {
 
       if (pointerMoved) {
         const finalHeight = parseInt(this.panelEl.style.height, 10);
-        const minH = Platform.isMobile ? 52 : 46;
+        const minH = Platform.isMobile ? 60 : 46;
         if (!isNaN(finalHeight) && finalHeight >= minH) {
           this.hasUserManuallyResized = true;
           this.userManualHeight = finalHeight;
@@ -425,7 +425,7 @@ export class CardPanel {
     if (!this.panelEl) return;
 
     if (this.isKeyboardWriting) {
-      const writingHeight = Platform.isMobile ? "52px" : "48px";
+      const writingHeight = Platform.isMobile ? "60px" : "48px";
       this.panelEl.style.height = writingHeight;
       this.panelEl.addClass("is-compact");
       this.panelEl.addClass("is-keyboard-writing");
@@ -435,7 +435,7 @@ export class CardPanel {
     }
 
     if (this.isCollapsed) {
-      const collapsedHeight = Platform.isMobile ? 52 : 46;
+      const collapsedHeight = Platform.isMobile ? 60 : 46;
       this.panelEl.style.height = `${collapsedHeight}px`;
       this.panelEl.addClass("is-compact");
       this.panelEl.addClass("is-collapsed");
@@ -445,7 +445,7 @@ export class CardPanel {
 
     // In compact mode with no cards and no inquiry (idle single-row toolbar)
     if (this.copilotMode === "compact" && this.currentCards.length === 0 && !this.pinnedInquiryItem && !this.hasUserManuallyResized) {
-      const compactBarHeight = Platform.isMobile ? 52 : 48;
+      const compactBarHeight = Platform.isMobile ? 60 : 48;
       this.panelEl.style.height = `${compactBarHeight}px`;
       this.panelEl.addClass("is-compact");
       this.panelEl.addClass("is-compact-idle");
@@ -527,7 +527,7 @@ export class CardPanel {
     this.panelEl.addClass("is-animating");
     if (this.isCollapsed) {
       this.panelEl.addClass("is-collapsed");
-      const collapsedHeight = Platform.isMobile ? 52 : 46;
+      const collapsedHeight = Platform.isMobile ? 60 : 46;
       this.panelEl.style.height = `${collapsedHeight}px`;
       this.panelEl.addClass("is-compact");
       document.body.style.setProperty("--diary-copilot-panel-height", `${collapsedHeight}px`);
@@ -1031,6 +1031,46 @@ export class CardPanel {
       heroCard.createDiv({ cls: "diary-copilot-card-translation-source", text: activeCard.subText });
     }
 
+    // Hero Card Action Bar (🔊 朗讀, 🎙️ 跟讀, ⚡ 填入替換)
+    const cardActions = heroCard.createDiv({ cls: "diary-copilot-hero-actions" });
+
+    const ttsBtn = cardActions.createEl("button", {
+      cls: "diary-copilot-action-btn diary-copilot-hero-action-btn diary-copilot-tts-btn",
+      text: "🔊 朗讀",
+      attr: { title: "聆聽標準美式發音" },
+    });
+    ttsBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      speakSentence(activeCard.text);
+    });
+
+    const oralBtn = cardActions.createEl("button", {
+      cls: "diary-copilot-action-btn diary-copilot-hero-action-btn diary-copilot-oral-btn",
+      text: "🎙️ 跟讀",
+      attr: { title: "開口說英語，視覺化即時判讀並自動填入" },
+    });
+    oralBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.dismissSoftKeyboard();
+      this.resetToAutoFit();
+      this.startOralShadowing(activeCard.text, activeCard.kind, this.currentItem?.sourceRange);
+    });
+
+    const isReplace = activeCard.kind === "translation" || !!this.currentItem?.sourceRange;
+    const pasteBtn = cardActions.createEl("button", {
+      cls: "diary-copilot-action-btn diary-copilot-hero-action-btn diary-copilot-hero-paste-btn",
+      text: isReplace ? "⚡ 填入替換" : "⚡ 填入",
+      attr: { title: isReplace ? "直接以此表達替換日記原文" : "直接填入筆記" },
+    });
+    pasteBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.dismissSoftKeyboard();
+      this.callbacks.onAdopt(activeCard.text, activeCard.kind, this.currentItem?.sourceRange, true);
+    });
+
     // Tap on card injects ghost text into editor for shadow typing WITHOUT collapsing panel
     heroCard.addEventListener("click", (e) => {
       const sel = window.getSelection()?.toString().trim();
@@ -1279,11 +1319,12 @@ export class CardPanel {
     }
 
     if (activeCard && this.headerActionsEl) {
-      // 3. ⚡ 接續 (Direct Paste / Tab) - Right Group (Row 2 Right)
+      // 3. ⚡ 填入 / 接續 (Direct Paste / Tab) - Right Group (Row 2 Right)
+      const isReplace = activeCard.kind === "translation" || !!this.currentItem?.sourceRange;
       const pasteBtn = this.headerActionsEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-direct-paste-btn",
-        text: Platform.isPhone ? "⚡ 接續" : "⚡ 接續填入 (Tab)",
-        attr: { title: "直接將此續寫句填入筆記 (Tab)" },
+        text: isReplace ? "⚡ 填入替換" : (Platform.isPhone ? "⚡ 填入" : "⚡ 填入 (Tab)"),
+        attr: { title: isReplace ? "直接以此表達替換日記原文" : "直接將此續寫句填入筆記 (Tab)" },
       });
       pasteBtn.addEventListener("click", (e) => {
         e.stopPropagation();
