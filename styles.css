@@ -1101,6 +1101,12 @@
 }
 
 /* Mobile specific adaptations */
+/* Option A: When Diary Copilot is active, hide Obsidian's mobile bottom island navbar (.mobile-navbar) */
+body.has-diary-copilot-active .mobile-navbar,
+body.has-diary-copilot-active.is-mobile .mobile-navbar {
+  display: none !important;
+}
+
 .is-mobile .diary-copilot-panel {
   padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
   height: var(--diary-copilot-panel-height, auto);
@@ -2263,6 +2269,9 @@
 .diary-copilot-panel.is-keyboard-writing .diary-copilot-header-row-2,
 .diary-copilot-panel.is-keyboard-writing .diary-copilot-tone-wrapper,
 .diary-copilot-panel.is-keyboard-writing .diary-copilot-pinned-strip,
+.diary-copilot-panel.is-keyboard-writing .diary-copilot-hero-card,
+.diary-copilot-panel.is-keyboard-writing .diary-copilot-locked-card,
+.diary-copilot-panel.is-keyboard-writing .diary-copilot-capsule-tabs,
 .diary-copilot-panel.is-compact-idle .diary-copilot-panel-content,
 .diary-copilot-panel.is-compact-idle .diary-copilot-header-row-2,
 .diary-copilot-panel.is-compact-idle .diary-copilot-tone-wrapper,

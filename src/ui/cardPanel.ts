@@ -48,6 +48,30 @@ interface CardDescriptor {
   subText?: string | null;
 }
 
+export function forceDismissSoftKeyboard() {
+  try {
+    const activeEl = document.activeElement as HTMLElement;
+    if (activeEl && typeof activeEl.blur === "function") {
+      activeEl.blur();
+    }
+    const dummy = document.createElement("input");
+    dummy.setAttribute("type", "text");
+    dummy.setAttribute("readonly", "readonly");
+    dummy.style.position = "fixed";
+    dummy.style.top = "-9999px";
+    dummy.style.left = "-9999px";
+    dummy.style.opacity = "0";
+    dummy.style.height = "0";
+    dummy.style.width = "0";
+    document.body.appendChild(dummy);
+    dummy.focus();
+    dummy.blur();
+    dummy.remove();
+  } catch (e) {
+    // ignore
+  }
+}
+
 export class CardPanel {
   private containerEl: HTMLElement;
   private panelEl: HTMLElement | null = null;
@@ -137,6 +161,7 @@ export class CardPanel {
   }
 
   private render() {
+    document.body.addClass("has-diary-copilot-active");
     this.panelEl = this.containerEl.createDiv({ cls: "diary-copilot-panel" });
     if (Platform.isMobile) {
       this.panelEl.addClass("is-mobile");
@@ -364,6 +389,8 @@ export class CardPanel {
         this.isKeyboardWriting = true;
         this.panelEl?.addClass("is-keyboard-writing");
         this.panelEl?.addClass("is-compact");
+        this.panelEl?.addClass("is-compact-idle");
+        this.applyPanelHeight();
       } else if (!isKeyboardOpen && this.isKeyboardWriting) {
         this.isKeyboardWriting = false;
         this.panelEl?.removeClass("is-keyboard-writing");
@@ -376,20 +403,19 @@ export class CardPanel {
   }
 
   public dismissSoftKeyboard() {
-    try {
-      const activeEl = document.activeElement as HTMLElement;
-      if (activeEl && typeof activeEl.blur === "function") {
-        activeEl.blur();
-      }
-    } catch {}
+    forceDismissSoftKeyboard();
     try {
       this.callbacks.onDismissKeyboard?.();
     } catch {}
-    if (this.isKeyboardWriting) {
-      this.isKeyboardWriting = false;
-      this.panelEl?.removeClass("is-keyboard-writing");
-      this.applyPanelHeight();
-    }
+    window.setTimeout(() => {
+      const vv = window.visualViewport;
+      const isKeyboardOpen = vv ? vv.height < window.innerHeight * 0.78 : false;
+      if (!isKeyboardOpen && this.isKeyboardWriting) {
+        this.isKeyboardWriting = false;
+        this.panelEl?.removeClass("is-keyboard-writing");
+        this.applyPanelHeight();
+      }
+    }, 280);
   }
 
   /**
@@ -1896,6 +1922,7 @@ export class CardPanel {
   }
 
   show() {
+    document.body.addClass("has-diary-copilot-active");
     if (this.panelEl) {
       this.panelEl.removeClass("is-hidden");
       this.applyPanelHeight();
@@ -1903,12 +1930,14 @@ export class CardPanel {
   }
 
   hide() {
+    document.body.removeClass("has-diary-copilot-active");
     if (this.panelEl) {
       this.panelEl.addClass("is-hidden");
     }
   }
 
   destroy() {
+    document.body.removeClass("has-diary-copilot-active");
     this.isOralListening = false;
     this.oralLatestTranscript = "";
     this.clearAutoPassTimer();

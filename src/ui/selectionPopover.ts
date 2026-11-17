@@ -1,5 +1,6 @@
 import { App, Platform } from "obsidian";
 import { GeminiProvider } from "../llm/gemini";
+import { forceDismissSoftKeyboard } from "./cardPanel";
 
 export interface SelectionPopoverOptions {
   app: App;
@@ -151,6 +152,7 @@ export class SelectionPopover {
         e.preventDefault();
         const query = text;
         this.hide();
+        forceDismissSoftKeyboard();
         this.onPolish?.(query);
       });
     }

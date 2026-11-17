@@ -6,7 +6,7 @@ import { GeminiProvider } from "./llm/gemini";
 import { SummaryManager } from "./engine/summary";
 import { SuggestionScheduler } from "./engine/scheduler";
 import { extractContextFromDoc, extractSentenceToPolish } from "./engine/context";
-import { CardPanel } from "./ui/cardPanel";
+import { CardPanel, forceDismissSoftKeyboard } from "./ui/cardPanel";
 import { ghostTextField, setGhostTextEffect, draftMarkField, setDraftMarkEffect } from "./ui/ghostText";
 import { createDiaryKeymap } from "./ui/keymap";
 import { openTodayDiary } from "./commands/openToday";
@@ -328,6 +328,7 @@ export default class DiaryCopilotPlugin extends Plugin {
     this.selectionPopover?.destroy();
     this.selectionPopover = null;
     this.scheduler.clear();
+    document.body.removeClass("has-diary-copilot-active");
     document.body.style.removeProperty("--diary-copilot-font-size");
     document.body.style.removeProperty("--diary-copilot-panel-height");
   }
@@ -1042,6 +1043,7 @@ export default class DiaryCopilotPlugin extends Plugin {
     }
 
     // Dismiss soft keyboard on mobile so user has full view of polish cards
+    forceDismissSoftKeyboard();
     this.cardPanel?.dismissSoftKeyboard();
 
     // If note is in another folder (e.g. 日記 or 書摘), auto-invoke Copilot for this note
