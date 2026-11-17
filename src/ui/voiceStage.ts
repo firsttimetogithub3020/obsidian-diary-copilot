@@ -13,6 +13,9 @@ export interface VoiceStageCallbacks {
     draftInfo?: { from: number; to: number; sourceText: string; rawInserted: string },
     kind?: "continue" | "oral"
   ) => Promise<void>;
+  getEditorSelection?: () => { text: string; from: number; to: number } | null;
+  onLocateDocText?: (text: string) => { from: number; to: number } | null;
+  onCardRenderChange?: () => void;
   onTidyUp: () => void;
   onFullTextShadowing: () => void;
   onSwitchToClassic: () => void;
@@ -49,6 +52,10 @@ export class VoiceStage {
     this.containerEl = containerEl;
     this.llm = llm;
     this.callbacks = callbacks;
+  }
+
+  public hasCards(): boolean {
+    return !!this.currentRefineResult;
   }
 
   render() {
@@ -107,8 +114,8 @@ export class VoiceStage {
     promptText.setText("🎙️ 拿起手機，隨意說一句想記錄的心情或事情（可講中文、英文或中英混雜）：");
 
     // Microphone Hero Button & Live Input
-    this.renderMicHeroComponent(cardSection, (spokenText) => {
-      this.processSpokenThought(spokenText);
+    this.renderMicHeroComponent(cardSection, (spokenText, existingRange) => {
+      this.processSpokenThought(spokenText, existingRange);
     });
 
     // AI Refined 3 Cards Display
@@ -147,8 +154,8 @@ export class VoiceStage {
     const answerPrompt = interviewSection.createDiv({ cls: "diary-copilot-voice-prompt-title" });
     answerPrompt.setText("🎙️ 開口回答問題（講中文或英文皆可，AI 自動轉化為道地日記）：");
 
-    this.renderMicHeroComponent(interviewSection, (spokenText) => {
-      this.processSpokenThought(spokenText);
+    this.renderMicHeroComponent(interviewSection, (spokenText, existingRange) => {
+      this.processSpokenThought(spokenText, existingRange);
     });
 
     if (this.isLoading) {
@@ -209,17 +216,49 @@ export class VoiceStage {
       cls: "diary-copilot-voice-transcript-input",
       value: this.currentTranscript,
       placeholder: Platform.isIosApp
-        ? "點此開啟鍵盤，輕按空白鍵旁 🎙️ 聽寫，說完按右側送出 ➔"
-        : "點擊上方麥克風說話，或在此手動輸入語音 ➔",
+        ? "輕按空白鍵旁 🎙️ 聽寫，或按右側 📋 帶入選取 ➔"
+        : "點擊上方麥克風說話，或按 📋 帶入筆記選取 ➔",
     });
 
     textInput.addEventListener("input", (e) => {
       this.currentTranscript = (e.target as HTMLInputElement).value;
     });
 
-    textInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && this.currentTranscript.trim()) {
-        onSubmitSpoken(this.currentTranscript.trim());
+    const triggerSubmit = async () => {
+      const text = this.currentTranscript.trim();
+      if (text) {
+        const existingRange = this.locateSentenceInEditor(text);
+        onSubmitSpoken(text, existingRange);
+      } else {
+        // Fallback: auto-read selection or clipboard
+        const imported = await this.handleImportOrPaste(textInput, onSubmitSpoken);
+        if (!imported) {
+          new Notice("請先開口說話、在上方筆記選取句子，或在此輸入內容");
+        }
+      }
+    };
+
+    textInput.addEventListener("keydown", async (e) => {
+      if (e.key === "Enter") {
+        await triggerSubmit();
+      }
+    });
+
+    // 📋 帶入選取/貼上 按鈕
+    const pasteBtn = transcriptBox.createEl("button", {
+      cls: "diary-copilot-action-btn diary-copilot-voice-paste-btn",
+      text: Platform.isMobile ? "📋 帶入" : "📋 帶入選取",
+      attr: {
+        "aria-label": "帶入筆記中選取的句子或剪貼簿內容並潤飾",
+        title: "帶入筆記中選取的句子或剪貼簿內容並潤飾",
+      },
+    });
+    pasteBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const success = await this.handleImportOrPaste(textInput, onSubmitSpoken);
+      if (!success) {
+        new Notice("未在筆記中偵測到選取文字或剪貼簿內容");
       }
     });
 
@@ -227,12 +266,8 @@ export class VoiceStage {
       cls: "diary-copilot-action-btn diary-copilot-voice-send-btn",
       text: "⚡ 產生道地句",
     });
-    sendBtn.addEventListener("click", () => {
-      if (this.currentTranscript.trim()) {
-        onSubmitSpoken(this.currentTranscript.trim());
-      } else {
-        new Notice("請先開口說話或輸入內容");
-      }
+    sendBtn.addEventListener("click", async () => {
+      await triggerSubmit();
     });
 
     // Wire speech recognition toggle
@@ -240,7 +275,9 @@ export class VoiceStage {
       if (this.isListening) {
         this.stopListening();
         if (this.currentTranscript.trim()) {
-          onSubmitSpoken(this.currentTranscript.trim());
+          const text = this.currentTranscript.trim();
+          const existingRange = this.locateSentenceInEditor(text);
+          onSubmitSpoken(text, existingRange);
         }
       } else {
         this.currentTranscript = "";
@@ -248,10 +285,65 @@ export class VoiceStage {
         this.startListening((transcript) => {
           this.currentTranscript = transcript;
           textInput.value = transcript;
-          // Notice: Continuous speaking without premature cut-off! User taps mic button to finish and submit.
         });
       }
     });
+  }
+
+  private async handleImportOrPaste(
+    inputEl: HTMLInputElement,
+    onSubmit: (text: string, existingRange?: { from: number; to: number; sourceText: string; rawInserted: string } | null) => void
+  ): Promise<boolean> {
+    // 1. Try reading editor active selection first
+    const sel = this.callbacks.getEditorSelection?.();
+    if (sel && sel.text.length > 0) {
+      this.currentTranscript = sel.text;
+      inputEl.value = sel.text;
+      new Notice(`📋 已帶入筆記選取句子：${sel.text.slice(0, 30)}...`, 2000);
+      const existingRange = {
+        from: sel.from,
+        to: sel.to,
+        sourceText: sel.text,
+        rawInserted: sel.text,
+      };
+      onSubmit(sel.text, existingRange);
+      return true;
+    }
+
+    // 2. Try reading system clipboard
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const clipText = await navigator.clipboard.readText();
+        if (clipText && clipText.trim().length > 0) {
+          const text = clipText.trim();
+          this.currentTranscript = text;
+          inputEl.value = text;
+          const located = this.callbacks.onLocateDocText?.(text);
+          const existingRange = located
+            ? { from: located.from, to: located.to, sourceText: text, rawInserted: text }
+            : null;
+          new Notice(`📋 已貼上剪貼簿內容並潤飾：${text.slice(0, 30)}...`, 2000);
+          onSubmit(text, existingRange);
+          return true;
+        }
+      }
+    } catch (err) {
+      console.warn("Clipboard access denied or unavailable", err);
+    }
+
+    return false;
+  }
+
+  private locateSentenceInEditor(text: string): { from: number; to: number; sourceText: string; rawInserted: string } | null {
+    const sel = this.callbacks.getEditorSelection?.();
+    if (sel && sel.text === text) {
+      return { from: sel.from, to: sel.to, sourceText: text, rawInserted: text };
+    }
+    const located = this.callbacks.onLocateDocText?.(text);
+    if (located) {
+      return { from: located.from, to: located.to, sourceText: text, rawInserted: text };
+    }
+    return null;
   }
 
   private startListening(onResult: (transcript: string) => void) {
@@ -302,27 +394,36 @@ export class VoiceStage {
   }
 
   // --- Process Speech via Gemini LLM ---
-  private async processSpokenThought(spoken: string) {
+  private async processSpokenThought(
+    spoken: string,
+    existingDraftInfo?: { from: number; to: number; sourceText: string; rawInserted: string } | null
+  ) {
     if (!spoken.trim()) return;
     this.isLoading = true;
     this.currentRefineResult = null;
 
-    // Immediately display spoken draft as gray text in editor so user sees their blind spots
-    try {
-      if (this.callbacks.onInsertSpokenDraft) {
-        const range = await this.callbacks.onInsertSpokenDraft(spoken.trim());
-        if (range && range.rawInserted) {
-          this.currentDraftInfo = {
-            ...range,
-            sourceText: spoken.trim(),
-          };
+    if (existingDraftInfo) {
+      // The sentence already exists in editor (e.g. copied/selected from editor) - do NOT duplicate gray draft!
+      this.currentDraftInfo = existingDraftInfo;
+    } else {
+      // Fresh spoken/typed thought: insert as gray draft text into editor
+      try {
+        if (this.callbacks.onInsertSpokenDraft) {
+          const range = await this.callbacks.onInsertSpokenDraft(spoken.trim());
+          if (range && range.rawInserted) {
+            this.currentDraftInfo = {
+              ...range,
+              sourceText: spoken.trim(),
+            };
+          }
         }
+      } catch (err) {
+        console.warn("Failed to insert spoken draft into editor", err);
       }
-    } catch (err) {
-      console.warn("Failed to insert spoken draft into editor", err);
     }
 
     this.render();
+    this.callbacks.onCardRenderChange?.();
 
     try {
       const level = this.callbacks.getEnglishLevel();
@@ -361,6 +462,7 @@ export class VoiceStage {
     } finally {
       this.isLoading = false;
       this.render();
+      this.callbacks.onCardRenderChange?.();
     }
   }
 

@@ -225,6 +225,8 @@
     justify-content: space-between !important;
     align-items: center !important;
     width: 100% !important;
+    flex-wrap: nowrap !important;
+    overflow: hidden !important;
   }
 
   .diary-copilot-header-row-2 {
@@ -1862,6 +1864,24 @@
 
 .diary-copilot-voice-transcript-input:focus {
   border-color: var(--interactive-accent);
+}
+
+.diary-copilot-voice-paste-btn {
+  padding: 7px 11px;
+  border-radius: 8px;
+  background: var(--background-secondary) !important;
+  color: var(--text-normal) !important;
+  font-weight: 500;
+  font-size: 12px;
+  flex-shrink: 0;
+  cursor: pointer;
+  border: 1px solid var(--background-modifier-border);
+  transition: all 0.15s ease;
+}
+
+.diary-copilot-voice-paste-btn:hover {
+  background: var(--background-modifier-hover) !important;
+  color: var(--text-accent) !important;
 }
 
 .diary-copilot-voice-send-btn {

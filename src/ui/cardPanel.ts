@@ -27,6 +27,8 @@ export interface CardPanelCallbacks {
     draftInfo?: { from: number; to: number; sourceText: string; rawInserted: string },
     kind?: "continue" | "oral"
   ) => Promise<void>;
+  getEditorSelection?: () => { text: string; from: number; to: number } | null;
+  onLocateDocText?: (text: string) => { from: number; to: number } | null;
   onTidyUpRequest?: () => void;
   onFullTextShadowingRequest?: () => void;
   getEnglishLevel?: () => EnglishLevel;
@@ -327,9 +329,24 @@ export class CardPanel {
       return;
     }
 
-    // When Voice Stage is active on mobile, ensure comfortable, spacious height (at least 320px or 58vh)
+    // When Voice Stage is active on mobile, maintain compact, ergonomic height so note editor remains clearly visible
     if (this.isVoiceStageActive && Platform.isMobile && !this.hasUserManuallyResized) {
-      const targetHeight = Math.max(320, Math.min(Math.round(window.innerHeight * 0.58), 520));
+      const hasCards = this.voiceStage?.hasCards() || false;
+      const vpHeight = window.visualViewport?.height || window.innerHeight;
+      const isKeyboardOpen = vpHeight < window.innerHeight * 0.75;
+
+      let targetHeight: number;
+      if (isKeyboardOpen) {
+        // Virtual keyboard is active: keep panel low and concise
+        targetHeight = Math.min(Math.round(vpHeight * 0.42), 210);
+      } else if (hasCards) {
+        // 3 Cards showing: comfortable reading height with internal scrolling
+        targetHeight = Math.min(Math.round(window.innerHeight * 0.45), 330);
+      } else {
+        // Idle mic/input view: ultra-compact, leaving note editor fully exposed
+        targetHeight = Math.min(Math.round(window.innerHeight * 0.33), 240);
+      }
+
       this.panelEl.style.height = `${targetHeight}px`;
       this.panelEl.removeClass("is-compact");
       this.panelEl.removeClass("is-collapsed");
@@ -704,6 +721,15 @@ export class CardPanel {
       getDiaryContext: () => {
         return this.callbacks.getDiaryContext?.() || "";
       },
+      getEditorSelection: () => {
+        return this.callbacks.getEditorSelection?.() || null;
+      },
+      onLocateDocText: (text: string) => {
+        return this.callbacks.onLocateDocText?.(text) || null;
+      },
+      onCardRenderChange: () => {
+        this.applyPanelHeight();
+      },
     });
 
     this.voiceStage.render();
@@ -964,7 +990,9 @@ export class CardPanel {
       // Toggle button between Note Cards and Voice Stage
       const stageBtn = this.headerSysEl.createEl("button", {
         cls: `diary-copilot-action-btn diary-copilot-stage-toggle-btn ${this.isVoiceStageActive ? "is-active" : ""}`,
-        text: this.isVoiceStageActive ? "📝 筆記卡片" : "🎙️ 口說舞台",
+        text: Platform.isPhone
+          ? (this.isVoiceStageActive ? "📝 筆記" : "🎙️ 口說")
+          : (this.isVoiceStageActive ? "📝 筆記卡片" : "🎙️ 口說舞台"),
         attr: {
           "aria-label": this.isVoiceStageActive ? "切換至筆記卡片模式" : "切換至純語音口說對話舞台",
           title: this.isVoiceStageActive ? "切換至筆記卡片模式" : "切換至純語音口說對話舞台",
@@ -976,19 +1004,17 @@ export class CardPanel {
         this.toggleVoiceStage();
       });
 
-      // 🔄 檢查更新 (保留在電腦與平板端；手機端為讓標題與按鈕完全舒展而收起)
-      if (!Platform.isPhone) {
-        const updateBtn = this.headerSysEl.createEl("button", {
-          cls: "diary-copilot-action-btn diary-copilot-update-btn",
-          text: "🔄",
-          attr: { "aria-label": "立即檢查並更新 Diary Copilot", title: "立即檢查並更新 Diary Copilot" },
-        });
-        updateBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          this.callbacks.onCheckUpdate?.();
-        });
-      }
+      // 🔄 檢查更新 (保留在電腦、平板與手機端；對話與卡片模式均顯示)
+      const updateBtn = this.headerSysEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-update-btn",
+        text: Platform.isPhone ? "🔄" : "🔄 檢查更新",
+        attr: { "aria-label": "立即檢查並更新 Diary Copilot", title: "立即檢查並更新 Diary Copilot" },
+      });
+      updateBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.callbacks.onCheckUpdate?.();
+      });
 
       // ✕ 關閉
       const closeBtn = this.headerSysEl.createEl("button", {

@@ -559,6 +559,12 @@ export default class DiaryCopilotPlugin extends Plugin {
           ) => {
             await this.appendDiarySentence(sentence, draftInfo, kind);
           },
+          getEditorSelection: () => {
+            return this.getEditorSelection();
+          },
+          onLocateDocText: (text: string) => {
+            return this.locateDocText(text);
+          },
           onTidyUpRequest: () => {
             tidyUpTodayDiary(this.app, this);
           },
@@ -669,6 +675,35 @@ export default class DiaryCopilotPlugin extends Plugin {
       return activeView.editor.getValue().slice(-600);
     }
     return "";
+  }
+
+  getEditorSelection(): { text: string; from: number; to: number } | null {
+    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!activeView || !activeView.editor) return null;
+    const editor = activeView.editor;
+    const selectedText = editor.getSelection();
+    if (selectedText && selectedText.trim().length > 0) {
+      const fromPos = editor.getCursor("from");
+      const toPos = editor.getCursor("to");
+      return {
+        text: selectedText.trim(),
+        from: editor.posToOffset(fromPos),
+        to: editor.posToOffset(toPos),
+      };
+    }
+    return null;
+  }
+
+  locateDocText(text: string): { from: number; to: number } | null {
+    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!activeView || !activeView.editor) return null;
+    const editor = activeView.editor;
+    const doc = editor.getValue();
+    const idx = doc.indexOf(text.trim());
+    if (idx !== -1) {
+      return { from: idx, to: idx + text.trim().length };
+    }
+    return null;
   }
 
   async insertSpokenDraft(spokenText: string): Promise<{ from: number; to: number; rawInserted: string }> {
@@ -885,7 +920,24 @@ export default class DiaryCopilotPlugin extends Plugin {
     const docText = editor.getValue();
     const cursor = editor.posToOffset(editor.getCursor());
 
-    const target = extractSentenceToPolish(docText, cursor);
+    // 1. Prefer user's active editor selection if available
+    const selectedText = editor.getSelection();
+    let target: SentenceToPolish | null = null;
+    if (selectedText && selectedText.trim().length > 0) {
+      const fromPos = editor.getCursor("from");
+      const toPos = editor.getCursor("to");
+      const fromOffset = editor.posToOffset(fromPos);
+      const toOffset = editor.posToOffset(toPos);
+      target = {
+        sentence: selectedText.trim(),
+        from: fromOffset,
+        to: toOffset,
+        surroundingContext: docText.slice(Math.max(0, fromOffset - 100), Math.min(docText.length, toOffset + 100)),
+      };
+    } else {
+      target = extractSentenceToPolish(docText, cursor);
+    }
+
     if (!target || target.sentence.length === 0) {
       new Notice("游標附近未偵測到需要潤飾的句子");
       return;
