@@ -15,6 +15,7 @@ import { buildPolishSystemPrompt, buildPolishUserPrompt, buildInquirySystemPromp
 import { parseInquiryResponse } from "./engine/parser";
 import { SelectionPopover } from "./ui/selectionPopover";
 import { FullTextShadowingModal } from "./ui/fullTextShadowingModal";
+import { ShadowingPrepModal } from "./ui/shadowingPrepModal";
 import { checkAndApplyPluginUpdate } from "./services/updater";
 import { globalSpeechRecognizer } from "./services/speech";
 
@@ -542,7 +543,19 @@ export default class DiaryCopilotPlugin extends Plugin {
             this.executeOralAdoption(text, kind, sourceRange);
           },
           onFocusEditor: () => {
-            activeMarkdownView.editor?.focus();
+            if (!Platform.isMobile) {
+              activeMarkdownView.editor?.focus();
+            }
+          },
+          onDismissKeyboard: () => {
+            try {
+              const activeEl = document.activeElement as HTMLElement;
+              if (activeEl && typeof activeEl.blur === "function") {
+                activeEl.blur();
+              }
+              (activeMarkdownView.editor as any)?.blur?.();
+              (activeMarkdownView.editor as any)?.cm?.contentDOM?.blur?.();
+            } catch {}
           },
           onCardSelect: (text, kind, sourceRange) => {
             this.adoptSuggestion(text, kind, sourceRange, false);
@@ -911,23 +924,24 @@ export default class DiaryCopilotPlugin extends Plugin {
 
     // Try to find "## English" section
     const englishMatch = content.match(/##\s+English\s*\n([\s\S]*?)(?=\n##|$)/i);
-    let textToShadow = "";
     if (englishMatch && englishMatch[1]?.trim()) {
-      textToShadow = englishMatch[1].trim();
-    } else {
-      // Strip frontmatter and markdown headings
-      textToShadow = content
-        .replace(/^---\n[\s\S]*?\n---\s*/, "")
-        .replace(/^#.*$/gm, "")
-        .trim();
+      new FullTextShadowingModal(this.app, this, englishMatch[1].trim(), file).open();
+      return;
     }
 
-    if (!textToShadow) {
+    // Strip frontmatter and markdown headings to extract raw draft text
+    const rawDraft = content
+      .replace(/^---\n[\s\S]*?\n---\s*/, "")
+      .replace(/^#.*$/gm, "")
+      .trim();
+
+    if (!rawDraft) {
       new Notice("目前日記尚無內容可供跟讀，請先輸入內容或點擊「整理今日日記」");
       return;
     }
 
-    new FullTextShadowingModal(this.app, this, textToShadow, file).open();
+    // Unorganized draft notes: pop up Option A ShadowingPrepModal
+    new ShadowingPrepModal(this.app, this, rawDraft, file).open();
   }
 
   private handleEditorUpdate(update: ViewUpdate) {
@@ -1018,6 +1032,9 @@ export default class DiaryCopilotPlugin extends Plugin {
       new Notice("請先在筆記編輯器內操作");
       return;
     }
+
+    // Dismiss soft keyboard on mobile so user has full view of polish cards
+    this.cardPanel?.dismissSoftKeyboard();
 
     // If note is in another folder (e.g. 日記 or 書摘), auto-invoke Copilot for this note
     if (!this.isEligibleNote(activeMarkdownView.file)) {
@@ -1279,8 +1296,12 @@ export default class DiaryCopilotPlugin extends Plugin {
 
     const editor = activeMarkdownView.editor;
 
-    // Immediately focus back to editor so cursor & typing are active
-    editor.focus();
+    // On desktop, refocus editor; on mobile, keep keyboard down so cards and shadowing are unobstructed
+    if (!Platform.isMobile) {
+      editor.focus();
+    } else {
+      this.cardPanel?.dismissSoftKeyboard();
+    }
 
     let targetPos = editor.posToOffset(editor.getCursor());
     let replacedText = "";

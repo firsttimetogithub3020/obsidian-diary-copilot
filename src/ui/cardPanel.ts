@@ -20,6 +20,7 @@ export interface CardPanelCallbacks {
   onOralAdopt?: (text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }) => void;
   onOralInput?: (spokenText: string, targetText: string) => void;
   onFocusEditor?: () => void;
+  onDismissKeyboard?: () => void;
   onCardSelect?: (text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }) => void;
   onInsertSpokenDraft?: (spokenText: string) => Promise<{ from: number; to: number; rawInserted: string }>;
   onAppendDiarySentence?: (
@@ -269,7 +270,6 @@ export class CardPanel {
       // Quick tap (< 350ms without moving): ONLY toggle collapse on desktop mouse click, NEVER on mobile touch!
       if (!Platform.isMobile && !pointerMoved && elapsed < 350) {
         this.toggleCollapse();
-        this.callbacks.onFocusEditor?.();
         return;
       }
 
@@ -281,7 +281,6 @@ export class CardPanel {
           this.callbacks.onHeightResize?.(finalHeight);
         }
       }
-      this.callbacks.onFocusEditor?.();
     };
 
     handleEl.addEventListener("pointerdown", onPointerDown, { passive: false });
@@ -294,7 +293,6 @@ export class CardPanel {
       try {
         handleEl.releasePointerCapture(e.pointerId);
       } catch {}
-      this.callbacks.onFocusEditor?.();
     });
 
     handleEl.addEventListener("dblclick", (e: MouseEvent) => {
@@ -316,6 +314,7 @@ export class CardPanel {
     };
     window.addEventListener("resize", this.onWindowResize);
     window.addEventListener("orientationchange", this.onWindowResize);
+    this.setupKeyboardListeners();
   }
 
   /**
@@ -344,11 +343,64 @@ export class CardPanel {
     }
   }
 
+  private onVisualViewportChange: (() => void) | null = null;
+  private isKeyboardWriting = false;
+
+  private setupKeyboardListeners() {
+    if (typeof window === "undefined" || !window.visualViewport) return;
+
+    this.onVisualViewportChange = () => {
+      if (!Platform.isMobile) return;
+      const vv = window.visualViewport;
+      if (!vv) return;
+
+      // Soft keyboard open detection on mobile:
+      // When soft keyboard opens, visualViewport.height is significantly reduced
+      const isKeyboardOpen = vv.height < window.innerHeight * 0.78;
+
+      if (isKeyboardOpen && !this.isKeyboardWriting) {
+        this.isKeyboardWriting = true;
+        this.panelEl?.addClass("is-keyboard-writing");
+        this.panelEl?.addClass("is-compact");
+      } else if (!isKeyboardOpen && this.isKeyboardWriting) {
+        this.isKeyboardWriting = false;
+        this.panelEl?.removeClass("is-keyboard-writing");
+        this.applyPanelHeight();
+      }
+    };
+
+    window.visualViewport.addEventListener("resize", this.onVisualViewportChange);
+    window.visualViewport.addEventListener("scroll", this.onVisualViewportChange);
+  }
+
+  public dismissSoftKeyboard() {
+    try {
+      const activeEl = document.activeElement as HTMLElement;
+      if (activeEl && typeof activeEl.blur === "function") {
+        activeEl.blur();
+      }
+    } catch {}
+    try {
+      this.callbacks.onDismissKeyboard?.();
+    } catch {}
+    if (this.isKeyboardWriting) {
+      this.isKeyboardWriting = false;
+      this.panelEl?.removeClass("is-keyboard-writing");
+      this.applyPanelHeight();
+    }
+  }
+
   /**
    * Applies either auto-fit height (hugs rendered content naturally), manual lock height, or collapsed height
    */
   public applyPanelHeight() {
     if (!this.panelEl) return;
+
+    if (this.isKeyboardWriting) {
+      this.panelEl.style.height = "38px";
+      this.panelEl.addClass("is-compact");
+      return;
+    }
 
     if (this.isCollapsed) {
       const collapsedHeight = Platform.isMobile ? 32 : 36;
@@ -417,7 +469,6 @@ export class CardPanel {
     this.userManualHeight = null;
     this.panelEl?.removeClass("is-collapsed");
     this.applyPanelHeight();
-    this.callbacks.onFocusEditor?.();
   }
 
   /**
@@ -442,7 +493,6 @@ export class CardPanel {
       this.applyPanelHeight();
     }
     window.setTimeout(() => this.panelEl?.removeClass("is-animating"), 240);
-    this.callbacks.onFocusEditor?.();
   }
 
   renderIdleState(message?: string) {
@@ -670,6 +720,10 @@ export class CardPanel {
     // 3. Render Header Actions
     this.renderHeaderActionsBrowse();
 
+    if (Platform.isMobile) {
+      this.dismissSoftKeyboard();
+    }
+
     if (!this.pinnedInquiryItem && this.currentCards.length === 0) {
       this.renderIdleState();
       return;
@@ -807,7 +861,6 @@ export class CardPanel {
         this.activeTabIdx = 0;
         this.resetToAutoFit();
         this.renderBrowseMode();
-        this.callbacks.onFocusEditor?.();
       }
     });
 
@@ -823,7 +876,6 @@ export class CardPanel {
         this.activeTabIdx = 0;
         this.resetToAutoFit();
         this.renderBrowseMode();
-        this.callbacks.onFocusEditor?.();
       }
     });
 
@@ -852,7 +904,6 @@ export class CardPanel {
       this.activeTabIdx = 0;
       this.resetToAutoFit();
       this.renderBrowseMode();
-      this.callbacks.onFocusEditor?.();
     });
 
     const dismissBtn = actionGroup.createEl("button", {
@@ -864,7 +915,6 @@ export class CardPanel {
       e.stopPropagation();
       e.preventDefault();
       this.clearPinnedInquiry();
-      this.callbacks.onFocusEditor?.();
     });
 
     // Question body
@@ -964,7 +1014,7 @@ export class CardPanel {
           this.activeTabIdx = idx;
           this.resetToAutoFit();
           this.renderBrowseMode();
-          this.callbacks.onFocusEditor?.();
+          this.dismissSoftKeyboard();
           this.callbacks.onCardSelect?.(card.text, card.kind, this.currentItem?.sourceRange);
         }, { passive: false });
 
@@ -973,7 +1023,7 @@ export class CardPanel {
           this.activeTabIdx = idx;
           this.resetToAutoFit();
           this.renderBrowseMode();
-          this.callbacks.onFocusEditor?.();
+          this.dismissSoftKeyboard();
           this.callbacks.onCardSelect?.(card.text, card.kind, this.currentItem?.sourceRange);
         });
       });
@@ -1028,7 +1078,7 @@ export class CardPanel {
     if (this.headerAudioEl) this.headerAudioEl.empty();
     if (this.headerSysEl) this.headerSysEl.empty();
 
-    // 1. System Actions (Row 1 Right)
+    // 1. Control Center Bar (Row 1 Right): All core functions in one clean row
     if (this.headerSysEl) {
       // 1. 🎧 長篇跟讀 (全篇沉浸影子跟讀)
       const shadowBtn = this.headerSysEl.createEl("button", {
@@ -1042,10 +1092,59 @@ export class CardPanel {
       shadowBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         e.preventDefault();
+        this.dismissSoftKeyboard();
         this.callbacks.onFullTextShadowingRequest?.();
       });
 
-      // 2. 模式切換：⚡ 精簡 (跟讀與提問) ⇄ 🌟 完整 (跟寫與續寫卡片)
+      // 2. ❓ 提問引導 (F5) - Always visible in Row 1!
+      if (this.pinnedInquiryItem) {
+        const resumeBtn = this.headerSysEl.createEl("button", {
+          cls: "diary-copilot-action-btn diary-copilot-resume-btn",
+          text: Platform.isPhone ? "✍️ 回續寫" : "✍️ 回續寫",
+          attr: { title: "關閉提問引導，回到平日純寫作模式" },
+        });
+        resumeBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          this.clearPinnedInquiry();
+          this.callbacks.onDismiss?.();
+        });
+      } else {
+        const inquiryBtn = this.headerSysEl.createEl("button", {
+          cls: "diary-copilot-action-btn diary-copilot-inquiry-btn",
+          text: Platform.isPhone ? "❓ 提問" : "❓ 提問 (F5)",
+          attr: {
+            "aria-label": "根據日記內容產生是非或開放引導問句 (F5)",
+            title: "根據日記內容產生是非或開放引導問句 (F5)",
+          },
+        });
+        inquiryBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          this.dismissSoftKeyboard();
+          this.resetToAutoFit();
+          this.callbacks.onInquiryRequest?.();
+        });
+      }
+
+      // 3. ✨ 潤飾 (F3) - Always visible in Row 1!
+      const polishBtn = this.headerSysEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-polish-btn",
+        text: Platform.isPhone ? "✨ 潤飾" : "✨ 潤飾 (F3)",
+        attr: {
+          "aria-label": "潤飾當前/前一句表達 (F3)",
+          title: "潤飾當前/前一句表達 (F3)",
+        },
+      });
+      polishBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.dismissSoftKeyboard();
+        this.resetToAutoFit();
+        this.callbacks.onPolishRequest?.();
+      });
+
+      // 4. 模式切換：⚡ 精簡 (跟讀與提問) ⇄ 🌟 完整 (跟寫與續寫卡片)
       const isCompact = this.copilotMode === "compact";
       const modeBtn = this.headerSysEl.createEl("button", {
         cls: `diary-copilot-action-btn diary-copilot-mode-toggle-btn ${isCompact ? "is-compact" : "is-full"}`,
@@ -1065,7 +1164,7 @@ export class CardPanel {
         this.toggleCopilotMode();
       });
 
-      // 3. 🔄 檢查更新 (始終常駐)
+      // 5. 🔄 檢查更新 (始終常駐)
       const updateBtn = this.headerSysEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-update-btn",
         text: Platform.isPhone ? "🔄" : "🔄 檢查更新",
@@ -1077,7 +1176,7 @@ export class CardPanel {
         this.callbacks.onCheckUpdate?.();
       });
 
-      // 4. ✕ 關閉
+      // 6. ✕ 關閉
       const closeBtn = this.headerSysEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-close-btn",
         text: "✕",
@@ -1092,7 +1191,16 @@ export class CardPanel {
 
     // 精簡模式下：Row 2 完全不渲染，維持極致簡潔單行！
     if (this.copilotMode === "compact") {
+      if (this.headerEl) {
+        const row2 = this.headerEl.querySelector(".diary-copilot-header-row-2") as HTMLElement;
+        if (row2) row2.style.display = "none";
+      }
       return;
+    } else {
+      if (this.headerEl) {
+        const row2 = this.headerEl.querySelector(".diary-copilot-header-row-2") as HTMLElement;
+        if (row2) row2.style.display = "flex";
+      }
     }
 
     const activeCard = this.currentCards[this.activeTabIdx] || this.currentCards[0];
@@ -1119,6 +1227,7 @@ export class CardPanel {
       oralBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         e.preventDefault();
+        this.dismissSoftKeyboard();
         this.resetToAutoFit();
         this.startOralShadowing(activeCard.text, activeCard.kind, this.currentItem?.sourceRange);
       });
@@ -1134,50 +1243,8 @@ export class CardPanel {
       pasteBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         e.preventDefault();
+        this.dismissSoftKeyboard();
         this.callbacks.onAdopt(activeCard.text, activeCard.kind, this.currentItem?.sourceRange, true);
-      });
-    }
-
-    if (this.headerActionsEl) {
-      if (this.pinnedInquiryItem) {
-        // ✍️ 回續寫 - Right Group (Row 2 Right)
-        const resumeBtn = this.headerActionsEl.createEl("button", {
-          cls: "diary-copilot-action-btn diary-copilot-resume-btn",
-          text: "✍️ 回續寫",
-          attr: { title: "關閉提問引導，回到平日純續寫模式" },
-        });
-        resumeBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          this.clearPinnedInquiry();
-          this.callbacks.onDismiss?.();
-        });
-      } else {
-        // 4. ❓ 提問 (F5) - Right Group (Row 2 Right)
-        const inquiryBtn = this.headerActionsEl.createEl("button", {
-          cls: "diary-copilot-action-btn diary-copilot-inquiry-btn",
-          text: Platform.isMobile ? "❓ 提問" : "❓ 提問 (F5)",
-          attr: { title: "根據日記內容產生是非或開放引導問句 (F5)" },
-        });
-        inquiryBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          this.resetToAutoFit();
-          this.callbacks.onInquiryRequest?.();
-        });
-      }
-
-      // 5. ✨ 潤飾 - Right Group (Row 2 Right)
-      const polishBtn = this.headerActionsEl.createEl("button", {
-        cls: "diary-copilot-action-btn diary-copilot-polish-btn",
-        text: Platform.isMobile ? "✨ 潤飾" : "✨ 潤飾 (F3)",
-        attr: { title: "潤飾當前/前一句表達 (F3)" },
-      });
-      polishBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        this.resetToAutoFit();
-        this.callbacks.onPolishRequest?.();
       });
     }
   }
@@ -1227,6 +1294,7 @@ export class CardPanel {
       pasteBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         e.preventDefault();
+        this.dismissSoftKeyboard();
         this.callbacks.onDirectPaste?.();
       });
 
@@ -1239,6 +1307,7 @@ export class CardPanel {
       polishBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         e.preventDefault();
+        this.dismissSoftKeyboard();
         this.resetToAutoFit();
         this.callbacks.onPolishRequest?.();
       });
@@ -1277,6 +1346,7 @@ export class CardPanel {
     sourceRange?: { from: number; to: number }
   ) {
     this.isOralMode = true;
+    this.dismissSoftKeyboard();
     this.oralTargetText = targetText;
     this.oralKind = kind;
     this.oralSourceRange = sourceRange;
@@ -1835,6 +1905,11 @@ export class CardPanel {
       window.removeEventListener("resize", this.onWindowResize);
       window.removeEventListener("orientationchange", this.onWindowResize);
       this.onWindowResize = null;
+    }
+    if (this.onVisualViewportChange && typeof window !== "undefined" && window.visualViewport) {
+      window.visualViewport.removeEventListener("resize", this.onVisualViewportChange);
+      window.visualViewport.removeEventListener("scroll", this.onVisualViewportChange);
+      this.onVisualViewportChange = null;
     }
     globalSpeechRecognizer.stop();
     if (this.panelEl) {
