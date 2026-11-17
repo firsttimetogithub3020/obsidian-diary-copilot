@@ -1156,6 +1156,11 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
   gap: 2px;
 }
 
+/* Ensure Header Row 2 is hidden on mobile so action buttons are never duplicated */
+.is-mobile .diary-copilot-header-row-2 {
+  display: none !important;
+}
+
 .is-mobile .diary-copilot-resize-handle {
   display: flex !important;
   top: -24px;
@@ -1781,7 +1786,8 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
   border-color: #38bdf8;
 }
 
-.diary-copilot-action-btn.diary-copilot-mode-toggle-btn {
+.diary-copilot-action-btn.diary-copilot-mode-toggle-btn,
+.diary-copilot-action-btn.diary-copilot-fold-toggle-btn {
   font-weight: 600;
   border-radius: 4px;
   padding: 2px 7px;
@@ -1791,24 +1797,28 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
   white-space: nowrap;
 }
 
-.diary-copilot-action-btn.diary-copilot-mode-toggle-btn.is-compact {
+.diary-copilot-action-btn.diary-copilot-mode-toggle-btn.is-compact,
+.diary-copilot-action-btn.diary-copilot-fold-toggle-btn.is-expanded {
   color: #38bdf8;
   background: rgba(56, 189, 248, 0.12);
   border: 1px solid rgba(56, 189, 248, 0.4);
 }
 
-.diary-copilot-action-btn.diary-copilot-mode-toggle-btn.is-compact:hover {
+.diary-copilot-action-btn.diary-copilot-mode-toggle-btn.is-compact:hover,
+.diary-copilot-action-btn.diary-copilot-fold-toggle-btn.is-expanded:hover {
   background: #38bdf8;
   color: #0f172a;
 }
 
-.diary-copilot-action-btn.diary-copilot-mode-toggle-btn.is-full {
+.diary-copilot-action-btn.diary-copilot-mode-toggle-btn.is-full,
+.diary-copilot-action-btn.diary-copilot-fold-toggle-btn.is-folded {
   color: #fbbf24;
   background: rgba(251, 191, 36, 0.12);
   border: 1px solid rgba(251, 191, 36, 0.4);
 }
 
-.diary-copilot-action-btn.diary-copilot-mode-toggle-btn.is-full:hover {
+.diary-copilot-action-btn.diary-copilot-mode-toggle-btn.is-full:hover,
+.diary-copilot-action-btn.diary-copilot-fold-toggle-btn.is-folded:hover {
   background: #fbbf24;
   color: #0f172a;
 }
@@ -2313,8 +2323,35 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
 .diary-copilot-panel.is-compact-idle:not(.is-resizing) .diary-copilot-panel-content,
 .diary-copilot-panel.is-compact-idle:not(.is-resizing) .diary-copilot-header-row-2,
 .diary-copilot-panel.is-compact-idle:not(.is-resizing) .diary-copilot-tone-wrapper,
-.diary-copilot-panel.is-compact-idle:not(.is-resizing) .diary-copilot-pinned-strip {
+.diary-copilot-panel.is-compact-idle:not(.is-resizing) .diary-copilot-pinned-strip,
+.diary-copilot-panel.is-compact-idle:not(.is-resizing) .diary-copilot-hero-card,
+.diary-copilot-panel.is-compact-idle:not(.is-resizing) .diary-copilot-locked-card,
+.diary-copilot-panel.is-compact-idle:not(.is-resizing) .diary-copilot-capsule-tabs,
+.diary-copilot-panel.is-collapsed:not(.is-resizing) .diary-copilot-panel-content,
+.diary-copilot-panel.is-collapsed:not(.is-resizing) .diary-copilot-header-row-2,
+.diary-copilot-panel.is-collapsed:not(.is-resizing) .diary-copilot-tone-wrapper,
+.diary-copilot-panel.is-collapsed:not(.is-resizing) .diary-copilot-pinned-strip,
+.diary-copilot-panel.is-collapsed:not(.is-resizing) .diary-copilot-hero-card,
+.diary-copilot-panel.is-collapsed:not(.is-resizing) .diary-copilot-locked-card,
+.diary-copilot-panel.is-collapsed:not(.is-resizing) .diary-copilot-capsule-tabs {
   display: none !important;
+}
+
+.diary-copilot-action-btn.diary-copilot-fold-toggle-btn {
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.diary-copilot-action-btn.diary-copilot-fold-toggle-btn.is-expanded {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+  border-color: var(--background-modifier-border);
+}
+
+.diary-copilot-action-btn.diary-copilot-fold-toggle-btn.is-folded {
+  background-color: var(--interactive-accent);
+  color: #ffffff !important;
+  border-color: var(--interactive-accent);
 }
 
 .diary-copilot-panel.is-keyboard-writing .diary-copilot-header-row-1,

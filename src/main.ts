@@ -1320,7 +1320,7 @@ export default class DiaryCopilotPlugin extends Plugin {
     sourceRange?: { from: number; to: number },
     isDirectPaste = false
   ) {
-    const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView) || this.activeView;
     if (!activeMarkdownView || !activeMarkdownView.file) return;
     this.activeView = activeMarkdownView;
 
@@ -1331,8 +1331,10 @@ export default class DiaryCopilotPlugin extends Plugin {
     if (!cleanText) return;
 
     const editor = activeMarkdownView.editor;
+    const docLength = editorView.state.doc.length;
+    const fullDoc = editorView.state.doc.toString();
 
-    // On desktop, refocus editor; on mobile, keep keyboard down so cards and shadowing are unobstructed
+    // On desktop, refocus editor; on mobile, keep keyboard down so cards and note remain unobstructed
     if (!Platform.isMobile) {
       editor.focus();
     } else {
@@ -1346,13 +1348,39 @@ export default class DiaryCopilotPlugin extends Plugin {
     this.isInquiryMode = false;
     this.currentInquiryItem = null;
 
-    // IF sourceRange exists (Chinese replacement OR F3 polish):
-    if (sourceRange) {
-      const from = Math.min(sourceRange.from, sourceRange.to);
-      const to = Math.max(sourceRange.from, sourceRange.to);
+    // Check if there is an exact original sentence to replace (e.g. from polish mode)
+    const polishSource = this.currentPolishItem?.translationSource || (this.cardPanel?.getCurrentItem() as any)?.translationSource;
+    let from = sourceRange ? Math.min(sourceRange.from, sourceRange.to) : -1;
+    let to = sourceRange ? Math.max(sourceRange.from, sourceRange.to) : -1;
+
+    if (polishSource && polishSource.trim()) {
+      const matchIdx = fullDoc.indexOf(polishSource.trim());
+      if (matchIdx !== -1) {
+        from = matchIdx;
+        to = matchIdx + polishSource.trim().length;
+      }
+    }
+
+    // Fallback: If no range was determined, check if editor has selected text
+    if (from < 0 || to < 0) {
+      const selected = editor.getSelection();
+      if (selected && selected.trim().length > 0) {
+        const fromPos = editor.getCursor("from");
+        const toPos = editor.getCursor("to");
+        from = editor.posToOffset(fromPos);
+        to = editor.posToOffset(toPos);
+      }
+    }
+
+    // On mobile, ALWAYS use direct paste (never delete text for impossible ghost typing!)
+    const shouldDirectPaste = isDirectPaste || Platform.isMobile;
+
+    if (from >= 0 && to >= 0) {
+      from = Math.max(0, Math.min(from, docLength));
+      to = Math.max(0, Math.min(to, docLength));
       replacedText = editorView.state.doc.sliceString(from, to);
 
-      if (isDirectPaste) {
+      if (shouldDirectPaste) {
         // Direct paste: replace sourceRange directly with cleanText!
         editorView.dispatch({
           changes: { from, to, insert: cleanText },
@@ -1366,10 +1394,13 @@ export default class DiaryCopilotPlugin extends Plugin {
         this.clearGhostText();
         this.cardPanel?.renderIdleState();
         this.recordAdoption(cleanText, kind, replacedText);
-        new Notice("⚡ 已直接填入！", 1500);
+        if (Platform.isMobile) {
+          this.cardPanel?.dismissSoftKeyboard();
+        }
+        new Notice("⚡ 已成功填入替換！", 1500);
         return;
       } else {
-        // Shadow typing: delete the original sentence
+        // Desktop shadow typing: delete the original sentence
         editorView.dispatch({
           changes: { from, to, insert: "" },
           selection: { anchor: from },
@@ -1380,7 +1411,7 @@ export default class DiaryCopilotPlugin extends Plugin {
         this.currentPolishItem = null;
       }
     } else {
-      if (isDirectPaste) {
+      if (shouldDirectPaste) {
         // Direct paste: insert at current cursor!
         editorView.dispatch({
           changes: { from: targetPos, to: targetPos, insert: cleanText },
@@ -1391,7 +1422,10 @@ export default class DiaryCopilotPlugin extends Plugin {
         this.clearGhostText();
         this.cardPanel?.renderIdleState();
         this.recordAdoption(cleanText, kind);
-        new Notice("⚡ 已直接填入！", 1500);
+        if (Platform.isMobile) {
+          this.cardPanel?.dismissSoftKeyboard();
+        }
+        new Notice("⚡ 已成功填入筆記！", 1500);
         return;
       }
     }
@@ -1487,6 +1521,10 @@ export default class DiaryCopilotPlugin extends Plugin {
       targetTo = curPos;
     }
 
+    const docLen = editorView.state.doc.length;
+    targetFrom = Math.max(0, Math.min(targetFrom, docLen));
+    targetTo = Math.max(0, Math.min(targetTo, docLen));
+
     // Atomic insertion/replacement into document
     editorView.dispatch({
       changes: {
@@ -1498,7 +1536,11 @@ export default class DiaryCopilotPlugin extends Plugin {
       userEvent: "input",
     });
 
-    editor.focus();
+    if (Platform.isMobile) {
+      this.cardPanel?.dismissSoftKeyboard();
+    } else {
+      editor.focus();
+    }
 
     // Clear shadow state & restore panel
     this.scheduler.clear();

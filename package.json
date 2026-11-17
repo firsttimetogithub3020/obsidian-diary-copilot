@@ -1,6 +1,6 @@
 {
   "name": "obsidian-diary-copilot",
-  "version": "0.3.32",
+  "version": "0.3.33",
   "description": "AI-guided English diary writing with live suggestions.",
   "main": "main.js",
   "scripts": {

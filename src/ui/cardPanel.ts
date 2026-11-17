@@ -293,28 +293,9 @@ export class CardPanel {
 
       const elapsed = Date.now() - pointerStartTime;
 
-      // Quick tap (< 350ms without moving): One-tap Toggle Collapse / Expand on BOTH Mobile & Desktop!
+      // Quick tap (< 350ms without moving): One-tap Toggle Fold / Expand on BOTH Mobile & Desktop!
       if (!pointerMoved && elapsed < 350) {
-        const isCurrentlyCompact = this.isCollapsed || 
-          this.panelEl.hasClass("is-compact-idle") || 
-          (this.panelEl.offsetHeight <= (Platform.isMobile ? 68 : 50));
-
-        if (isCurrentlyCompact) {
-          // If in compact/idle/collapsed mode, tap expands smoothly to comfortable height
-          this.panelEl.removeClass("is-compact-idle");
-          this.panelEl.removeClass("is-collapsed");
-          this.panelEl.removeClass("is-compact");
-          this.panelEl.removeClass("is-keyboard-writing");
-          this.isCollapsed = false;
-          this.hasUserManuallyResized = true;
-          const targetHeight = Math.min(Math.round(window.innerHeight * 0.42), 320);
-          this.userManualHeight = targetHeight;
-          this.panelEl.style.height = `${targetHeight}px`;
-          document.body.style.setProperty("--diary-copilot-panel-height", `${targetHeight}px`);
-        } else {
-          // If already expanded, tap collapses it down to compact toolbar
-          this.toggleCollapse();
-        }
+        this.toggleFoldCards();
         return;
       }
 
@@ -547,27 +528,50 @@ export class CardPanel {
   }
 
   /**
-   * Toggles between Collapsed (Header-only ~32px) and Expanded (Content-fit auto height)
+   * Toggles between Folded (cards hidden, single toolbar ~60px) and Expanded (cards displayed)
    */
-  public toggleCollapse() {
+  public toggleFoldCards() {
     if (!this.panelEl) return;
-    this.isCollapsed = !this.isCollapsed;
+    const isFolded = this.isCollapsed || 
+      this.panelEl.hasClass("is-compact-idle") || 
+      this.panelEl.hasClass("is-keyboard-writing") || 
+      (this.panelEl.offsetHeight <= (Platform.isMobile ? 68 : 50));
 
     this.panelEl.addClass("is-animating");
-    if (this.isCollapsed) {
-      this.panelEl.addClass("is-collapsed");
-      const collapsedHeight = Platform.isMobile ? 60 : 46;
-      this.panelEl.style.height = `${collapsedHeight}px`;
-      this.panelEl.addClass("is-compact");
-      document.body.style.setProperty("--diary-copilot-panel-height", `${collapsedHeight}px`);
-    } else {
+    if (isFolded) {
+      // User clicks 展開:
+      // STRICT MOBILE RULE: When displaying cards, dismiss keyboard!
+      this.dismissSoftKeyboard();
+      this.isCollapsed = false;
       this.panelEl.removeClass("is-collapsed");
-      // Restore to content-fit auto height
+      this.panelEl.removeClass("is-compact-idle");
+      this.panelEl.removeClass("is-keyboard-writing");
+      this.panelEl.removeClass("is-compact");
       this.hasUserManuallyResized = false;
       this.userManualHeight = null;
       this.applyPanelHeight();
+      this.updateHeaderLayout();
+      new Notice("📖 已展開字卡", 1200);
+    } else {
+      // User clicks 收摺:
+      this.isCollapsed = true;
+      this.panelEl.addClass("is-collapsed");
+      this.panelEl.addClass("is-compact");
+      this.panelEl.addClass("is-compact-idle");
+      const collapsedHeight = Platform.isMobile ? 60 : 46;
+      this.panelEl.style.height = `${collapsedHeight}px`;
+      document.body.style.setProperty("--diary-copilot-panel-height", `${collapsedHeight}px`);
+      this.updateHeaderLayout();
+      new Notice("🔽 已收摺字卡", 1200);
     }
     window.setTimeout(() => this.panelEl?.removeClass("is-animating"), 240);
+  }
+
+  /**
+   * Toggles between Collapsed (Header-only ~32px) and Expanded (Content-fit auto height)
+   */
+  public toggleCollapse() {
+    this.toggleFoldCards();
   }
 
   renderIdleState(message?: string) {
@@ -1100,10 +1104,14 @@ export class CardPanel {
       this.callbacks.onAdopt(activeCard.text, activeCard.kind, this.currentItem?.sourceRange, true);
     });
 
-    // Tap on card injects ghost text into editor for shadow typing WITHOUT collapsing panel
+    // Tap on card: on desktop injects ghost text for shadow typing; on mobile keeps keyboard down without deleting text
     heroCard.addEventListener("click", (e) => {
       const sel = window.getSelection()?.toString().trim();
       if (sel && sel.length > 0) return;
+      if (Platform.isMobile) {
+        this.dismissSoftKeyboard();
+        return;
+      }
       this.callbacks.onCardSelect?.(activeCard.text, activeCard.kind, this.currentItem?.sourceRange);
     });
 
@@ -1124,7 +1132,6 @@ export class CardPanel {
           this.resetToAutoFit();
           this.renderBrowseMode();
           this.dismissSoftKeyboard();
-          this.callbacks.onCardSelect?.(card.text, card.kind, this.currentItem?.sourceRange);
         }, { passive: false });
 
         tabBtn.addEventListener("click", (e) => {
@@ -1133,7 +1140,6 @@ export class CardPanel {
           this.resetToAutoFit();
           this.renderBrowseMode();
           this.dismissSoftKeyboard();
-          this.callbacks.onCardSelect?.(card.text, card.kind, this.currentItem?.sourceRange);
         });
       });
     }
@@ -1257,24 +1263,24 @@ export class CardPanel {
         this.callbacks.onPolishRequest?.();
       });
 
-      // 4. 模式切換：⚡ 精簡 (跟讀與提問) ⇄ 🌟 完整 (跟寫與續寫卡片)
-      const isCompact = this.copilotMode === "compact";
-      const modeBtn = this.headerSysEl.createEl("button", {
-        cls: `diary-copilot-action-btn diary-copilot-mode-toggle-btn ${isCompact ? "is-compact" : "is-full"}`,
-        text: isCompact ? "⚡ 精簡" : "🌟 完整",
+      // 4. 卡片顯示切換：📖 展開 ⇄ 🔽 收摺 (收摺=不出現建議字卡，展開=顯示建議字卡)
+      const isFolded = this.isCollapsed || 
+        this.panelEl.hasClass("is-compact-idle") || 
+        this.panelEl.hasClass("is-keyboard-writing") || 
+        (this.panelEl.offsetHeight <= (Platform.isMobile ? 68 : 50));
+
+      const foldBtn = this.headerSysEl.createEl("button", {
+        cls: `diary-copilot-action-btn diary-copilot-fold-toggle-btn ${isFolded ? "is-folded" : "is-expanded"}`,
+        text: isFolded ? (Platform.isPhone ? "📖 展開" : "📖 展開字卡") : (Platform.isPhone ? "🔽 收摺" : "🔽 收摺字卡"),
         attr: {
-          "aria-label": isCompact
-            ? "目前為精簡模式（引導提問＋潤飾＋長篇跟讀），點擊切換為完整模式（含即時續寫卡片）"
-            : "目前為完整模式（含即時續寫卡片＋接續鍵），點擊切換為精簡模式",
-          title: isCompact
-            ? "目前為精簡模式（引導提問＋潤飾＋長篇跟讀），點擊切換為完整模式（含即時續寫卡片）"
-            : "目前為完整模式（含即時續寫卡片＋接續鍵），點擊切換為精簡模式",
+          "aria-label": isFolded ? "展開建議字卡" : "收摺建議字卡（僅保留功能列）",
+          title: isFolded ? "展開建議字卡" : "收摺建議字卡（僅保留功能列）",
         },
       });
-      modeBtn.addEventListener("click", (e) => {
+      foldBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         e.preventDefault();
-        this.toggleCopilotMode();
+        this.toggleFoldCards();
       });
 
       // 5. 🔄 檢查更新 (始終常駐)
@@ -1302,8 +1308,17 @@ export class CardPanel {
       });
     }
 
-    // 精簡模式下：若無卡片且無固定問題，Row 2 完全不渲染，維持極致簡潔單行！
-    // 若有卡片（例如點擊潤飾後顯示的 4 種表達），則顯示 Row 2 (🔊 朗讀, 🎙️ 跟讀, ⚡ 接續填入)
+    // On mobile: heroCard already has [🔊 朗讀] [🎙️ 跟讀] [⚡ 填入替換]!
+    // To keep layout neat and NEVER duplicate buttons, completely hide Row 2 on mobile:
+    if (Platform.isMobile) {
+      if (this.headerEl) {
+        const row2 = this.headerEl.querySelector(".diary-copilot-header-row-2") as HTMLElement;
+        if (row2) row2.style.display = "none";
+      }
+      return;
+    }
+
+    // Desktop:
     if (this.copilotMode === "compact" && this.currentCards.length === 0 && !this.pinnedInquiryItem) {
       if (this.headerEl) {
         const row2 = this.headerEl.querySelector(".diary-copilot-header-row-2") as HTMLElement;

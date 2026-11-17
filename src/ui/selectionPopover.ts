@@ -145,25 +145,8 @@ export class SelectionPopover {
       transSpan.setText(result.translation || "");
     }
 
-    // Action buttons
+    // Action buttons (Only Close button, no redundant polish button in lookup popover)
     const actions = this.popoverEl.createDiv({ cls: "popover-actions" });
-
-    // AI Polish button directly in popover
-    if (this.onPolish) {
-      const polishBtn = actions.createEl("button", {
-        cls: "popover-btn popover-polish-btn",
-        text: "✨ 潤飾",
-        attr: { "aria-label": "以 AI 潤飾此句", title: "以 AI 潤飾此句並提供 4 種道地表達" },
-      });
-      polishBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        const query = text;
-        this.hide();
-        forceDismissSoftKeyboard();
-        this.onPolish?.(query);
-      });
-    }
 
     // Close button
     const closeBtn = actions.createEl("button", {
