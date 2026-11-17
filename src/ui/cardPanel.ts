@@ -124,7 +124,7 @@ export class CardPanel {
   private oralScoreBadgeEl: HTMLElement | null = null;
   private desktopVoiceInputEl: HTMLInputElement | null = null;
 
-  // Mode state: "compact" (精簡模式: 問答引導 + 潤飾 + 長篇跟讀, 零續寫干擾) | "full" (完整模式: 續寫卡片 + 接續鍵 + 提問 + 潤飾)
+  // Mode state: "compact" (精簡模式: 問答引導 + 潤飾 + 整理跟讀, 零續寫干擾) | "full" (完整模式: 續寫卡片 + 接續鍵 + 提問 + 潤飾)
   private copilotMode: CopilotMode;
   private isVoiceStageActive: boolean;
   private voiceStage: VoiceStage | null = null;
@@ -145,7 +145,7 @@ export class CardPanel {
     this.renderBrowseMode();
     new Notice(
       this.copilotMode === "compact"
-        ? "⚡ 已切換至精簡模式（引導問答 ＋ 地道潤飾 ＋ 長篇跟讀）"
+        ? "⚡ 已切換至精簡模式（引導問答 ＋ 地道潤飾 ＋ 整理跟讀）"
         : "🌟 已切換至完整模式（即時續寫卡片 ＋ 接續鍵 ＋ 提問潤飾）",
       2500
     );
@@ -1267,13 +1267,13 @@ export class CardPanel {
 
     // 1. Control Center Bar (Row 1 Right): All core functions in one clean row
     if (this.headerSysEl) {
-      // 1. 🎧 長篇跟讀 (全篇沉浸影子跟讀)
+      // 1. ✨ 整理跟讀 (整理今日日記 ＋ 開啟全篇沉浸影子跟讀)
       const shadowBtn = this.headerSysEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-shadow-all-btn",
-        text: Platform.isPhone ? "🎧 跟讀" : "🎧 長篇跟讀",
+        text: Platform.isPhone ? "✨ 整理跟讀" : "✨ 整理跟讀",
         attr: {
-          "aria-label": "開啟全篇沉浸式影子跟讀模式",
-          title: "開啟全篇沉浸式影子跟讀模式",
+          "aria-label": "整理今日日記並開啟全篇影子跟讀",
+          title: "整理今日日記並開啟全篇影子跟讀",
         },
       });
       shadowBtn.addEventListener("click", (e) => {

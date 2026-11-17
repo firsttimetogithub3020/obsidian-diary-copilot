@@ -929,10 +929,7 @@ export default class DiaryCopilotPlugin extends Plugin {
 
     // Try to find "## English" section
     const englishMatch = content.match(/##\s+English\s*\n([\s\S]*?)(?=\n##|$)/i);
-    if (englishMatch && englishMatch[1]?.trim()) {
-      new FullTextShadowingModal(this.app, this, englishMatch[1].trim(), file).open();
-      return;
-    }
+    const existingEnglish = englishMatch && englishMatch[1]?.trim() ? englishMatch[1].trim() : null;
 
     // Strip frontmatter and markdown headings to extract raw draft text
     const rawDraft = content
@@ -940,13 +937,12 @@ export default class DiaryCopilotPlugin extends Plugin {
       .replace(/^#.*$/gm, "")
       .trim();
 
-    if (!rawDraft) {
-      new Notice("目前日記尚無內容可供跟讀，請先輸入內容或點擊「整理今日日記」");
+    if (!rawDraft && !existingEnglish) {
+      new Notice("目前日記尚無內容可供整理或跟讀，請先在筆記中輸入文字");
       return;
     }
 
-    // Unorganized draft notes: pop up Option A ShadowingPrepModal
-    new ShadowingPrepModal(this.app, this, rawDraft, file).open();
+    new ShadowingPrepModal(this.app, this, rawDraft, file, existingEnglish).open();
   }
 
   private handleEditorUpdate(update: ViewUpdate) {

@@ -1,6 +1,7 @@
 import { App, Modal, Notice, TFile } from "obsidian";
 import type DiaryCopilotPlugin from "../main";
 import { speakSentence, stopAudio, splitTextIntoSentences, isAudioPlaying } from "../services/tts";
+import { tidyUpTodayDiary } from "../commands/tidyUp";
 
 export class FullTextShadowingModal extends Modal {
   private plugin: DiaryCopilotPlugin;
@@ -100,6 +101,16 @@ export class FullTextShadowingModal extends Modal {
     restartBtn.addEventListener("click", () => {
       this.currentSentenceIdx = 0;
       this.play();
+    });
+
+    const reTidyBtn = controlBar.createEl("button", {
+      cls: "diary-copilot-action-btn",
+      text: "✨ 重新整理",
+      attr: { title: "重新呼叫 AI 整理今日日記並更新跟讀內容" },
+    });
+    reTidyBtn.addEventListener("click", async () => {
+      this.close();
+      await tidyUpTodayDiary(this.app, this.plugin);
     });
 
     const doneBtn = controlBar.createEl("button", {
