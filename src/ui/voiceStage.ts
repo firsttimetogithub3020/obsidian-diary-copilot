@@ -49,6 +49,10 @@ export class VoiceStage {
     return !!this.currentRefineResult;
   }
 
+  public async triggerPolishFromHeader() {
+    await this.handleTriggerPolish();
+  }
+
   render() {
     this.containerEl.empty();
     const stageEl = this.containerEl.createDiv({ cls: "diary-copilot-voice-stage" });

@@ -1103,8 +1103,44 @@ export default class DiaryCopilotPlugin extends Plugin {
     const cursor = editor.posToOffset(editor.getCursor());
 
     const context = extractContextFromDoc(docText, cursor);
-    if (!context || !docText.trim()) {
-      new Notice("請先在筆記中寫下一兩句話，AI 才能為您提出引導問句！");
+    if (!docText.trim()) {
+      // 空白筆記：直接提供啟發性的今日訪談引導問句，讓使用者能看著題目開口說寫第一句話！
+      const starterQuestions: InquiryItem[] = [
+        {
+          closedQuestion: "Did you encounter any memorable moment or unexpected challenge today?",
+          closedChinese: "今天是否有遇到什麼難忘的時刻，或意想不到的挑戰？",
+          openQuestion: "What was the most meaningful or memorable thing that happened to you today?",
+          openChinese: "今天發生了什麼最有意義、或是最讓你印象深刻的事？",
+          yes1: "Yes, something really special happened today that made my whole day.",
+          yes2: "Actually yes, I had an unexpected conversation that changed my perspective.",
+          no1: "Not really, today was pretty calm and followed my usual routine.",
+          no2: "To be honest, it was just a quiet, low-key day without much drama.",
+          openStyle1: "The most memorable thing was definitely catching up with an old friend.",
+          openStyle2: "What struck me today was how much progress I've made on my personal goals.",
+          openStyle3: "I found myself reflecting deeply on my priorities and what truly matters.",
+          openStyle4: "Just taking a quiet walk this evening completely cleared my head.",
+        },
+        {
+          closedQuestion: "Did someone or something surprise you in a pleasant way today?",
+          closedChinese: "今天是否有人或事物帶給你意想不到的驚喜？",
+          openQuestion: "Who did you spend the most time with today, and what did you talk about?",
+          openChinese: "今天你花最多時間和誰在一起，你們聊了些什麼？",
+          yes1: "Yes, I got a pleasant surprise from a friend that really brightened my mood.",
+          yes2: "Surprisingly yes, things turned out much better than I had anticipated.",
+          no1: "No surprises today, everything was quite predictable and straightforward.",
+          no2: "Not really, it was just another regular working day for me.",
+          openStyle1: "I spent most of my time discussing work projects with my colleagues.",
+          openStyle2: "I had a heartwarming dinner conversation with my family about our plans.",
+          openStyle3: "I spent quality time alone, reflecting and organizing my thoughts.",
+          openStyle4: "I had a great chat with a mentor that gave me fresh inspiration.",
+        },
+      ];
+      const randomStarter = starterQuestions[Math.floor(Math.random() * starterQuestions.length)];
+      this.isInquiryMode = true;
+      this.isPolishMode = false;
+      this.currentInquiryItem = randomStarter;
+      this.cardPanel?.setPinnedInquiry(randomStarter);
+      new Notice("💭 已為您開啟今日日記問答引導！請在筆記中回答", 2500);
       return;
     }
 

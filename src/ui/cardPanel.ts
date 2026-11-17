@@ -339,13 +339,13 @@ export class CardPanel {
       let targetHeight: number;
       if (isKeyboardOpen) {
         // Virtual keyboard is active: keep panel low and concise
-        targetHeight = Math.min(Math.round(vpHeight * 0.42), 210);
+        targetHeight = Math.min(Math.round(vpHeight * 0.45), 230);
       } else if (hasCards) {
         // 3 Cards showing: comfortable reading height with internal scrolling
-        targetHeight = Math.min(Math.round(window.innerHeight * 0.45), 330);
+        targetHeight = Math.min(Math.round(window.innerHeight * 0.55), 390);
       } else {
-        // Idle mic/input view: ultra-compact, leaving note editor fully exposed
-        targetHeight = Math.min(Math.round(window.innerHeight * 0.33), 240);
+        // Idle QA/Prompt view: set height so question card and in-panel polish button are fully displayed without scrolling
+        targetHeight = Math.min(Math.round(window.innerHeight * 0.42), 290);
       }
 
       this.panelEl.style.height = `${targetHeight}px`;
@@ -799,8 +799,19 @@ export class CardPanel {
       }
     });
 
-    // Right: Toggle answers & dismiss strip
+    // Right: Listen, toggle answers & dismiss strip
     const actionGroup = ctrlRow.createDiv({ cls: "diary-copilot-pinned-action-group" });
+    const listenQBtn = actionGroup.createEl("button", {
+      cls: "diary-copilot-pinned-toggle-btn diary-copilot-pinned-listen-btn",
+      text: "🔊 聽問題",
+      attr: { title: "聆聽此引導問題之英文標準發音" },
+    });
+    listenQBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      speakSentence(qText);
+    });
+
     const toggleAnswerBtn = actionGroup.createEl("button", {
       cls: `diary-copilot-pinned-toggle-btn ${this.isShowingInquiryAnswers ? "is-active" : ""}`,
       text: this.isShowingInquiryAnswers ? "✍️ 顯示即時續寫" : "💡 查看建議回答",
@@ -1006,6 +1017,29 @@ export class CardPanel {
         this.callbacks.onFullTextShadowingRequest?.();
       });
 
+      // ❓ 提問引導 (開啟問答說寫日記模式)
+      const inqBtn = this.headerSysEl.createEl("button", {
+        cls: `diary-copilot-action-btn diary-copilot-inquiry-header-btn ${this.pinnedInquiryItem ? "is-active" : ""}`,
+        text: Platform.isPhone
+          ? (this.pinnedInquiryItem ? "✍️ 續寫" : "❓ 提問")
+          : (this.pinnedInquiryItem ? "✍️ 回純續寫" : "❓ 提問引導"),
+        attr: {
+          "aria-label": this.pinnedInquiryItem ? "關閉問句，回到平日即時續寫模式" : "開啟問答引導說寫日記模式",
+          title: this.pinnedInquiryItem ? "關閉問句，回到平日即時續寫模式" : "開啟問答引導說寫日記模式",
+        },
+      });
+      inqBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (this.pinnedInquiryItem) {
+          this.clearPinnedInquiry();
+          this.callbacks.onFocusEditor?.();
+        } else {
+          this.resetToAutoFit();
+          this.callbacks.onInquiryRequest?.();
+        }
+      });
+
       // 切換按鈕：在「筆記卡片」與「口說對話舞台」之間自由切換
       const stageBtn = this.headerSysEl.createEl("button", {
         cls: `diary-copilot-action-btn diary-copilot-stage-toggle-btn ${this.isVoiceStageActive ? "is-active" : ""}`,
@@ -1049,7 +1083,25 @@ export class CardPanel {
     }
 
     if (this.isVoiceStageActive) {
-      // In Voice Stage, Row 2 is completely hidden/empty to maximize screen space for voice cards
+      // 在對話模式中，頂部 Row 2 右側常駐「✨ 潤飾」按鈕，無論螢幕如何滑動皆 100% 可見
+      if (this.headerActionsEl) {
+        const polishBtn = this.headerActionsEl.createEl("button", {
+          cls: "diary-copilot-action-btn diary-copilot-polish-btn",
+          text: Platform.isMobile ? "✨ 潤飾" : "✨ 潤飾句子 / 回答",
+          attr: {
+            title: "提煉筆記中選取或最新輸入的一句話為 3 種地道卡片",
+          },
+        });
+        polishBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          if (this.voiceStage) {
+            this.voiceStage.triggerPolishFromHeader();
+          } else {
+            this.callbacks.onPolishRequest?.();
+          }
+        });
+      }
       return;
     }
 
@@ -1083,11 +1135,11 @@ export class CardPanel {
     }
 
     if (activeCard && this.headerActionsEl) {
-      // 3. ⚡ 填入 (Direct Paste) - Right Group (Row 2 Right)
+      // 3. ⚡ 接續 (Direct Paste / Tab) - Right Group (Row 2 Right)
       const pasteBtn = this.headerActionsEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-direct-paste-btn",
-        text: "⚡ 填入",
-        attr: { title: "直接將此句子填入筆記（正常文字，無灰字）" },
+        text: Platform.isPhone ? "⚡ 接續" : "⚡ 接續填入 (Tab)",
+        attr: { title: "直接將此續寫句填入筆記 (Tab)" },
       });
       pasteBtn.addEventListener("click", (e) => {
         e.stopPropagation();
