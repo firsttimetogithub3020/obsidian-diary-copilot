@@ -43,6 +43,8 @@ export default class DiaryCopilotPlugin extends Plugin {
   private lastSelectedText = "";
   private lastSelectedRange: { from: number; to: number } | null = null;
   private lastSelectedTime = 0;
+  private lastAdoptedText = "";
+  private lastAdoptedTime = 0;
 
   async onload() {
     await this.loadPluginData();
@@ -83,6 +85,10 @@ export default class DiaryCopilotPlugin extends Plugin {
           this.clearGhostText();
         },
         onOralShadowComplete: (targetText: string, anchorPos: number, cursorOffset: number) => {
+          // If CardPanel's dedicated Oral Studio is currently running, it exclusively handles adoption!
+          if (this.cardPanel?.isOralActive()) {
+            return;
+          }
           const editorView = this.getEditorView();
           if (editorView) {
             editorView.dispatch({
@@ -593,6 +599,11 @@ export default class DiaryCopilotPlugin extends Plugin {
           getCollapsedHeight: () => this.getEffectiveCollapsedHeight(),
           onDirectPaste: () => {
             this.handleDirectPaste();
+          },
+          onOralStart: () => {
+            // When entering Oral Studio, gracefully clear shadow typing & ghost text to prevent double-adoption race
+            this.scheduler.clear();
+            this.clearGhostText();
           },
           onOralAdopt: (text, kind, sourceRange) => {
             this.executeOralAdoption(text, kind, sourceRange);
@@ -1472,6 +1483,16 @@ export default class DiaryCopilotPlugin extends Plugin {
 
     let cleanText = text.trim();
     if (!cleanText) return;
+
+    // Atomic Idempotency Guard: prevent double-insertion race conditions within 1500ms
+    if (isDirectPaste) {
+      if (this.lastAdoptedText === cleanText && Date.now() - this.lastAdoptedTime < 1500) {
+        console.warn("[Diary Copilot] Suppressed duplicate direct adoption within 1.5s:", cleanText);
+        return;
+      }
+      this.lastAdoptedText = cleanText;
+      this.lastAdoptedTime = Date.now();
+    }
 
     const editor = activeMarkdownView.editor;
     const docLength = editorView.state.doc.length;

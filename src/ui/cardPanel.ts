@@ -21,6 +21,7 @@ export interface CardPanelCallbacks {
   getFontSize?: () => number;
   onCollapsedHeightChange?: (height: number) => void;
   getCollapsedHeight?: () => number;
+  onOralStart?: () => void;
   onOralAdopt?: (text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }) => void;
   onOralInput?: (spokenText: string, targetText: string) => void;
   onFocusEditor?: () => void;
@@ -1605,6 +1606,10 @@ export class CardPanel {
   // Visual Oral Shadowing Studio (即時視覺化語音跟讀工作台)
   // ========================================================
 
+  public isOralActive(): boolean {
+    return this.isOralMode;
+  }
+
   /**
    * Starts Oral Shadowing Studio without touching note document until confirmation.
    */
@@ -1614,6 +1619,7 @@ export class CardPanel {
     sourceRange?: { from: number; to: number }
   ) {
     this.isOralMode = true;
+    this.callbacks.onOralStart?.();
     this.dismissSoftKeyboard();
     this.oralTargetText = targetText;
     this.oralKind = kind;

@@ -12,7 +12,7 @@
 * **專案名稱**：Obsidian Diary Copilot (`obsidian-diary-copilot`)
 * **本機代碼倉庫**：`E:\obsidian-english\obsidian-diary-copilot`
 * **本機 Vault 部署路徑**：`E:\AI-Knowledge-System\Obsidian-Vault\.obsidian\plugins\diary-copilot`
-* **當前最新版本**：`v0.3.51`
+* **當前最新版本**：`v0.3.52`
 * **使用者**：Alan（對話與說明一律使用**繁體中文**；代碼識別碼與 Commit 訊息一律使用英文）。
 
 ---
@@ -83,6 +83,7 @@ flowchart LR
 
 | 版本 | 日期 | 重點改動說明 |
 | :--- | :--- | :--- |
+| **v0.3.52** | 2026-11-18 | 1. 徹底根除點擊字卡灰字後接著跟讀的「雙重寫入競態重複（Double Adoption Race Collision）」：<br/>- 診斷原因：點字卡啟動了 `Scheduler` 的鍵盤語音影子跟寫監聽器，隨後開啟 `CardPanel` 跟讀工作台時未清除狀態；使用者說話時兩套系統在 23ms 內相繼判定達標並重複寫入文檔同一個位置。<br/>- 防護 1（狀態隔離）：點擊進入口說跟讀工作台（`startOralShadowing`）時，立即強制呼叫 `onOralStart` 清除 Scheduler 影子狀態與灰字，讓口說跟讀工作台獨佔語音結算權。<br/>- 防護 2（執行互斥）：`onOralShadowComplete` 嚴格檢查 `isOralActive()`，跟讀進行中直接跳過，絕不重複派發。<br/>- 防護 3（原子冪等性保護）：在 `adoptSuggestion` 內建 1500ms 重複寫入攔截防護（Atomic Idempotency Guard），杜絕任何毫秒級重複寫入。<br/>2. 專案版本升級為 v0.3.52。 |
 | **v0.3.51** | 2026-11-18 | 1. 頂部功能列新增「📅 今日日記」快捷按鈕：<br/>- 寬螢幕 / 電腦版顯示 `📅 今日日記`，手機 / 窄螢幕自適應精煉顯示 `📅`。<br/>- 採用清爽高對比翡翠綠（Emerald Green）配色，點擊立即呼叫 `openTodayDiary`，一鍵自動開啟或建立乾淨無冗餘標題的今日日記。<br/>2. 專案版本升級為 v0.3.51。 |
 | **v0.3.50** | 2026-11-18 | 1. 開啟今日日記不再於內文自動產生 `# 當天日期` 標題：<br/>- 檢視 `src/commands/openToday.ts`，確認原始設定在建立日記新檔案時會自動注入 `# ${todayStr}`。<br/>- 依照指示移除此標題，保留簡潔的 YAML Frontmatter（title, date, created, type: english-diary），讓使用者能直接從乾淨的空白內文開始書寫，不再有冗餘標題干擾。<br/>2. 專案版本升級為 v0.3.50。 |
 | **v0.3.49** | 2026-11-18 | 1. 徹底消除電腦端頂部重複的「朗讀、跟讀、填入」按鈕：<br/>- 由於每張字卡內部已皆擁有專屬的 `[ 🔊 朗讀 ] [ 🎙️ 跟讀 ] [ ⚡ 自動填入 ]`，頂部工具列第二排（Row 2）在瀏覽模式下一律隱藏。<br/>- 頂部工具列全面恢復極致純淨，僅保留核心功能鈕（整理跟讀、提問、潤飾、關閉字卡、設定、關閉），徹底消除與字卡內部的按鈕重複。<br/>2. 專案版本升級為 v0.3.49。 |
