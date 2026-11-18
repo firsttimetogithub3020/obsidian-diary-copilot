@@ -92,16 +92,24 @@ export async function tidyUpTodayDiary(app: App, plugin: DiaryCopilotPlugin) {
 
     const existingDraftMatch = rawDoc.match(/## (?:撰寫初稿|中文原稿)\s*\n([\s\S]*?)(?=\n## |$)/);
     if (existingDraftMatch && existingDraftMatch[1].trim()) {
-      originalDraftText = existingDraftMatch[1].trim();
+      originalDraftText = existingDraftMatch[1].trim()
+        .replace(/\n*### 💡 (?:口說與寫作初稿盲點替換紀錄|初稿盲點替換紀錄|初稿表達升級|核心表達升級)[\s\S]*$/, "")
+        .replace(/\n*> 💡 寫作時替換之初稿片段[\s\S]*$/, "")
+        .trim();
       draftTextToProcess = originalDraftText;
     } else {
       const existingEnglishMatch = rawDoc.match(/## English\s*\n([\s\S]*?)(?=\n## |$)/);
       if (existingEnglishMatch && existingEnglishMatch[1].trim()) {
-        draftTextToProcess = existingEnglishMatch[1].trim();
+        draftTextToProcess = existingEnglishMatch[1].trim()
+          .replace(/\n*### 💡 (?:口說與寫作初稿盲點替換紀錄|初稿盲點替換紀錄|初稿表達升級|核心表達升級)[\s\S]*$/, "")
+          .replace(/\n*> 💡 寫作時替換之初稿片段[\s\S]*$/, "")
+          .trim();
       } else {
         const bodyCleaned = rawDoc
           .replace(/^---[\s\S]*?\n---\s*/, "")
-          .replace(/^#\s+[^\n]+\n+/, "");
+          .replace(/^#\s+[^\n]+\n+/, "")
+          .replace(/\n*### 💡 (?:口說與寫作初稿盲點替換紀錄|初稿盲點替換紀錄|初稿表達升級|核心表達升級)[\s\S]*$/, "")
+          .replace(/\n*> 💡 寫作時替換之初稿片段[\s\S]*$/, "");
         if (bodyCleaned.trim()) {
           draftTextToProcess = bodyCleaned.trim();
           originalDraftText = draftTextToProcess;
@@ -192,24 +200,50 @@ export async function tidyUpTodayDiary(app: App, plugin: DiaryCopilotPlugin) {
 
     // Prepare original draft content
     let draftSectionContent = originalDraftText.replace(/<span style="[^"]*">([\s\S]*?)<\/span>/g, "$1").trim();
+    draftSectionContent = draftSectionContent
+      .replace(/\n*### 💡 (?:口說與寫作初稿盲點替換紀錄|初稿盲點替換紀錄|初稿表達升級|核心表達升級)[\s\S]*$/, "")
+      .replace(/\n*> 💡 寫作時替換之初稿片段[\s\S]*$/, "")
+      .trim();
 
     // Gather adoptions with source (oral/written blind spots replaced by polished sentences)
     const adoptionsWithSource = todayAdoptions.filter(
       (a) => a.source && a.source.trim().length > 0
     );
 
-    if (adoptionsWithSource.length > 0) {
+    // Format concise upgrades (words / idioms / phrases) instead of dumping entire paragraphs
+    const upgrades = Array.isArray((result as any).upgrades) ? (result as any).upgrades : [];
+    if (upgrades.length > 0) {
       draftSectionContent += `\n\n### 💡 口說與寫作初稿盲點替換紀錄\n`;
       const seen = new Set<string>();
-      for (const item of adoptionsWithSource) {
-        const key = `${item.source?.trim()} -> ${item.text.trim()}`;
+      for (const item of upgrades) {
+        if (!item || !item.upgraded) continue;
+        const key = item.upgraded.toLowerCase().trim();
         if (!seen.has(key)) {
           seen.add(key);
-          draftSectionContent += `- 🗣️ **原始口說初稿**：\`${item.source?.trim()}\`\n  ➔ ⚡ **升級道地句**：${item.text.trim()}\n`;
+          const orig = item.original ? `\`${item.original.trim()}\`` : "初稿表達";
+          const meaning = item.meaning ? `（${item.meaning.trim()}）` : "";
+          draftSectionContent += `- 💡 ${orig} ➔ **${item.upgraded.trim()}** ${meaning}\n`;
+        }
+      }
+    } else if (adoptionsWithSource.length > 0) {
+      draftSectionContent += `\n\n### 💡 口說與寫作初稿盲點替換紀錄\n`;
+      const seen = new Set<string>();
+      let count = 0;
+      for (const item of adoptionsWithSource) {
+        if (count >= 3) break;
+        const targetClean = item.text.trim();
+        const key = targetClean.toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          count++;
+          const srcShort = (item.source || "").trim();
+          const orig = srcShort.length > 30 ? srcShort.slice(0, 28) + "..." : srcShort;
+          const upgraded = targetClean.length > 45 ? targetClean.slice(0, 42) + "..." : targetClean;
+          draftSectionContent += `- 💡 \`${orig}\` ➔ **${upgraded}**\n`;
         }
       }
     } else if (replacedDraftSnippets.length > 0) {
-      const uniqueSnippets = Array.from(new Set(replacedDraftSnippets));
+      const uniqueSnippets = Array.from(new Set(replacedDraftSnippets)).slice(0, 4);
       draftSectionContent += `\n\n> 💡 寫作時替換之初稿片段：${uniqueSnippets.join(" · ")}`;
     }
 

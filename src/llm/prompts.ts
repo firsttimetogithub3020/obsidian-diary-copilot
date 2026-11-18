@@ -239,13 +239,17 @@ export function buildTidyUserPrompt(input: TidyPromptInput): string {
   }
 
   text += `Please process the diary entry into a JSON response with these exact fields:
-1. "english": Polished, natural English final diary text. Correct any spelling/grammar/awkward phrasing, preserve the author's authentic voice, and format into smooth paragraphs.
+1. "english": Polished, natural English final diary text. Correct any spelling/grammar/awkward phrasing, preserve the author's authentic voice and natural sentence flow. Keep the user's genuine sentences without completely rewriting into an unrecognizable long essay.
 2. "chinese_translation": Natural and beautiful Traditional Chinese translation (繁體中文語意對照) of the polished English entry.
 3. "expressions": A list of 2 to 6 key natural English phrases/idioms/collocations used or relevant to the entry (including adopted ones), each with:
    - "phrase": the English expression (e.g. "pick up [language]", "be left behind", "adopt vs. adapt")
    - "meaning": clear Traditional Chinese explanation (繁體中文解釋及用法提示)
-4. "mood": An array of 1 to 3 mood words in lowercase English (e.g., ["inspired", "reflective"]).
-5. "topics": An array of 1 to 4 topic keywords in lowercase English or Chinese.
+4. "upgrades": A list of 1 to 4 concise new vocabulary items, idioms, or phrase upgrades discovered from comparing the user's initial draft with the upgraded expressions. Focus STRICTLY on concise single words, idioms, or short phrases (e.g. "take a heavy toll on", "striking dichotomy", "hold out"), NEVER entire paragraphs or long sentences. Each with:
+   - "original": the initial basic or awkward wording/phrase (short!)
+   - "upgraded": the newly discovered native expression, idiom, or vocabulary (單字/片語/慣用語)
+   - "meaning": brief Traditional Chinese meaning
+5. "mood": An array of 1 to 3 mood words in lowercase English (e.g., ["inspired", "reflective"]).
+6. "topics": An array of 1 to 4 topic keywords in lowercase English or Chinese.
 
 Output ONLY JSON matching:
 {
@@ -253,6 +257,9 @@ Output ONLY JSON matching:
   "chinese_translation": "...",
   "expressions": [
     { "phrase": "...", "meaning": "..." }
+  ],
+  "upgrades": [
+    { "original": "...", "upgraded": "...", "meaning": "..." }
   ],
   "mood": ["..."],
   "topics": ["..."]

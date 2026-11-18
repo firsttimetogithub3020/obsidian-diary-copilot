@@ -142,9 +142,10 @@ export class SelectionPopover {
       const loadingSpan = contentDiv.createSpan({ cls: "popover-loading" });
       loadingSpan.setText(" ⏳ 查詢中...");
     } else if (result) {
-      if (result.pos) {
+      const posText = result.pos ? result.pos.trim() : (text.trim().includes(" ") ? "phr." : "");
+      if (posText) {
         const posBadge = contentDiv.createSpan({ cls: "popover-pos" });
-        posBadge.setText(result.pos);
+        posBadge.setText(posText);
       }
 
       const transSpan = contentDiv.createSpan({ cls: "popover-translation" });
