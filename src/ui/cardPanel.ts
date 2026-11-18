@@ -1,6 +1,6 @@
 import { Platform, Notice } from "obsidian";
 import { SuggestionItem, DiaryTone, InquiryItem, EnglishLevel, CopilotMode } from "../types";
-import { DIARY_TONE_OPTIONS } from "../settings";
+import { DIARY_TONE_OPTIONS, GEPT_LEVEL_OPTIONS } from "../settings";
 import { speakSentence, stopAudio } from "../services/tts";
 import { globalSpeechRecognizer, evaluateOralMatch, OralMatchResult } from "../services/speech";
 import { VoiceStage } from "./voiceStage";
@@ -40,6 +40,7 @@ export interface CardPanelCallbacks {
   getCopilotMode?: () => CopilotMode;
   onModeChange?: (mode: CopilotMode) => Promise<void>;
   getEnglishLevel?: () => EnglishLevel;
+  onEnglishLevelChange?: (level: EnglishLevel) => void;
   getDiaryContext?: () => string;
   getLlmClient?: () => any;
 }
@@ -978,7 +979,7 @@ export class CardPanel {
         this.toggleVoiceStage();
       },
       getEnglishLevel: () => {
-        return this.callbacks.getEnglishLevel?.() || "B1";
+        return this.callbacks.getEnglishLevel?.() || "upper-intermediate";
       },
       getTone: () => {
         return this.callbacks.getTone?.() || "casual";
@@ -2243,7 +2244,32 @@ export class CardPanel {
       });
     }
 
-    // Section 3: 📐 設定收摺後的高度
+    // Section 3: 🎯 英文難度（GEPT 全民英檢）
+    const secLevel = body.createDiv({ cls: "diary-copilot-setting-section" });
+    secLevel.createDiv({ cls: "diary-copilot-setting-section-title", text: "英文難度（GEPT 全民英檢）" });
+    const levelGrid = secLevel.createDiv({ cls: "diary-copilot-tone-grid" });
+
+    const currentLevel = this.callbacks.getEnglishLevel?.() || "upper-intermediate";
+    const levelChips: { [id: string]: HTMLElement } = {};
+
+    for (const opt of GEPT_LEVEL_OPTIONS) {
+      const chip = levelGrid.createDiv({
+        cls: `diary-copilot-tone-chip ${opt.id === currentLevel ? "is-active" : ""}`,
+      });
+      levelChips[opt.id] = chip;
+
+      const chipName = chip.createDiv({ cls: "diary-copilot-tone-chip-name" });
+      chipName.setText(`${opt.icon} ${opt.label} (${opt.badge})`);
+      chip.createDiv({ cls: "diary-copilot-tone-chip-desc", text: opt.desc });
+
+      chip.addEventListener("click", () => {
+        Object.values(levelChips).forEach((c) => c.removeClass("is-active"));
+        chip.addClass("is-active");
+        this.callbacks.onEnglishLevelChange?.(opt.id);
+      });
+    }
+
+    // Section 4: 📐 設定收摺後的高度
     const secHeight = body.createDiv({ cls: "diary-copilot-setting-section" });
     secHeight.createDiv({ cls: "diary-copilot-setting-section-title", text: "收摺後高度（底部工具列）" });
     const heightRow = secHeight.createDiv({ cls: "diary-copilot-setting-stepper-row" });

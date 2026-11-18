@@ -1,7 +1,7 @@
 import { Plugin, MarkdownView, TFile, Platform, Notice } from "obsidian";
 import { EditorView, ViewUpdate } from "@codemirror/view";
-import { DEFAULT_SETTINGS, DiaryCopilotSettingTab, DIARY_TONE_OPTIONS } from "./settings";
-import { PluginData, PluginSettings, SuggestionItem, DiaryTone, InquiryItem } from "./types";
+import { DEFAULT_SETTINGS, DiaryCopilotSettingTab, DIARY_TONE_OPTIONS, GEPT_LEVEL_OPTIONS } from "./settings";
+import { PluginData, PluginSettings, SuggestionItem, DiaryTone, InquiryItem, EnglishLevel } from "./types";
 import { GeminiProvider } from "./llm/gemini";
 import { SummaryManager } from "./engine/summary";
 import { SuggestionScheduler } from "./engine/scheduler";
@@ -702,6 +702,9 @@ export default class DiaryCopilotPlugin extends Plugin {
           getEnglishLevel: () => {
             return this.settings.englishLevel;
           },
+          onEnglishLevelChange: async (level: EnglishLevel) => {
+            await this.handleEnglishLevelChange(level);
+          },
           getDiaryContext: () => {
             return this.getRecentDiaryContext();
           },
@@ -785,6 +788,27 @@ export default class DiaryCopilotPlugin extends Plugin {
     new Notice(`🎭 語調切換為：${option?.label || tone}`, 2000);
 
     // If active note is eligible, re-fetch suggestions with new tone immediately!
+    if (this.currentActiveEditorView && this.activeView && this.isEligibleNote(this.activeView.file)) {
+      const docText = this.currentActiveEditorView.state.doc.toString();
+      const cursor = this.currentActiveEditorView.state.selection.main.head;
+      const context = extractContextFromDoc(docText, cursor);
+      const filePath = this.activeView.file.path;
+      const paragraphSummary = this.summaryManager.getParagraphSummary(filePath);
+      const styleSummary = this.data.styleSummary?.summary;
+
+      this.scheduler.refetch(context, styleSummary, paragraphSummary);
+    }
+  }
+
+  async handleEnglishLevelChange(level: EnglishLevel) {
+    this.settings.englishLevel = level;
+    await this.saveSettings();
+
+    const option = GEPT_LEVEL_OPTIONS.find((l) => l.id === level);
+    const label = option ? `${option.icon} ${option.label} (${option.badge})` : level;
+    new Notice(`🎯 英文難度切換為：${label}`, 2500);
+
+    // If active note is eligible, re-fetch suggestions with new level immediately!
     if (this.currentActiveEditorView && this.activeView && this.isEligibleNote(this.activeView.file)) {
       const docText = this.currentActiveEditorView.state.doc.toString();
       const cursor = this.currentActiveEditorView.state.selection.main.head;

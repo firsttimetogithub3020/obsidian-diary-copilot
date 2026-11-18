@@ -1,6 +1,6 @@
 import { App, PluginSettingTab, Setting, Notice } from "obsidian";
 import type DiaryCopilotPlugin from "./main";
-import { PluginSettings, DiaryTone } from "./types";
+import { PluginSettings, DiaryTone, EnglishLevel } from "./types";
 
 export const DEFAULT_SETTINGS: PluginSettings = {
   geminiApiKey: "",
@@ -31,6 +31,50 @@ export const DIARY_TONE_OPTIONS: { id: DiaryTone; label: string; desc: string }[
   { id: "humorous", label: "幽默自嘲 (Humorous)", desc: "輕鬆自嘲與俏皮筆調" },
   { id: "social-science", label: "社科學術期刊 (Social Science)", desc: "社會科學學術期刊論文語調：精準學術術語、概念化框架、客觀分析、嚴謹論述" },
   { id: "sinology", label: "漢學學術期刊 (Sinology)", desc: "漢學學術期刊論文語調：西方漢學/中國研究學術風格，善用文獻考據、義理辨析、歷史脈絡與學術英譯" },
+];
+
+export interface GeptLevelOption {
+  id: EnglishLevel;
+  label: string;
+  badge: string;
+  desc: string;
+  cefr: string;
+  icon: string;
+}
+
+export const GEPT_LEVEL_OPTIONS: GeptLevelOption[] = [
+  {
+    id: "beginner",
+    label: "GEPT 初級",
+    badge: "國中程度 / A2",
+    desc: "生活基礎單字（約 2,200 字），清楚易懂的簡單句與核心句型，無生僻難字",
+    cefr: "A2",
+    icon: "🌱",
+  },
+  {
+    id: "intermediate",
+    label: "GEPT 中級",
+    badge: "高中程度 / B1",
+    desc: "日常社交與生活流暢表達（約 5,000 字），實用片語與自然轉折詞，敘事流暢",
+    cefr: "B1",
+    icon: "🌿",
+  },
+  {
+    id: "upper-intermediate",
+    label: "GEPT 中高級",
+    badge: "大學程度 / B2",
+    desc: "細膩情感與深度思想（約 8,000 字），豐富地道片語、句構變化與精準修辭",
+    cefr: "B2",
+    icon: "🌳",
+  },
+  {
+    id: "advanced",
+    label: "GEPT 高級",
+    badge: "專業流利 / C1",
+    desc: "典雅精準用詞、高階修辭、哲思與學術批判筆調，母語級自然洗鍊",
+    cefr: "C1",
+    icon: "👑",
+  },
 ];
 
 export const RECOMMENDED_MODELS = [
@@ -223,21 +267,19 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
           });
       });
 
-    // English Level
+    // English Level (GEPT)
     new Setting(containerEl)
-      .setName("英文程度偏好")
-      .setDesc("控制 AI 建議卡片的單字難度與句構複雜度")
+      .setName("英文難度偏好（GEPT 全民英檢）")
+      .setDesc("控制 AI 建議卡片、地道潤飾、引導提問與全篇整理跟讀的單字難度與句構複雜度")
       .addDropdown((dropdown) => {
-        dropdown
-          .addOption("beginner", "初級 (Beginner)")
-          .addOption("intermediate", "中級 (Intermediate)")
-          .addOption("upper-intermediate", "中高級 (Upper-Intermediate)")
-          .addOption("advanced", "高級 (Advanced)")
-          .setValue(this.plugin.settings.englishLevel)
-          .onChange(async (val) => {
-            this.plugin.settings.englishLevel = val as any;
-            await this.plugin.saveSettings();
-          });
+        for (const opt of GEPT_LEVEL_OPTIONS) {
+          dropdown.addOption(opt.id, `${opt.icon} ${opt.label} (${opt.badge})`);
+        }
+        dropdown.setValue(this.plugin.settings.englishLevel);
+        dropdown.onChange(async (val) => {
+          this.plugin.settings.englishLevel = val as EnglishLevel;
+          await this.plugin.saveSettings();
+        });
       });
 
     // Diary Tone
