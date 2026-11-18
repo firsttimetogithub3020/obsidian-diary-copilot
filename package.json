@@ -5,7 +5,8 @@
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
-    "build": "node esbuild.config.mjs production"
+    "build": "node esbuild.config.mjs production",
+    "deploy": "node esbuild.config.mjs production && copy main.js E:\\AI-Knowledge-System\\Obsidian-Vault\\.obsidian\\plugins\\diary-copilot\\ /Y && copy manifest.json E:\\AI-Knowledge-System\\Obsidian-Vault\\.obsidian\\plugins\\diary-copilot\\ /Y && copy styles.css E:\\AI-Knowledge-System\\Obsidian-Vault\\.obsidian\\plugins\\diary-copilot\\ /Y"
   },
   "keywords": [
     "obsidian",
