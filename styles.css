@@ -2638,7 +2638,7 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
   }
 
   .diary-copilot-shadowing-modal {
-    padding: 14px 14px 10px 14px !important;
+    padding: 14px 14px calc(10px + env(safe-area-inset-bottom, 0px)) 14px !important;
   }
 
   .diary-copilot-shadowing-header {
@@ -2659,7 +2659,7 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
   .diary-copilot-shadowing-sec-group {
     width: 100% !important;
     display: grid !important;
-    grid-template-columns: 1fr 1fr 1.25fr !important;
+    grid-template-columns: 1fr 1fr 1fr !important;
     gap: 6px !important;
   }
 

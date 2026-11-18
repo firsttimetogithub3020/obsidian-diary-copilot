@@ -12,7 +12,7 @@
 * **專案名稱**：Obsidian Diary Copilot (`obsidian-diary-copilot`)
 * **本機代碼倉庫**：`E:\obsidian-english\obsidian-diary-copilot`
 * **本機 Vault 部署路徑**：`E:\AI-Knowledge-System\Obsidian-Vault\.obsidian\plugins\diary-copilot`
-* **當前最新版本**：`v0.3.54`
+* **當前最新版本**：`v0.3.55`
 * **使用者**：Alan（對話與說明一律使用**繁體中文**；代碼識別碼與 Commit 訊息一律使用英文）。
 
 ---
@@ -83,6 +83,7 @@ flowchart LR
 
 | 版本 | 日期 | 重點改動說明 |
 | :--- | :--- | :--- |
+| **v0.3.55** | 2026-11-18 | 1. 深度強化 iPhone / iPad (iOS WebKit / WKWebView) 跨平台穩定度：<br/>- Web Audio API (AudioContext) 音訊核心升級：針對 iOS Safari / WKWebView 對非同步連續音訊（Autoplay Policy）的嚴格限制，將 TTS 核心升級為 `AudioContext` + 原生 PCM Buffer 拼接。使用者於點擊「▶️ 開始朗讀跟讀」時即主動解鎖 `unlockAudio()`，後續多個句子在 `setTimeout` 連續播放時直接透過 AudioContext PCM 串流輸出，徹底杜絕 iOS `NotAllowedError` 與 Blob URL 在 `app://` 自訂協定下解碼失敗的問題。<br/>- 多層回退保護：AudioContext ➔ 重複使用之 sharedAudio ➔ 系統原生 SpeechSynthesis。<br/>- iOS 人體工學與底部安全邊界修復：跟讀彈窗底部加入 `env(safe-area-inset-bottom)` 安全避讓 iPhone Home Indicator；按鈕網格由 `1fr 1fr 1.25fr` 精準重設為 `1fr 1fr 1fr` 等寬，小螢幕完美對齊。<br/>- iPad 大螢幕與外接鍵盤全面驗證：寬度 >= 640px 自動啟用 2x2 完整網格；窄分屏（Split View 1/3）自動自適應為單卡膠囊分頁；外接鍵盤 Option+1~4 鍵盤事件相容。<br/>2. 專案版本升級為 v0.3.55。 |
 | **v0.3.54** | 2026-11-18 | 1. 徹底拔除全篇跟讀對筆記 Frontmatter 的寫入紀錄（落實極簡純粹書寫）：<br/>- 診斷原因：跟讀完成後的 `oral_shadowed` 與 `shadowed_at` 不僅無法為語言習得提供實質教學介入，反而製造了視覺噪音；且原先 Regex 替換存在 non-greedy 缺陷導致時間戳字串反覆串接堆疊成亂碼。<br/>- 徹底拔除：刪除 `recordShadowingCompleted` 方法，跟讀彈窗結束按鈕精簡為「✅ 結束跟讀」，完成時僅於介面給予即時完成提示，100% 絕不更動、不污染使用者的筆記 Markdown 檔案。<br/>2. 專案版本升級為 v0.3.54。 |
 | **v0.3.53** | 2026-11-18 | 1. 徹底重構高品質 TTS 語音朗讀核心（解決全篇跟讀頻繁跳句與播放失敗）：<br/>- 診斷原因：原本的第三方 TTS 引擎 `ttsmp3.com` 具備每日 3,000 字元免費額度限制，超額時回傳 `{"Error":"Usage Limit exceeded"}`；第二備援 `dict.youdao.com` 對超過 60 字元的長句回傳 HTTP 500 錯誤；且 `FullTextShadowingModal` 在播放報錯時誤觸 `onEnd()` 回呼，導致連續快轉跳句並觸發滿屏「語音朗讀播放失敗」Notice 彈窗。<br/>- 多層容錯升級（Multi-layer Architecture）：全面升級以 Google 官方即時美音 TTS 串流引擎（`gtx` & `tw-ob`）為第一與第二主引擎，無字數與呼叫次數限制，零延遲高速直傳。<br/>- 長句自然切句與無縫 MP3 Buffer 串接（Seamless Chunk Concatenation）：針對超過 160 字元的長句，自動以標點符號與子句自然切分，平行下載後在記憶體內直接將音訊 ArrayBuffer 串接為單一完整的 MP3 Blob URL，播放完全無縫、零間隙。<br/>- 播放失敗保護機制：`FullTextShadowingModal` 接入 `onError` 防護，當網路異常導致音訊無法播放時，自動原地暫停並保留當前句子高亮，僅跳出一次通知，徹底杜絕骨牌效應式的跳句。<br/>2. 專案版本升級為 v0.3.53。 |
 | **v0.3.52** | 2026-11-18 | 1. 徹底根除點擊字卡灰字後接著跟讀的「雙重寫入競態重複（Double Adoption Race Collision）」：<br/>- 診斷原因：點字卡啟動了 `Scheduler` 的鍵盤語音影子跟寫監聽器，隨後開啟 `CardPanel` 跟讀工作台時未清除狀態；使用者說話時兩套系統在 23ms 內相繼判定達標並重複寫入文檔同一個位置。<br/>- 防護 1（狀態隔離）：點擊進入口說跟讀工作台（`startOralShadowing`）時，立即強制呼叫 `onOralStart` 清除 Scheduler 影子狀態與灰字，讓口說跟讀工作台獨佔語音結算權。<br/>- 防護 2（執行互斥）：`onOralShadowComplete` 嚴格檢查 `isOralActive()`，跟讀進行中直接跳過，絕不重複派發。<br/>- 防護 3（原子冪等性保護）：在 `adoptSuggestion` 內建 1500ms 重複寫入攔截防護（Atomic Idempotency Guard），杜絕任何毫秒級重複寫入。<br/>2. 專案版本升級為 v0.3.52。 |

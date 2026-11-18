@@ -1,20 +1,56 @@
 import { requestUrl, Notice, Platform } from "obsidian";
 
 /**
- * High-Reliability Text-to-Speech (TTS) Service for Diary Copilot
+ * High-Reliability Cross-Platform Text-to-Speech (TTS) Service for Diary Copilot
  * 
  * Multi-layer architecture:
- * Layer 1: Google Translate American English TTS (gtx client) with seamless MP3 frame concatenation for long sentences
+ * Layer 1: Google Translate American English TTS (gtx client) via Web Audio API (AudioContext)
+ *          with native PCM buffer concatenation for seamless, zero-latency playback on iOS/Desktop
  * Layer 2: Google Translate TTS secondary endpoint (tw-ob client)
  * Layer 3: Amazon Polly Salli via ttsmp3
- * Layer 4: Native Web SpeechSynthesis (offline fallback)
+ * Layer 4: HTMLAudioElement fallback (reusing unlocked shared audio element)
+ * Layer 5: Native Web SpeechSynthesis (offline fallback)
  */
 
-let activeAudio: HTMLAudioElement | null = null;
+let audioContext: AudioContext | null = null;
+let activeSourceNode: AudioBufferSourceNode | null = null;
+let sharedAudio: HTMLAudioElement | null = null;
 let activeBlobUrl: string | null = null;
 
+export function getAudioContext(): AudioContext | null {
+  if (typeof window === "undefined") return null;
+  if (!audioContext) {
+    const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (AudioCtxClass) {
+      audioContext = new AudioCtxClass();
+    }
+  }
+  return audioContext;
+}
+
+/**
+ * Proactively unlocks AudioContext and HTMLAudioElement during user click/touch gestures.
+ * Critical for iOS Safari and Obsidian WKWebView autoplay policies!
+ */
+export function unlockAudio() {
+  const ctx = getAudioContext();
+  if (ctx && ctx.state === "suspended") {
+    ctx.resume().catch(() => {});
+  }
+  if (!sharedAudio && typeof window !== "undefined") {
+    try {
+      sharedAudio = new Audio();
+      (sharedAudio as any).playsInline = true;
+      (sharedAudio as any).webkitPlaysinline = true;
+      sharedAudio.setAttribute("playsinline", "true");
+      sharedAudio.setAttribute("webkit-playsinline", "true");
+    } catch {}
+  }
+}
+
 export function isAudioPlaying(): boolean {
-  if (activeAudio && !activeAudio.paused && !activeAudio.ended) return true;
+  if (activeSourceNode) return true;
+  if (sharedAudio && !sharedAudio.paused && !sharedAudio.ended) return true;
   if (typeof window !== "undefined" && "speechSynthesis" in window) {
     return window.speechSynthesis.speaking;
   }
@@ -73,6 +109,85 @@ async function fetchGoogleTTSBuffer(text: string, client = "gtx"): Promise<Array
   throw new Error(`Google TTS status ${resp.status}`);
 }
 
+function decodeAudioDataSafe(ctx: AudioContext, buffer: ArrayBuffer): Promise<AudioBuffer> {
+  return new Promise((resolve, reject) => {
+    const res = ctx.decodeAudioData(
+      buffer,
+      (decoded) => resolve(decoded),
+      (err) => reject(err)
+    );
+    if (res && typeof (res as any).then === "function") {
+      (res as Promise<AudioBuffer>).then(resolve).catch(reject);
+    }
+  });
+}
+
+function concatenateAudioBuffers(ctx: AudioContext, buffers: AudioBuffer[]): AudioBuffer {
+  if (buffers.length === 1) return buffers[0];
+  const totalLength = buffers.reduce((acc, b) => acc + b.length, 0);
+  const numberOfChannels = buffers[0].numberOfChannels;
+  const sampleRate = buffers[0].sampleRate;
+  const out = ctx.createBuffer(numberOfChannels, totalLength, sampleRate);
+  for (let ch = 0; ch < numberOfChannels; ch++) {
+    const channelData = out.getChannelData(ch);
+    let offset = 0;
+    for (const b of buffers) {
+      channelData.set(b.getChannelData(ch), offset);
+      offset += b.length;
+    }
+  }
+  return out;
+}
+
+async function playWithAudioContext(buffers: ArrayBuffer[], rate = 1.0, onEnd?: () => void): Promise<void> {
+  const ctx = getAudioContext();
+  if (!ctx) throw new Error("AudioContext not supported");
+  if (ctx.state === "suspended") {
+    await ctx.resume();
+  }
+
+  stopAudio();
+
+  const decodedBuffers: AudioBuffer[] = [];
+  for (const buf of buffers) {
+    const decoded = await decodeAudioDataSafe(ctx, buf.slice(0));
+    decodedBuffers.push(decoded);
+  }
+
+  const combinedBuffer = concatenateAudioBuffers(ctx, decodedBuffers);
+  const source = ctx.createBufferSource();
+  source.buffer = combinedBuffer;
+  try {
+    source.playbackRate.value = rate;
+  } catch {}
+  source.connect(ctx.destination);
+  activeSourceNode = source;
+
+  return new Promise((resolve) => {
+    source.onended = () => {
+      activeSourceNode = null;
+      onEnd?.();
+      resolve();
+    };
+    source.start(0);
+  });
+}
+
+async function playAudioBuffers(buffers: ArrayBuffer[], rate = 1.0, onEnd?: () => void): Promise<void> {
+  // Strategy A: Web Audio API (Primary for iOS & Desktop, zero blob/autoplay issues)
+  try {
+    await playWithAudioContext(buffers, rate, onEnd);
+    return;
+  } catch (ctxErr) {
+    console.warn("[Diary Copilot TTS] Web Audio Context failed, trying HTMLAudio fallback:", ctxErr);
+  }
+
+  // Strategy B: HTML Audio Element with concatenated Blob
+  const combinedBlob = new Blob(buffers, { type: "audio/mpeg" });
+  const blobUrl = URL.createObjectURL(combinedBlob);
+  await playBlobAudio(blobUrl, rate, onEnd);
+}
+
 export async function speakSentence(
   text: string,
   onEnd?: () => void,
@@ -82,6 +197,9 @@ export async function speakSentence(
   if (!text || typeof window === "undefined") return;
   const cleanText = text.trim();
   if (!cleanText) return;
+
+  // Ensure audio is unlocked
+  unlockAudio();
 
   // Stop any currently playing audio
   stopAudio();
@@ -94,9 +212,7 @@ export async function speakSentence(
       const buf = await fetchGoogleTTSBuffer(chunk, "gtx");
       audioBuffers.push(buf);
     }
-    const combinedBlob = new Blob(audioBuffers, { type: "audio/mpeg" });
-    const blobUrl = URL.createObjectURL(combinedBlob);
-    await playBlobAudio(blobUrl, rate, onEnd);
+    await playAudioBuffers(audioBuffers, rate, onEnd);
     return;
   } catch (err) {
     console.warn("[Diary Copilot TTS] Google TTS gtx failed, trying tw-ob fallback:", err);
@@ -110,9 +226,7 @@ export async function speakSentence(
       const buf = await fetchGoogleTTSBuffer(chunk, "tw-ob");
       audioBuffers.push(buf);
     }
-    const combinedBlob = new Blob(audioBuffers, { type: "audio/mpeg" });
-    const blobUrl = URL.createObjectURL(combinedBlob);
-    await playBlobAudio(blobUrl, rate, onEnd);
+    await playAudioBuffers(audioBuffers, rate, onEnd);
     return;
   } catch (err) {
     console.warn("[Diary Copilot TTS] Google TTS tw-ob failed, trying Polly fallback:", err);
@@ -137,9 +251,7 @@ export async function speakSentence(
     if (data && data.URL) {
       const audioResp = await requestUrl({ url: data.URL });
       if (audioResp.status === 200 && audioResp.arrayBuffer && audioResp.arrayBuffer.byteLength > 200) {
-        const blob = new Blob([audioResp.arrayBuffer], { type: "audio/mpeg" });
-        const blobUrl = URL.createObjectURL(blob);
-        await playBlobAudio(blobUrl, rate, onEnd);
+        await playAudioBuffers([audioResp.arrayBuffer], rate, onEnd);
         return;
       }
     }
@@ -167,7 +279,6 @@ export async function speakSentence(
         if (onError) onError(e);
         else {
           new Notice("⚠️ 語音朗讀播放失敗，請檢查網路連線", 2500);
-          onEnd?.();
         }
       };
 
@@ -194,12 +305,21 @@ export async function speakSentence(
 }
 
 export function stopAudio() {
-  if (activeAudio) {
+  if (activeSourceNode) {
     try {
-      activeAudio.pause();
-      activeAudio.currentTime = 0;
+      activeSourceNode.onended = null;
+      activeSourceNode.stop();
+      activeSourceNode.disconnect();
     } catch {}
-    activeAudio = null;
+    activeSourceNode = null;
+  }
+  if (sharedAudio) {
+    try {
+      sharedAudio.onended = null;
+      sharedAudio.onerror = null;
+      sharedAudio.pause();
+      sharedAudio.currentTime = 0;
+    } catch {}
   }
   if (activeBlobUrl) {
     try {
@@ -217,25 +337,41 @@ export function stopAudio() {
 function playBlobAudio(blobUrl: string, rate = 1.0, onEnd?: () => void): Promise<void> {
   return new Promise((resolve, reject) => {
     activeBlobUrl = blobUrl;
-    const audio = new Audio(blobUrl);
-    activeAudio = audio;
+    if (!sharedAudio) {
+      sharedAudio = new Audio();
+      (sharedAudio as any).playsInline = true;
+      (sharedAudio as any).webkitPlaysinline = true;
+      sharedAudio.setAttribute("playsinline", "true");
+      sharedAudio.setAttribute("webkit-playsinline", "true");
+    }
+    const audio = sharedAudio;
     try {
       audio.playbackRate = rate;
     } catch {}
 
+    const cleanup = () => {
+      audio.onended = null;
+      audio.onerror = null;
+    };
+
     audio.onended = () => {
+      cleanup();
       stopAudio();
       onEnd?.();
       resolve();
     };
 
     audio.onerror = (e) => {
+      cleanup();
       console.warn("[Diary Copilot TTS] Blob Audio playback error:", e);
       stopAudio();
       reject(e);
     };
 
+    audio.src = blobUrl;
+    audio.load();
     audio.play().catch((err) => {
+      cleanup();
       console.warn("[Diary Copilot TTS] Play promise rejected:", err);
       stopAudio();
       reject(err);

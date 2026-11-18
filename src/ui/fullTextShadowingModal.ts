@@ -1,6 +1,6 @@
 import { App, Modal, Notice, TFile } from "obsidian";
 import type DiaryCopilotPlugin from "../main";
-import { speakSentence, stopAudio, splitTextIntoSentences, isAudioPlaying } from "../services/tts";
+import { speakSentence, stopAudio, splitTextIntoSentences, isAudioPlaying, unlockAudio } from "../services/tts";
 import { tidyUpTodayDiary } from "../commands/tidyUp";
 import { setupPinchZoom, PinchZoomController } from "./pinchZoom";
 
@@ -79,6 +79,7 @@ export class FullTextShadowingModal extends Modal {
         itemEl.createSpan({ cls: "sentence-num", text: `${idx + 1}.` });
         itemEl.createDiv({ cls: "sentence-text", text: sentence });
         itemEl.addEventListener("click", () => {
+          unlockAudio();
           this.currentSentenceIdx = idx;
           this.highlightCurrentSentence();
           if (this.isPlaying) {
@@ -110,6 +111,7 @@ export class FullTextShadowingModal extends Modal {
       text: "▶️ 開始朗讀跟讀",
     });
     this.playBtn.addEventListener("click", () => {
+      unlockAudio();
       if (this.isPlaying) {
         this.pause();
       } else {
@@ -124,6 +126,7 @@ export class FullTextShadowingModal extends Modal {
       text: "🔄 從頭播放",
     });
     restartBtn.addEventListener("click", () => {
+      unlockAudio();
       this.currentSentenceIdx = 0;
       this.play();
     });
