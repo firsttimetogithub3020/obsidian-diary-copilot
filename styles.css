@@ -23,6 +23,11 @@
   overflow: visible;
 }
 
+/* On desktop, add right padding to avoid colliding with Obsidian status bar (.status-bar) */
+body:not(.is-mobile) .diary-copilot-panel {
+  padding-right: var(--diary-copilot-status-bar-offset, 320px) !important;
+}
+
 .diary-copilot-panel.is-animating {
   transition: height 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -1753,25 +1758,149 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
 }
 
 /* ==========================================================================
-   Voice Dialogue Stage (純語音對話舞台 & 影子跟讀)
+   Voice Dialogue Stage (純語音對話舞台 & 影子跟讀) & Toolbar Buttons
    ========================================================================== */
 
+/* 1. ✨ 整理跟讀 (Bright high-contrast lavender on rich purple) */
 .diary-copilot-action-btn.diary-copilot-shadow-all-btn {
-  font-weight: 600;
-  color: #a78bfa;
-  background: rgba(167, 139, 250, 0.1);
-  border: 1px solid rgba(167, 139, 250, 0.4);
-  border-radius: 4px;
-  padding: 2px 7px;
-  font-size: 11.5px;
+  font-weight: 600 !important;
+  color: #f3e8ff !important;
+  background: rgba(147, 51, 234, 0.35) !important;
+  border: 1px solid #c084fc !important;
+  border-radius: 6px !important;
+  padding: 4px 10px !important;
+  font-size: var(--diary-copilot-btn-font-size, 12px) !important;
   cursor: pointer;
   transition: all 0.15s ease;
-  white-space: nowrap;
+  white-space: nowrap !important;
 }
 
 .diary-copilot-action-btn.diary-copilot-shadow-all-btn:hover {
-  background: #a78bfa;
-  color: #ffffff;
+  background: #a855f7 !important;
+  color: #ffffff !important;
+  border-color: #e9d5ff !important;
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.45);
+}
+
+/* 2. ❓ 提問 (F5) (Vivid sky blue, crystal clear) */
+.diary-copilot-action-btn.diary-copilot-inquiry-btn {
+  font-weight: 600 !important;
+  color: #e0f2fe !important;
+  background: rgba(14, 165, 233, 0.3) !important;
+  border: 1px solid #38bdf8 !important;
+  border-radius: 6px !important;
+  padding: 4px 10px !important;
+  font-size: var(--diary-copilot-btn-font-size, 12px) !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap !important;
+}
+
+.diary-copilot-action-btn.diary-copilot-inquiry-btn:hover {
+  background: #0284c7 !important;
+  color: #ffffff !important;
+  border-color: #bae6fd !important;
+  box-shadow: 0 0 8px rgba(14, 165, 233, 0.45);
+}
+
+.diary-copilot-action-btn.diary-copilot-resume-btn {
+  font-weight: 600 !important;
+  color: #fecdd3 !important;
+  background: rgba(225, 29, 72, 0.25) !important;
+  border: 1px solid #fb7185 !important;
+  border-radius: 6px !important;
+  padding: 4px 10px !important;
+  font-size: var(--diary-copilot-btn-font-size, 12px) !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap !important;
+}
+
+.diary-copilot-action-btn.diary-copilot-resume-btn:hover {
+  background: #e11d48 !important;
+  color: #ffffff !important;
+}
+
+/* 3. ✨ 潤飾 (F3) (Vivid warm amber, crystal clear) */
+.diary-copilot-action-btn.diary-copilot-polish-btn {
+  font-weight: 600 !important;
+  color: #fef3c7 !important;
+  background: rgba(217, 119, 6, 0.3) !important;
+  border: 1px solid #fbbf24 !important;
+  border-radius: 6px !important;
+  padding: 4px 10px !important;
+  font-size: var(--diary-copilot-btn-font-size, 12px) !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap !important;
+}
+
+.diary-copilot-action-btn.diary-copilot-polish-btn:hover {
+  background: #d97706 !important;
+  color: #ffffff !important;
+  border-color: #fef08a !important;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.45);
+}
+
+/* 4. 展開 / 關閉字卡 */
+.diary-copilot-action-btn.diary-copilot-fold-toggle-btn {
+  font-weight: 600 !important;
+  border-radius: 6px !important;
+  padding: 4px 10px !important;
+  font-size: var(--diary-copilot-btn-font-size, 12px) !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap !important;
+}
+
+.diary-copilot-action-btn.diary-copilot-fold-toggle-btn.is-expanded {
+  color: var(--text-normal) !important;
+  background: var(--background-secondary-alt) !important;
+  border: 1px solid var(--background-modifier-border) !important;
+}
+
+.diary-copilot-action-btn.diary-copilot-fold-toggle-btn.is-folded {
+  background: var(--interactive-accent) !important;
+  color: #ffffff !important;
+  border: 1px solid var(--interactive-accent) !important;
+}
+
+/* 5. ⚙️ 設定按鈕 */
+.diary-copilot-action-btn.diary-copilot-settings-btn {
+  font-weight: 600 !important;
+  color: var(--text-normal) !important;
+  background: var(--background-secondary-alt) !important;
+  border: 1px solid var(--background-modifier-border) !important;
+  border-radius: 6px !important;
+  padding: 4px 10px !important;
+  font-size: var(--diary-copilot-btn-font-size, 12px) !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap !important;
+}
+
+.diary-copilot-action-btn.diary-copilot-settings-btn:hover {
+  border-color: var(--interactive-accent) !important;
+  color: var(--interactive-accent) !important;
+  background: var(--background-modifier-hover) !important;
+}
+
+/* 6. ✕ 關閉按鈕 */
+.diary-copilot-action-btn.diary-copilot-close-btn {
+  color: var(--text-muted) !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 6px !important;
+  padding: 4px 8px !important;
+  font-size: 15px !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.diary-copilot-action-btn.diary-copilot-close-btn:hover {
+  color: var(--text-normal) !important;
+  background: var(--background-modifier-hover) !important;
+  border-color: var(--background-modifier-border) !important;
 }
 
 .diary-copilot-action-btn.diary-copilot-inquiry-header-btn {
@@ -1785,50 +1914,6 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
-}
-
-.diary-copilot-action-btn.diary-copilot-inquiry-header-btn:hover,
-.diary-copilot-action-btn.diary-copilot-inquiry-header-btn.is-active {
-  background: #38bdf8;
-  color: #0f172a;
-  border-color: #38bdf8;
-}
-
-.diary-copilot-action-btn.diary-copilot-mode-toggle-btn,
-.diary-copilot-action-btn.diary-copilot-fold-toggle-btn {
-  font-weight: 600;
-  border-radius: 4px;
-  padding: 2px 7px;
-  font-size: 11.5px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  white-space: nowrap;
-}
-
-.diary-copilot-action-btn.diary-copilot-mode-toggle-btn.is-compact,
-.diary-copilot-action-btn.diary-copilot-fold-toggle-btn.is-expanded {
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.12);
-  border: 1px solid rgba(56, 189, 248, 0.4);
-}
-
-.diary-copilot-action-btn.diary-copilot-mode-toggle-btn.is-compact:hover,
-.diary-copilot-action-btn.diary-copilot-fold-toggle-btn.is-expanded:hover {
-  background: #38bdf8;
-  color: #0f172a;
-}
-
-.diary-copilot-action-btn.diary-copilot-mode-toggle-btn.is-full,
-.diary-copilot-action-btn.diary-copilot-fold-toggle-btn.is-folded {
-  color: #fbbf24;
-  background: rgba(251, 191, 36, 0.12);
-  border: 1px solid rgba(251, 191, 36, 0.4);
-}
-
-.diary-copilot-action-btn.diary-copilot-mode-toggle-btn.is-full:hover,
-.diary-copilot-action-btn.diary-copilot-fold-toggle-btn.is-folded:hover {
-  background: #fbbf24;
-  color: #0f172a;
 }
 
 .diary-copilot-action-btn.diary-copilot-stage-toggle-btn {

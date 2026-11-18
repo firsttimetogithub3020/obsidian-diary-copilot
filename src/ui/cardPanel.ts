@@ -231,6 +231,21 @@ export class CardPanel {
 
     this.updateHeaderLayout();
     this.renderIdleState();
+    this.updateStatusBarOffset();
+    window.setTimeout(() => this.updateStatusBarOffset(), 400);
+  }
+
+  public updateStatusBarOffset() {
+    if (Platform.isMobile) return;
+    try {
+      const statusBar = document.querySelector(".status-bar");
+      if (statusBar) {
+        const width = (statusBar as HTMLElement).offsetWidth || 280;
+        this.panelEl?.style.setProperty("--diary-copilot-status-bar-offset", `${Math.max(280, width + 16)}px`);
+      } else {
+        this.panelEl?.style.setProperty("--diary-copilot-status-bar-offset", "0px");
+      }
+    } catch {}
   }
 
   private setupResizeListeners() {
@@ -545,6 +560,7 @@ export class CardPanel {
    */
   public applyPanelHeight() {
     if (!this.panelEl) return;
+    this.updateStatusBarOffset();
 
     if (this.isKeyboardWriting || !this.isCardsExpanded || this.panelEl.hasClass("is-cards-closed") || this.isCollapsed) {
       const collapsedHeight = this.getCollapsedHeight();
@@ -1315,8 +1331,8 @@ export class CardPanel {
       if (this.pinnedInquiryItem) {
         const resumeBtn = this.headerSysEl.createEl("button", {
           cls: "diary-copilot-action-btn diary-copilot-resume-btn",
-          text: Platform.isPhone ? "✍️ 回續寫" : "✍️ 回續寫",
-          attr: { title: "關閉提問引導，回到平日純寫作模式" },
+          text: Platform.isPhone ? "✕ 關閉提問" : "✕ 關閉提問",
+          attr: { title: "關閉提問引導，回到一般寫作模式" },
         });
         resumeBtn.addEventListener("click", (e) => {
           e.stopPropagation();
