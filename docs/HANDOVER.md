@@ -19,21 +19,25 @@
 
 ## 二、核心更新與同步架構（最重要規範，絕不可違背）
 
-### 1. 更新閉環（Update Pipeline）
-本專案的發布與跨裝置更新**完全遵循以下閉環**，**絕不依賴 GitHub Releases**：
+### 1. 雙軌更新閉環（Dual Update Pipeline）
+本專案支援兩種靈活的跨裝置更新閉環：
 ```mermaid
-flowchart LR
-    A["電腦本機修改代碼"] --> B["npm run build"]
-    B --> C["複製到 Vault 插件目錄<br/>(Copy-Item)"]
-    C --> D["Obsidian Sync<br/>官方即時雲端同步"]
-    D --> E["手機/平板等其他裝置<br/>插件資料夾已就緒"]
-    E --> F["裝置端點擊更新按鈕<br/>(偵測資料夾新版並重載)"]
+flowchart TD
+    A["電腦本機修改代碼"] --> B["npm run deploy (編譯 main.js 與 styles.css)"]
+    B --> C["本機 Vault 部署"]
+    B --> D["Git Push & GitHub Release 發布"]
+    C --> E["同一帳號：Obsidian Sync 雲端同步"]
+    D --> F["不同帳號裝置 (iPhone / Mac / iPad)：直接自公開 GitHub 下載更新"]
+    E --> G["點擊更新或重開外掛立即生效"]
+    F --> G
 ```
 
-### 2. GitHub 的真實定位
-* **GitHub 純粹是個人原始碼雲端備份**。
-* **嚴禁**在每次功能更新時擅自執行 `gh release create` 或強制依賴 GitHub 下載更新檔。
-* 外掛的更新按鈕（`src/services/updater.ts`）**唯一職責是偵測當前裝置內部 Plugin 資料夾內的 `manifest.json` 與檔案**，若有新版（由 Obsidian Sync 送達）即安全呼叫 `window.location.reload()` 重新載入。
+### 2. GitHub 的真實定位與重要性
+* 本專案 GitHub 倉庫設定為 **Public**，使用者在**不同 Obsidian 帳號**的其他裝置（如 iPhone、Mac、iPad）上，外掛內部內建自動連線至 GitHub 倉庫與 GitHub Release 抓取最新 `main.js`、`styles.css` 與 `manifest.json`。
+* **發布規範**：每次發布新版本時，必須確保：
+  1. 編譯出的 `main.js` 納入 Git 倉庫並推送至 `origin main`。
+  2. 發布 GitHub Release（包含 `main.js`、`styles.css`、`manifest.json` 資產）。
+  3. 如此一來，任何裝置（無論是否與本機同一個 Obsidian Sync 帳號）均可一鍵點擊更新！
 
 ---
 
