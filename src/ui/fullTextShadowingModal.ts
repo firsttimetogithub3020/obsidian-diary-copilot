@@ -140,10 +140,9 @@ export class FullTextShadowingModal extends Modal {
 
     const doneBtn = secGroup.createEl("button", {
       cls: "diary-copilot-shadowing-sub-btn diary-copilot-shadowing-done-btn",
-      text: "✅ 完成跟讀並紀錄",
+      text: "✅ 結束跟讀",
     });
-    doneBtn.addEventListener("click", async () => {
-      await this.recordShadowingCompleted();
+    doneBtn.addEventListener("click", () => {
       this.close();
     });
 
@@ -226,7 +225,7 @@ export class FullTextShadowingModal extends Modal {
     }
   }
 
-  private async onFullTextCompleted() {
+  private onFullTextCompleted() {
     this.isPlaying = false;
     if (this.playBtn) {
       this.playBtn.setText("🔄 再次跟讀");
@@ -235,37 +234,7 @@ export class FullTextShadowingModal extends Modal {
     if (this.statusTextEl) {
       this.statusTextEl.setText("🎉 恭喜！今日全篇影子跟讀完成！已為大腦建立道地語流記憶！");
     }
-    await this.recordShadowingCompleted();
-    new Notice("🎉 今日全篇影子跟讀完成！已自動將口說成就標註於筆記中", 3500);
-  }
-
-  private async recordShadowingCompleted() {
-    try {
-      const content = await this.app.vault.read(this.file);
-      const pad = (n: number) => String(n).padStart(2, "0");
-      const d = new Date();
-      const timeStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-
-      let updated = content;
-      if (/^---\n[\s\S]*?\n---/.test(content)) {
-        if (/oral_shadowed:\s*true/i.test(content)) {
-          // Already marked, update time
-          updated = content.replace(/shadowed_at:\s*["']?.*?["']?/i, `shadowed_at: "${timeStr}"`);
-        } else {
-          // Insert into frontmatter
-          updated = content.replace(/^---\n/, `---\noral_shadowed: true\nshadowed_at: "${timeStr}"\n`);
-        }
-      } else {
-        // Prepend frontmatter
-        updated = `---\noral_shadowed: true\nshadowed_at: "${timeStr}"\n---\n\n${content}`;
-      }
-
-      if (updated !== content) {
-        await this.app.vault.modify(this.file, updated);
-      }
-    } catch (e) {
-      console.warn("[Diary Copilot] Failed to record shadowing completion:", e);
-    }
+    new Notice("🎉 今日全篇影子跟讀完成！已為大腦建立道地語流記憶！", 3500);
   }
 
   onClose() {
