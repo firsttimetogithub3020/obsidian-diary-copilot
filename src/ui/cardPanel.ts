@@ -409,31 +409,19 @@ export class CardPanel {
   private setupKeyboardListeners() {
     if (typeof window === "undefined") return;
 
-    // 1. Capture focusin: When user focuses inside editor/contentEditable (outside copilot panel)
+    // 1. Capture focusin: When user places cursor inside editor/contentEditable (keyboard appearing)
     document.addEventListener("focusin", (e: FocusEvent) => {
       if (!Platform.isMobile) return;
       const target = e.target as HTMLElement | null;
       if (!target) return;
       if (this.panelEl && this.panelEl.contains(target)) return;
       if (target.closest(".cm-editor, .cm-content, [contenteditable='true'], textarea, input")) {
-        // User focused editor to type -> immediately close cards!
+        // Cursor placed in editor to type -> close cards
         this.closeCards(true);
       }
     }, true);
 
-    // 2. Capture touchstart on mobile: When user touches editor area
-    document.addEventListener("touchstart", (e: TouchEvent) => {
-      if (!Platform.isMobile) return;
-      const target = e.target as HTMLElement | null;
-      if (!target) return;
-      if (this.panelEl && this.panelEl.contains(target)) return;
-      if (target.closest(".cm-editor, .cm-content, .markdown-source-view, .cm-scroller")) {
-        // User tapped note editor -> immediately close cards!
-        this.closeCards(true);
-      }
-    }, { capture: true, passive: true });
-
-    // 3. Viewport and window resize detection
+    // 2. Viewport and window resize detection: Virtual keyboard open/close
     const handleViewportCheck = () => {
       if (!Platform.isMobile) return;
       const screenH = window.screen?.height || window.innerHeight;
