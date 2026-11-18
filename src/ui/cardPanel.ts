@@ -441,14 +441,14 @@ export class CardPanel {
 
     if (areCardsShowing) {
       this.foldBtnEl.className = "diary-copilot-action-btn diary-copilot-fold-toggle-btn is-expanded";
-      this.foldBtnEl.setText(isNarrow ? "🔽 關閉" : "🔽 關閉字卡");
-      this.foldBtnEl.setAttribute("aria-label", "關閉建議字卡（回到功能列）");
-      this.foldBtnEl.setAttribute("title", "關閉建議字卡（回到功能列）");
+      this.foldBtnEl.setText(isNarrow ? "🔽 關閉" : (Platform.isDesktop ? "🔽 關閉字卡 (Esc)" : "🔽 關閉字卡"));
+      this.foldBtnEl.setAttribute("aria-label", "關閉建議字卡 (Esc)");
+      this.foldBtnEl.setAttribute("title", "關閉建議字卡 (Esc)");
     } else {
       this.foldBtnEl.className = "diary-copilot-action-btn diary-copilot-fold-toggle-btn is-folded";
-      this.foldBtnEl.setText(isNarrow ? "📖 展開" : "📖 展開字卡");
-      this.foldBtnEl.setAttribute("aria-label", "展開建議字卡");
-      this.foldBtnEl.setAttribute("title", "展開建議字卡");
+      this.foldBtnEl.setText(isNarrow ? "📖 展開" : (Platform.isDesktop ? "📖 展開字卡 (Esc)" : "📖 展開字卡"));
+      this.foldBtnEl.setAttribute("aria-label", "展開建議字卡 (Esc)");
+      this.foldBtnEl.setAttribute("title", "展開建議字卡 (Esc)");
     }
   }
 
@@ -566,6 +566,11 @@ export class CardPanel {
 
   public toggleFoldCards() {
     if (!this.panelEl) return;
+    if (this.isOralMode) {
+      this.cancelOralShadowing();
+      this.closeCards(false);
+      return;
+    }
     const areCardsShowing = this.isCardsExpanded && 
       !this.isCollapsed && 
       !this.panelEl.hasClass("is-cards-closed") && 
@@ -1466,10 +1471,12 @@ export class CardPanel {
         cls: `diary-copilot-action-btn diary-copilot-fold-toggle-btn ${areCardsShowing ? "is-expanded" : "is-folded"}`,
         text: isNarrow 
           ? (areCardsShowing ? "🔽 關閉" : "📖 展開")
-          : (areCardsShowing ? "🔽 關閉字卡" : "📖 展開字卡"),
+          : (areCardsShowing 
+              ? (Platform.isDesktop ? "🔽 關閉字卡 (Esc)" : "🔽 關閉字卡") 
+              : (Platform.isDesktop ? "📖 展開字卡 (Esc)" : "📖 展開字卡")),
         attr: {
-          "aria-label": areCardsShowing ? "關閉建議字卡（回到功能列）" : "展開建議字卡",
-          title: areCardsShowing ? "關閉建議字卡（回到功能列）" : "展開建議字卡",
+          "aria-label": areCardsShowing ? "關閉建議字卡 (Esc)" : "展開建議字卡 (Esc)",
+          title: areCardsShowing ? "關閉建議字卡 (Esc)" : "展開建議字卡 (Esc)",
         },
       });
       this.foldBtnEl.addEventListener("click", (e) => {
@@ -2461,6 +2468,7 @@ export class CardPanel {
     this.settingsEscapeHandler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         this.closeSettingsMenu();
+        e.stopPropagation();
       }
     };
     window.addEventListener("keydown", this.settingsEscapeHandler);

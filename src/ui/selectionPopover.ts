@@ -213,6 +213,10 @@ export class SelectionPopover {
     this.popoverEl.style.visibility = "visible";
   }
 
+  isVisible(): boolean {
+    return !!this.popoverEl;
+  }
+
   hide() {
     if (this.debounceTimer !== null) {
       window.clearTimeout(this.debounceTimer);

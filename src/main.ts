@@ -151,9 +151,23 @@ export default class DiaryCopilotPlugin extends Plugin {
         }
       }
       if (e.key === "Escape") {
-        if (this.scheduler.isShadowMode()) {
-          this.handleDismiss();
+        if (document.querySelector(".modal-container")) {
+          return;
+        }
+        if (this.selectionPopover?.isVisible()) {
+          this.selectionPopover.hide();
           e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        if (this.cardPanel) {
+          if (this.scheduler.isShadowMode()) {
+            this.scheduler.clear();
+            this.clearGhostText();
+          }
+          this.cardPanel.toggleFoldCards();
+          e.preventDefault();
+          e.stopPropagation();
           return;
         }
       }
