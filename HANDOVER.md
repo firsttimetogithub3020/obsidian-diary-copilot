@@ -12,7 +12,7 @@
 * **專案名稱**：Obsidian Diary Copilot (`obsidian-diary-copilot`)
 * **本機代碼倉庫**：`E:\obsidian-english\obsidian-diary-copilot`
 * **本機 Vault 部署路徑**：`E:\AI-Knowledge-System\Obsidian-Vault\.obsidian\plugins\diary-copilot`
-* **當前最新版本**：`v0.3.70`
+* **當前最新版本**：`v0.3.71`
 * **使用者**：Alan（對話與說明一律使用**繁體中文**；代碼識別碼與 Commit 訊息一律使用英文）。
 
 ---
@@ -97,6 +97,7 @@ flowchart TD
 
 | 版本 | 日期 | 重點改動說明 |
 | :--- | :--- | :--- |
+| **v0.3.71** | 2026-11-19 | 1. 徹底還原 Windows / 潤飾模式替換原文能力，消除 EditorUpdate 過度攔截：<br/>- 診斷原因：v0.3.69 / v0.3.70 在 `handleEditorUpdate` 中嘗試以非同步定時器抹除 OS 聽寫的重複沖刷時，誤將外掛自身剛替換寫入筆記的合法 transaction 判定為重複並於 10ms 後派發刪除，導致 Windows 及所有平台在跟讀成功或自動填入後「無法替換原文」或文字被撤銷。<br/>- 徹底修復：徹底拔除 `handleEditorUpdate` 中任何對編輯器內文的破壞性刪除與反向 dispatch，100% 恢復 `adoptSuggestion` 對 `from/to` 區間的精確原子替換。<br/>- 輸入框生命週期乾淨閉環：防重複保留於輸入端防線（`desktopVoiceInputEl` 達標立即 blur 與清空，以及全域 ESC/Enter 鍵安全事件阻斷），完全不影響主編輯區的任何正常替換與寫入操作。<br/>2. 專案版本升級為 v0.3.71。 |
 | **v0.3.70** | 2026-11-19 | 1. 徹底根除 Mac / Windows 按下 ESC 鍵時觸發的作業系統語音聽寫二次重複寫入：<br/>- 診斷原因：在 Mac 系統中，Apple Dictation（連按兩次 Fn）在結束時可由 `Enter` 或 `Escape` 鍵提交。在跟讀達標句子自動貼入筆記後，若使用者按下 `ESC` 想關閉浮窗或解除聚焦，macOS / Windows 聽寫緩衝區會將未關閉的聽寫結果再次提交至筆記，導致與 Enter 鍵一模一樣的二次複製 Bug。<br/>- 防護 1（全局 Escape 事件安全攔截）：在全域鍵盤監聽中優先偵測 `isOralActive()`，若跟讀進行中按 ESC，立即主動中斷語音、清空並模糊 `desktopVoiceInputEl`，絕不讓 OS 聽寫引擎殘留緩衝。<br/>- 防護 2（延遲編輯器聚焦）：跟讀自動填入完成後，稍作延遲 300ms 再將焦點交給 Obsidian 編輯器，確保 OS 聽寫 session 完全安全退場，杜絕游標轉移造成的跨視窗沖刷。<br/>- 防護 3（交易層擴展至 6 秒全面阻絕 Enter 與 ESC 沖刷）：智慧重複句子消除器攔截窗口升級至 6000ms，無論使用者按 Enter（帶換行）或 ESC（不帶換行），只要出現重複句子一律在 CodeMirror 交易底層原地抹除！<br/>2. 專案版本升級為 v0.3.70。 |
 | **v0.3.69** | 2026-11-19 | 1. 深度根除 Mac / Windows / iOS 原生語音聽寫在 Enter 鍵時的二次沖刷寫入（IME / Dictation Flush Eliminator）：<br/>- 診斷原因：在 Mac（連按兩次 Fn）或 Windows（Win+H）進行語音跟讀時，當吻合度達標自動貼入筆記後，作業系統的聽寫引擎（Apple Dictation）依然在背景維持未提交的緩衝 session。當使用者在輸入框或編輯區按下 `Enter` 換行時，Electron 與 macOS 聽寫引擎會強制將未完成的緩衝文字再次沖刷（flush）輸出至當前焦點編輯器，導致編輯區瞬間出現兩句一模一樣的句子！<br/>- 防護 1（即時離焦與輸入框乾淨清空）：在跟讀判定達標瞬間與按下 Enter 瞬間，立即對 `desktopVoiceInputEl` 執行 `blur()` 與 `value = ""`，主動通知 OS 聽寫引擎結束 session，阻止緩衝轉移。<br/>- 防護 2（CodeMirror 核心交易層智慧攔截消除）：在 `handleEditorUpdate` 中攔截任何在套用後 4000ms 內由 Enter 或 OS 沖刷進來的重複句子（比對正規化文字），一旦發現重複立即自動撤銷該句並僅保留使用者想要的換行 `\n`，徹底在編輯器層面阻斷重複寫入，全平台（Mac, Windows, iPhone, iPad, Android）徹底絕收！<br/>2. 專案版本升級為 v0.3.69。 |
 | **v0.3.68** | 2026-11-18 | 1. 徹底杜絕 Mac / iOS / 跨平台口說跟讀重複貼入（Triple-layer Anti-duplicate Guard）：<br/>- 診斷原因：在 Mac / Desktop / iOS 裝置上，若語音聽寫達標或點擊「⏹️ 說完了」時，450ms 動畫延遲結算與重複點擊/Enter 可能觸發兩次結算；且提問模式下建議回答誤帶入先前的 `currentItem?.sourceRange` 舊區間；外加 `onOralShadowComplete` 與 `onOralAdopt` 缺乏同步互斥保護。<br/>- 防護 1（CardPanel 防重入狀態鎖）：`handleOralPass`、`finishOralRecording`、`handleOralAdoptDirect` 全面增設 `if (this.oralPassed) return;` 阻斷防護，並在任一入口觸發時立即清除 `oralPassTimeout` 與 `autoPassTimer`，徹底杜絕 450ms 延遲期間的二次觸發。<br/>- 防護 2（提問模式 Range 純化）：提問模式下的建議回答均為新段落，強制將 `sourceRange` 置為 `undefined`，絕不殘留舊潤飾句子的定位區間。<br/>- 防護 3（全域原子冪等擴大至 2500ms）：將直接貼入的防重複窗口擴展至 2.5 秒，且 `onOralShadowComplete` 與 `adoptSuggestion` 共享統一時間戳防禦，徹底杜絕任何系統層級的雙重寫入。<br/>2. 專案版本升級為 v0.3.68。 |

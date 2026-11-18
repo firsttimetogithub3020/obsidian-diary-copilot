@@ -1118,43 +1118,6 @@ export default class DiaryCopilotPlugin extends Plugin {
       return;
     }
 
-    // Anti-duplicate Dictation / IME flush guard:
-    // When finishing native speech dictation (Mac Fn Fn, Windows Win+H, iOS mic), pressing Enter or ESC causes
-    // the OS dictation engine to flush its buffered text into the newly focused editor, duplicating the sentence!
-    // If a transaction within 6000ms of adoption inserts text that duplicates lastAdoptedText, eliminate the duplicate!
-    if (this.lastAdoptedText && Date.now() - this.lastAdoptedTime < 6000) {
-      const normLast = this.lastAdoptedText.toLowerCase().replace(/[^a-z0-9]/g, "");
-      if (normLast.length >= 10) {
-        for (const tr of update.transactions) {
-          if (tr.docChanged) {
-            tr.changes.iterChanges((_fromA, _toA, fromB, toB, inserted) => {
-              const insStr = inserted.toString();
-              const normIns = insStr.toLowerCase().replace(/[^a-z0-9]/g, "");
-              if (
-                normIns.length >= 10 &&
-                (normIns === normLast ||
-                  (normIns.length >= 15 && normLast.includes(normIns)) ||
-                  (normLast.length >= 15 && normIns.includes(normLast)))
-              ) {
-                console.warn("[Diary Copilot] Intercepted and eliminated duplicate dictation flush (Enter/ESC):", insStr);
-                const replacement = insStr.includes("\n") ? "\n" : "";
-                window.setTimeout(() => {
-                  const ev = this.getEditorView();
-                  if (ev && fromB < toB && ev.state.doc.length >= toB) {
-                    ev.dispatch({
-                      changes: { from: fromB, to: toB, insert: replacement },
-                      selection: { anchor: fromB + replacement.length },
-                      userEvent: "delete",
-                    });
-                  }
-                }, 10);
-              }
-            });
-          }
-        }
-      }
-    }
-
     // CRITICAL: If the user is actively in an IME composition (Pinyin, Zhuyin, or mobile keyboard voice dictation streaming):
     // DO NOT interrupt, do not trigger API requests, and do not dispatch any editor changes!
     if (update.view.composing) {
