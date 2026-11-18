@@ -369,6 +369,24 @@ export default class DiaryCopilotPlugin extends Plugin {
     this.settings.panelMinHeight = height;
   }
 
+  getEffectiveCollapsedHeight(): number {
+    try {
+      const local = localStorage.getItem("diary-copilot-collapsed-height");
+      if (local) {
+        const parsed = parseInt(local, 10);
+        if (!isNaN(parsed) && parsed >= 40 && parsed <= 120) return parsed;
+      }
+    } catch {}
+    return this.settings.collapsedHeight || 60;
+  }
+
+  setEffectiveCollapsedHeight(height: number) {
+    try {
+      localStorage.setItem("diary-copilot-collapsed-height", height.toString());
+    } catch {}
+    this.settings.collapsedHeight = height;
+  }
+
   applyAppearanceSettings() {
     const fontSize = this.getEffectiveFontSize();
     const panelHeight = this.getEffectivePanelHeight();
@@ -562,6 +580,17 @@ export default class DiaryCopilotPlugin extends Plugin {
           onCheckUpdate: () => {
             this.checkForUpdates(true);
           },
+          onFontSizeChange: async (newSize: number) => {
+            this.setEffectiveFontSize(newSize);
+            this.applyAppearanceSettings();
+            await this.saveSettings();
+          },
+          getFontSize: () => this.getEffectiveFontSize(),
+          onCollapsedHeightChange: async (newHeight: number) => {
+            this.setEffectiveCollapsedHeight(newHeight);
+            await this.saveSettings();
+          },
+          getCollapsedHeight: () => this.getEffectiveCollapsedHeight(),
           onDirectPaste: () => {
             this.handleDirectPaste();
           },

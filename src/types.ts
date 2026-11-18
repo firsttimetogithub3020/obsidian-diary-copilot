@@ -27,6 +27,7 @@ export interface PluginSettings {
   dailyRequestLimit: number;
   cardFontSize: number;
   panelMinHeight: number;
+  collapsedHeight?: number;
   enableSelectionLookup: boolean;
   showRibbonIcon: boolean;
 }

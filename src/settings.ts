@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   dailyRequestLimit: 1500,
   cardFontSize: 13.5,
   panelMinHeight: 160,
+  collapsedHeight: 60,
   enableSelectionLookup: true,
   showRibbonIcon: true,
 };
@@ -296,6 +297,21 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
             this.plugin.applyAppearanceSettings();
             new Notice("本裝置面板高度已恢復為預設 160px");
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("收摺後工具列高度 (Collapsed Height)")
+      .setDesc("控制底部工具列在收摺或打字時的高度（本裝置獨立保存，預設 60px）")
+      .addSlider((slider) => {
+        slider
+          .setLimits(44, 90, 2)
+          .setValue(this.plugin.getEffectiveCollapsedHeight())
+          .setDynamicTooltip()
+          .onChange(async (val) => {
+            this.plugin.setEffectiveCollapsedHeight(val);
+            await this.plugin.saveSettings();
+            this.plugin.cardPanel?.applyPanelHeight();
           });
       });
 

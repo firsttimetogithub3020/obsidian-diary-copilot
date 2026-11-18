@@ -17,6 +17,10 @@ export interface CardPanelCallbacks {
   onDirectPaste?: () => void;
   onUnlock?: () => void;
   onCheckUpdate?: () => void;
+  onFontSizeChange?: (size: number) => void;
+  getFontSize?: () => number;
+  onCollapsedHeightChange?: (height: number) => void;
+  getCollapsedHeight?: () => number;
   onOralAdopt?: (text: string, kind: "continue" | "alternative" | "translation", sourceRange?: { from: number; to: number }) => void;
   onOralInput?: (spokenText: string, targetText: string) => void;
   onFocusEditor?: () => void;
@@ -123,6 +127,8 @@ export class CardPanel {
   private oralProgressFillEl: HTMLElement | null = null;
   private oralScoreBadgeEl: HTMLElement | null = null;
   private desktopVoiceInputEl: HTMLInputElement | null = null;
+  private settingsMenuOverlayEl: HTMLElement | null = null;
+  private settingsEscapeHandler: ((e: KeyboardEvent) => void) | null = null;
 
   // Mode state: "compact" (精簡模式: 問答引導 + 潤飾 + 整理跟讀, 零續寫干擾) | "full" (完整模式: 續寫卡片 + 接續鍵 + 提問 + 潤飾)
   private copilotMode: CopilotMode;
@@ -488,6 +494,14 @@ export class CardPanel {
     }
   }
 
+  public getCollapsedHeight(): string {
+    const baseHeight = this.callbacks.getCollapsedHeight?.() || 60;
+    if (Platform.isMobile) {
+      return `calc(${baseHeight}px + env(safe-area-inset-bottom, 0px))`;
+    }
+    return `${Math.max(40, baseHeight - 14)}px`;
+  }
+
   public closeCards(forKeyboard = false, silent = false) {
     if (!this.panelEl) return;
     this.isCardsExpanded = false;
@@ -501,7 +515,7 @@ export class CardPanel {
     this.panelEl.addClass("is-compact");
     this.panelEl.addClass("is-compact-idle");
 
-    const collapsedHeight = Platform.isMobile ? "calc(60px + env(safe-area-inset-bottom, 0px))" : "46px";
+    const collapsedHeight = this.getCollapsedHeight();
     this.panelEl.style.height = collapsedHeight;
     document.body.style.setProperty("--diary-copilot-panel-height", collapsedHeight);
 
@@ -533,7 +547,7 @@ export class CardPanel {
     if (!this.panelEl) return;
 
     if (this.isKeyboardWriting || !this.isCardsExpanded || this.panelEl.hasClass("is-cards-closed") || this.isCollapsed) {
-      const collapsedHeight = Platform.isMobile ? "calc(60px + env(safe-area-inset-bottom, 0px))" : "46px";
+      const collapsedHeight = this.getCollapsedHeight();
       this.panelEl.style.height = collapsedHeight;
       this.panelEl.addClass("is-compact");
       this.panelEl.addClass("is-collapsed");
@@ -549,7 +563,7 @@ export class CardPanel {
 
     // In compact mode with no cards, no inquiry, and not loading (idle single-row toolbar)
     if (this.copilotMode === "compact" && this.currentCards.length === 0 && !this.pinnedInquiryItem && !this.hasUserManuallyResized && !this.panelEl.hasClass("is-loading")) {
-      const compactBarHeight = Platform.isMobile ? "calc(60px + env(safe-area-inset-bottom, 0px))" : "48px";
+      const compactBarHeight = this.getCollapsedHeight();
       this.panelEl.style.height = compactBarHeight;
       this.panelEl.addClass("is-compact");
       this.panelEl.addClass("is-compact-idle");
@@ -1366,16 +1380,16 @@ export class CardPanel {
         this.toggleFoldCards();
       });
 
-      // 5. 🔄 檢查更新 (始終常駐)
-      const updateBtn = this.headerSysEl.createEl("button", {
-        cls: "diary-copilot-action-btn diary-copilot-update-btn",
-        text: Platform.isPhone ? "🔄" : "🔄 檢查更新",
-        attr: { "aria-label": "立即檢查並更新 Diary Copilot", title: "立即檢查並更新 Diary Copilot" },
+      // 5. ⚙️ 設定 (始終常駐)
+      const settingsBtn = this.headerSysEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-settings-btn",
+        text: Platform.isPhone ? "⚙️" : "⚙️ 設定",
+        attr: { "aria-label": "Diary Copilot 快速設定", title: "Diary Copilot 快速設定" },
       });
-      updateBtn.addEventListener("click", (e) => {
+      settingsBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         e.preventDefault();
-        this.callbacks.onCheckUpdate?.();
+        this.toggleSettingsMenu();
       });
 
       // 6. ✕ 關閉
@@ -2121,7 +2135,202 @@ export class CardPanel {
     }
   }
 
+  public closeSettingsMenu() {
+    if (this.settingsEscapeHandler) {
+      window.removeEventListener("keydown", this.settingsEscapeHandler);
+      this.settingsEscapeHandler = null;
+    }
+    if (this.settingsMenuOverlayEl) {
+      this.settingsMenuOverlayEl.remove();
+      this.settingsMenuOverlayEl = null;
+    }
+  }
+
+  public toggleSettingsMenu() {
+    if (this.settingsMenuOverlayEl) {
+      this.closeSettingsMenu();
+      return;
+    }
+
+    // Dismiss virtual keyboard if open
+    this.callbacks.onDismissKeyboard?.();
+
+    // Create Overlay
+    const overlay = document.body.createDiv({ cls: "diary-copilot-settings-overlay" });
+    this.settingsMenuOverlayEl = overlay;
+
+    // Create Sheet
+    const sheet = overlay.createDiv({ cls: "diary-copilot-settings-sheet" });
+
+    // Header
+    const header = sheet.createDiv({ cls: "diary-copilot-settings-header" });
+    const title = header.createDiv({ cls: "diary-copilot-settings-title" });
+    title.setText("⚙️ Diary Copilot 設定");
+
+    const closeBtn = header.createEl("button", {
+      cls: "diary-copilot-settings-close-btn",
+      text: "✕",
+      attr: { "aria-label": "關閉設定選單", title: "關閉設定選單" },
+    });
+    closeBtn.addEventListener("click", () => this.closeSettingsMenu());
+
+    // Body
+    const body = sheet.createDiv({ cls: "diary-copilot-settings-body" });
+
+    // Section 1: 🔄 外掛更新 (第一個是更新)
+    const secUpdate = body.createDiv({ cls: "diary-copilot-setting-section" });
+    secUpdate.createDiv({ cls: "diary-copilot-setting-section-title", text: "外掛更新" });
+    const updateBtn = secUpdate.createEl("button", { cls: "diary-copilot-sheet-update-btn" });
+    updateBtn.createSpan({ text: "🚀 檢查並更新外掛" });
+    updateBtn.createEl("small", {
+      cls: "diary-copilot-sheet-update-desc",
+      text: "偵測 Plugin 資料夾同步狀態並安全重載",
+    });
+    updateBtn.addEventListener("click", () => {
+      this.closeSettingsMenu();
+      this.callbacks.onCheckUpdate?.();
+    });
+
+    // Section 2: 🎭 選擇風格 (第二個是選擇風格，有社會學、漢學、自然、內省等風格)
+    const secTone = body.createDiv({ cls: "diary-copilot-setting-section" });
+    secTone.createDiv({ cls: "diary-copilot-setting-section-title", text: "寫作風格（語調）" });
+    const toneGrid = secTone.createDiv({ cls: "diary-copilot-tone-grid" });
+
+    const currentTone = this.callbacks.getTone?.() || "casual";
+    const toneChips: { [id: string]: HTMLElement } = {};
+
+    for (const opt of DIARY_TONE_OPTIONS) {
+      const chip = toneGrid.createDiv({
+        cls: `diary-copilot-tone-chip ${opt.id === currentTone ? "is-active" : ""}`,
+      });
+      toneChips[opt.id] = chip;
+
+      const chipName = chip.createDiv({ cls: "diary-copilot-tone-chip-name" });
+      let icon = "🌿";
+      if (opt.id === "social-science") icon = "🏛️";
+      else if (opt.id === "sinology") icon = "📜";
+      else if (opt.id === "reflective") icon = "🧘";
+      else if (opt.id === "motivational") icon = "⚡";
+      else if (opt.id === "humorous") icon = "😄";
+      else if (opt.id === "vivid") icon = "🎨";
+
+      chipName.setText(`${icon} ${opt.label.split(" ")[0]}`);
+      chip.createDiv({ cls: "diary-copilot-tone-chip-desc", text: opt.desc });
+
+      chip.addEventListener("click", () => {
+        Object.values(toneChips).forEach((c) => c.removeClass("is-active"));
+        chip.addClass("is-active");
+        this.callbacks.onToneChange?.(opt.id);
+        if (this.toneSelectEl) {
+          this.toneSelectEl.value = opt.id;
+        }
+      });
+    }
+
+    // Section 3: 📐 設定收摺後的高度
+    const secHeight = body.createDiv({ cls: "diary-copilot-setting-section" });
+    secHeight.createDiv({ cls: "diary-copilot-setting-section-title", text: "收摺後高度（底部工具列）" });
+    const heightRow = secHeight.createDiv({ cls: "diary-copilot-setting-stepper-row" });
+
+    let curHeight = this.callbacks.getCollapsedHeight?.() || 60;
+    const heightPresets = [48, 60, 72, 84];
+    const presetsDiv = heightRow.createDiv({ cls: "diary-copilot-stepper-presets" });
+    const presetBtns: { [h: number]: HTMLElement } = {};
+
+    const updateHeightDisplay = (newH: number) => {
+      curHeight = Math.max(40, Math.min(100, newH));
+      heightVal.setText(`${curHeight}px`);
+      Object.entries(presetBtns).forEach(([val, btn]) => {
+        if (parseInt(val, 10) === curHeight) {
+          btn.addClass("is-active");
+        } else {
+          btn.removeClass("is-active");
+        }
+      });
+      this.callbacks.onCollapsedHeightChange?.(curHeight);
+      this.applyPanelHeight();
+    };
+
+    for (const p of heightPresets) {
+      const pBtn = presetsDiv.createEl("button", {
+        cls: `diary-copilot-preset-btn ${p === curHeight ? "is-active" : ""}`,
+        text: p === 60 ? "60px (預設)" : `${p}px`,
+      });
+      presetBtns[p] = pBtn;
+      pBtn.addEventListener("click", () => updateHeightDisplay(p));
+    }
+
+    const ctrlsDiv = heightRow.createDiv({ cls: "diary-copilot-stepper-ctrls" });
+    const minusBtn = ctrlsDiv.createEl("button", { cls: "diary-copilot-stepper-btn", text: "-" });
+    const heightVal = ctrlsDiv.createSpan({ cls: "diary-copilot-stepper-val", text: `${curHeight}px` });
+    const plusBtn = ctrlsDiv.createEl("button", { cls: "diary-copilot-stepper-btn", text: "+" });
+
+    minusBtn.addEventListener("click", () => updateHeightDisplay(curHeight - 2));
+    plusBtn.addEventListener("click", () => updateHeightDisplay(curHeight + 2));
+
+    // Section 4: 🔤 字級大小
+    const secFont = body.createDiv({ cls: "diary-copilot-setting-section" });
+    secFont.createDiv({ cls: "diary-copilot-setting-section-title", text: "卡片字級大小" });
+    const fontRow = secFont.createDiv({ cls: "diary-copilot-setting-stepper-row" });
+
+    let curFontSize = this.callbacks.getFontSize?.() || 13.5;
+    const fontPresets = [
+      { size: 12, label: "小" },
+      { size: 13.5, label: "標準" },
+      { size: 15, label: "中" },
+      { size: 16.5, label: "大" },
+    ];
+    const fontPresetsDiv = fontRow.createDiv({ cls: "diary-copilot-stepper-presets" });
+    const fontPresetBtns: { [s: string]: HTMLElement } = {};
+
+    const updateFontDisplay = (newSize: number) => {
+      curFontSize = Math.max(10, Math.min(22, parseFloat(newSize.toFixed(1))));
+      fontVal.setText(`${curFontSize}px`);
+      Object.entries(fontPresetBtns).forEach(([val, btn]) => {
+        if (Math.abs(parseFloat(val) - curFontSize) < 0.2) {
+          btn.addClass("is-active");
+        } else {
+          btn.removeClass("is-active");
+        }
+      });
+      this.callbacks.onFontSizeChange?.(curFontSize);
+      document.body.style.setProperty("--diary-copilot-font-size", `${curFontSize}px`);
+    };
+
+    for (const f of fontPresets) {
+      const fBtn = fontPresetsDiv.createEl("button", {
+        cls: `diary-copilot-preset-btn ${Math.abs(f.size - curFontSize) < 0.2 ? "is-active" : ""}`,
+        text: `${f.size}px (${f.label})`,
+      });
+      fontPresetBtns[f.size.toString()] = fBtn;
+      fBtn.addEventListener("click", () => updateFontDisplay(f.size));
+    }
+
+    const fontCtrlsDiv = fontRow.createDiv({ cls: "diary-copilot-stepper-ctrls" });
+    const fontMinusBtn = fontCtrlsDiv.createEl("button", { cls: "diary-copilot-stepper-btn", text: "-" });
+    const fontVal = fontCtrlsDiv.createSpan({ cls: "diary-copilot-stepper-val", text: `${curFontSize}px` });
+    const fontPlusBtn = fontCtrlsDiv.createEl("button", { cls: "diary-copilot-stepper-btn", text: "+" });
+
+    fontMinusBtn.addEventListener("click", () => updateFontDisplay(curFontSize - 0.5));
+    fontPlusBtn.addEventListener("click", () => updateFontDisplay(curFontSize + 0.5));
+
+    // Dismiss handling
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) {
+        this.closeSettingsMenu();
+      }
+    });
+
+    this.settingsEscapeHandler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        this.closeSettingsMenu();
+      }
+    };
+    window.addEventListener("keydown", this.settingsEscapeHandler);
+  }
+
   destroy() {
+    this.closeSettingsMenu();
     document.body.removeClass("has-diary-copilot-active");
     this.isOralListening = false;
     this.oralLatestTranscript = "";

@@ -2449,3 +2449,278 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
   background-color: var(--background-modifier-hover) !important;
 }
 
+/* ==========================================================================
+   Diary Copilot Settings Bottom Sheet (上拉選單)
+   ========================================================================== */
+.diary-copilot-settings-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.48);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: var(--layer-modal, 100);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  animation: diaryCopilotFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.diary-copilot-settings-sheet {
+  width: 100%;
+  max-width: 520px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-bottom: none;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.28);
+  display: flex;
+  flex-direction: column;
+  max-height: 82vh;
+  animation: diaryCopilotSlideUp 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+}
+
+@media (min-width: 641px) {
+  .diary-copilot-settings-overlay {
+    justify-content: center;
+  }
+  .diary-copilot-settings-sheet {
+    border-radius: 16px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    max-height: 85vh;
+  }
+}
+
+@keyframes diaryCopilotFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes diaryCopilotSlideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0.5;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.diary-copilot-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px 10px 18px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.diary-copilot-settings-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-normal);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.diary-copilot-settings-close-btn {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.diary-copilot-settings-close-btn:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.diary-copilot-settings-body {
+  padding: 14px 18px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.diary-copilot-setting-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.diary-copilot-setting-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.4px;
+}
+
+/* Item 1: Update Button */
+.diary-copilot-sheet-update-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 10px 14px;
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 600;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.diary-copilot-sheet-update-btn:hover {
+  opacity: 0.92;
+}
+
+.diary-copilot-sheet-update-btn:active {
+  transform: scale(0.99);
+}
+
+.diary-copilot-sheet-update-desc {
+  font-size: 11px;
+  opacity: 0.9;
+  margin-top: 2px;
+  font-weight: normal;
+}
+
+/* Item 2: Tone Grid */
+.diary-copilot-tone-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.diary-copilot-tone-chip {
+  padding: 8px 10px;
+  border: 1px solid var(--background-modifier-border);
+  background-color: var(--background-secondary);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--text-normal);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  transition: all 0.15s ease;
+}
+
+.diary-copilot-tone-chip:hover {
+  border-color: var(--interactive-accent);
+  background-color: var(--background-modifier-hover);
+}
+
+.diary-copilot-tone-chip.is-active {
+  border-color: var(--interactive-accent);
+  background-color: rgba(var(--interactive-accent-rgb, 120, 80, 220), 0.15);
+  font-weight: 600;
+  color: var(--interactive-accent);
+}
+
+.diary-copilot-tone-chip-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.diary-copilot-tone-chip-desc {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Item 3 & 4: Steppers and Presets */
+.diary-copilot-setting-stepper-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 4px 6px;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.diary-copilot-stepper-presets {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.diary-copilot-preset-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 4px 7px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.diary-copilot-preset-btn:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.diary-copilot-preset-btn.is-active {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-weight: 600;
+}
+
+.diary-copilot-stepper-ctrls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.diary-copilot-stepper-btn {
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-normal);
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.diary-copilot-stepper-btn:hover {
+  background-color: var(--background-modifier-hover);
+  border-color: var(--interactive-accent);
+}
+
+.diary-copilot-stepper-val {
+  min-width: 48px;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
