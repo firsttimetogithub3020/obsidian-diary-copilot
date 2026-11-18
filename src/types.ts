@@ -26,6 +26,7 @@ export interface PluginSettings {
   showGhostText: boolean;
   dailyRequestLimit: number;
   cardFontSize: number;
+  shadowingFontSize?: number;
   panelMinHeight: number;
   collapsedHeight?: number;
   enableSelectionLookup: boolean;

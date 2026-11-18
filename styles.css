@@ -2381,7 +2381,7 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
 
 .sentence-num {
   flex-shrink: 0 !important;
-  font-size: 13px !important;
+  font-size: calc(var(--shadowing-sentence-font-size, 15.5px) * 0.82) !important;
   font-weight: 700 !important;
   color: var(--text-muted) !important;
   min-width: 24px !important;
@@ -2396,7 +2396,7 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
   flex: 1 1 auto !important;
   min-width: 0 !important;
   width: 0 !important; /* Critical: forces flex child to obey parent width & wrap */
-  font-size: 15px !important;
+  font-size: var(--shadowing-sentence-font-size, 15.5px) !important;
   line-height: 1.6 !important;
   color: var(--text-normal) !important;
   word-break: break-word !important;
@@ -2714,10 +2714,13 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
 }
 
 .shadowing-prep-desc {
-  font-size: 13.5px;
+  font-size: var(--shadowing-prep-font-size, 14px) !important;
   margin-bottom: 18px;
-  line-height: 1.5;
+  line-height: 1.6;
   color: var(--text-muted);
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
 }
 
 .shadowing-prep-btn-col {
@@ -2735,8 +2738,13 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
   border-radius: 8px !important;
   cursor: pointer !important;
   border: none !important;
-  font-size: 14px !important;
+  font-size: var(--shadowing-prep-font-size, 14px) !important;
   text-align: center !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+  line-height: 1.5 !important;
+  height: auto !important;
+  min-height: 42px !important;
   box-shadow: 0 2px 8px rgba(124, 58, 237, 0.25) !important;
   transition: transform 0.15s ease, opacity 0.15s ease !important;
 }
@@ -2753,13 +2761,42 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
   border-radius: 8px !important;
   cursor: pointer !important;
   border: 1px solid var(--background-modifier-border) !important;
-  font-size: 13.5px !important;
+  font-size: var(--shadowing-prep-font-size, 14px) !important;
   text-align: center !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+  line-height: 1.5 !important;
+  height: auto !important;
+  min-height: 42px !important;
   transition: background-color 0.15s ease !important;
 }
 
 .diary-copilot-prep-raw-btn:hover {
   background-color: var(--background-modifier-hover) !important;
+}
+
+/* Floating Zoom Indicator Pill */
+.diary-copilot-zoom-indicator {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-6px);
+  background: rgba(var(--interactive-accent-rgb, 120, 80, 220), 0.92);
+  color: #ffffff;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+}
+
+.diary-copilot-zoom-indicator.is-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 /* ==========================================================================

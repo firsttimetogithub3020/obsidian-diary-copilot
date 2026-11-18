@@ -17,6 +17,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   showGhostText: true,
   dailyRequestLimit: 1500,
   cardFontSize: 13.5,
+  shadowingFontSize: 15.5,
   panelMinHeight: 160,
   collapsedHeight: 60,
   enableSelectionLookup: true,

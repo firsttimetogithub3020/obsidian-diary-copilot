@@ -2,6 +2,7 @@ import { App, Modal, Notice, TFile } from "obsidian";
 import type DiaryCopilotPlugin from "../main";
 import { speakSentence, stopAudio, splitTextIntoSentences, isAudioPlaying } from "../services/tts";
 import { tidyUpTodayDiary } from "../commands/tidyUp";
+import { setupPinchZoom, PinchZoomController } from "./pinchZoom";
 
 export class FullTextShadowingModal extends Modal {
   private plugin: DiaryCopilotPlugin;
@@ -15,6 +16,7 @@ export class FullTextShadowingModal extends Modal {
   private playBtn: HTMLButtonElement | null = null;
   private statusTextEl: HTMLElement | null = null;
   private progressBarEl: HTMLElement | null = null;
+  private pinchZoomCtrl: PinchZoomController | null = null;
 
   constructor(app: App, plugin: DiaryCopilotPlugin, fullText: string, file: TFile) {
     super(app);
@@ -29,6 +31,20 @@ export class FullTextShadowingModal extends Modal {
     contentEl.empty();
     contentEl.addClass("diary-copilot-shadowing-modal");
     this.modalEl.addClass("diary-copilot-shadowing-modal-window");
+
+    // Initialize Pinch-to-Zoom gesture on mobile / Ctrl+Wheel on desktop
+    const initialFontSize = this.plugin.settings.shadowingFontSize || 15.5;
+    this.pinchZoomCtrl = setupPinchZoom({
+      containerEl: contentEl,
+      initialSize: initialFontSize,
+      minSize: 12,
+      maxSize: 32,
+      cssVariable: "--shadowing-sentence-font-size",
+      onSizeChange: async (newSize) => {
+        this.plugin.settings.shadowingFontSize = newSize;
+        await this.plugin.saveSettings();
+      },
+    });
 
     // 1. Header Bar
     const header = contentEl.createDiv({ cls: "diary-copilot-shadowing-header" });
@@ -250,6 +266,10 @@ export class FullTextShadowingModal extends Modal {
   onClose() {
     this.isPlaying = false;
     stopAudio();
+    if (this.pinchZoomCtrl) {
+      this.pinchZoomCtrl.cleanup();
+      this.pinchZoomCtrl = null;
+    }
     const { contentEl } = this;
     contentEl.empty();
   }

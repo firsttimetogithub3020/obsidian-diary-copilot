@@ -2,12 +2,14 @@ import { App, Modal, TFile } from "obsidian";
 import type DiaryCopilotPlugin from "../main";
 import { tidyUpTodayDiary } from "../commands/tidyUp";
 import { FullTextShadowingModal } from "./fullTextShadowingModal";
+import { setupPinchZoom, PinchZoomController } from "./pinchZoom";
 
 export class ShadowingPrepModal extends Modal {
   private plugin: DiaryCopilotPlugin;
   private rawDraftText: string;
   private file: TFile;
   private existingEnglish: string | null;
+  private pinchZoomCtrl: PinchZoomController | null = null;
 
   constructor(app: App, plugin: DiaryCopilotPlugin, rawDraftText: string, file: TFile, existingEnglish: string | null = null) {
     super(app);
@@ -21,6 +23,20 @@ export class ShadowingPrepModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("diary-copilot-shadowing-prep-modal");
+
+    // Initialize Pinch-to-Zoom gesture on mobile / Ctrl+Wheel on desktop
+    const initialFontSize = this.plugin.settings.shadowingFontSize || 15.5;
+    this.pinchZoomCtrl = setupPinchZoom({
+      containerEl: contentEl,
+      initialSize: initialFontSize,
+      minSize: 12,
+      maxSize: 28,
+      cssVariable: "--shadowing-prep-font-size",
+      onSizeChange: async (newSize) => {
+        this.plugin.settings.shadowingFontSize = newSize;
+        await this.plugin.saveSettings();
+      },
+    });
 
     contentEl.createEl("h3", { text: "✨ 整理今日日記與跟讀準備" });
 
@@ -60,6 +76,10 @@ export class ShadowingPrepModal extends Modal {
   }
 
   onClose() {
+    if (this.pinchZoomCtrl) {
+      this.pinchZoomCtrl.cleanup();
+      this.pinchZoomCtrl = null;
+    }
     const { contentEl } = this;
     contentEl.empty();
   }
