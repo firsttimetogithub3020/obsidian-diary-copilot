@@ -1,6 +1,7 @@
 import { App, Platform } from "obsidian";
 import { GeminiProvider } from "../llm/gemini";
 import { forceDismissSoftKeyboard } from "./cardPanel";
+import { speakSentence } from "../services/tts";
 
 export interface SelectionPopoverOptions {
   app: App;
@@ -128,9 +129,14 @@ export class SelectionPopover {
 
     const contentDiv = this.popoverEl.createDiv({ cls: "popover-content" });
 
-    // Query text badge
+    // Query text badge (clickable to speak pronunciation)
     const termSpan = contentDiv.createSpan({ cls: "popover-term" });
     termSpan.setText(text.length > 28 ? text.slice(0, 26) + "..." : text);
+    termSpan.setAttribute("title", "點擊聆聽發音");
+    termSpan.addEventListener("click", (e) => {
+      e.stopPropagation();
+      speakSentence(text);
+    });
 
     if (isLoading) {
       const loadingSpan = contentDiv.createSpan({ cls: "popover-loading" });
@@ -145,8 +151,20 @@ export class SelectionPopover {
       transSpan.setText(result.translation || "");
     }
 
-    // Action buttons (Only Close button, no redundant polish button in lookup popover)
+    // Action buttons (🔊 Pronunciation & ✕ Close)
     const actions = this.popoverEl.createDiv({ cls: "popover-actions" });
+
+    // 🔊 Pronunciation button
+    const speakBtn = actions.createEl("button", {
+      cls: "popover-btn popover-speak-btn",
+      text: "🔊",
+      attr: { "aria-label": "聆聽發音", title: "聆聽英文標準發音" },
+    });
+    speakBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      speakSentence(text);
+    });
 
     // Close button
     const closeBtn = actions.createEl("button", {

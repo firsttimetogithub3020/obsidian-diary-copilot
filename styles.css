@@ -1696,6 +1696,12 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
   color: var(--text-normal);
   margin-right: 6px;
   display: inline;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.diary-copilot-selection-popover .popover-term:hover {
+  color: var(--interactive-accent);
 }
 
 .diary-copilot-selection-popover .popover-pos {
@@ -1732,6 +1738,28 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
   margin-left: 8px;
   padding-left: 8px;
   border-left: 1px solid var(--background-modifier-border);
+}
+
+.diary-copilot-selection-popover .popover-speak-btn {
+  font-size: 13.5px;
+  padding: 3px 6px;
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.diary-copilot-selection-popover .popover-speak-btn:hover {
+  background-color: var(--interactive-accent);
+  color: #ffffff;
+  border-color: var(--interactive-accent);
+  transform: scale(1.05);
 }
 
 .diary-copilot-selection-popover .popover-polish-btn {
