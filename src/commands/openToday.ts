@@ -31,8 +31,6 @@ created: ${createdStr}
 type: english-diary
 ---
 
-# ${todayStr}
-
 `;
     file = await app.vault.create(filePath, initialContent);
     new Notice(`已建立今日日記：${filePath}`);
