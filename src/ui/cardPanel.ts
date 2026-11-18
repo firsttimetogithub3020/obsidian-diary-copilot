@@ -433,9 +433,10 @@ export class CardPanel {
     if (!this.foldBtnEl) return;
     const areCardsShowing = this.isCardsExpanded && 
       !this.isCollapsed && 
-      !this.panelEl.hasClass("is-cards-closed") && 
-      !this.panelEl.hasClass("is-keyboard-writing") && 
-      !this.panelEl.hasClass("is-compact-idle");
+      !this.panelEl?.hasClass("is-cards-closed") && 
+      !this.panelEl?.hasClass("is-keyboard-writing") && 
+      !this.panelEl?.hasClass("is-compact-idle") &&
+      (this.pinnedInquiryItem ? this.isShowingInquiryAnswers : this.currentCards.length > 0);
 
     const isNarrow = this.isNarrowHeader();
 
@@ -586,6 +587,16 @@ export class CardPanel {
       this.closeCards(false);
       return;
     }
+
+    if (this.pinnedInquiryItem) {
+      this.isShowingInquiryAnswers = !this.isShowingInquiryAnswers;
+      this.activeTabIdx = 0;
+      this.resetToAutoFit();
+      this.renderBrowseMode();
+      this.updateFoldButtonState();
+      return;
+    }
+
     const areCardsShowing = this.isCardsExpanded && 
       !this.isCollapsed && 
       !this.panelEl.hasClass("is-cards-closed") && 
@@ -654,6 +665,18 @@ export class CardPanel {
 
     // Mobile standard cards view
     if (Platform.isMobile && !this.hasUserManuallyResized) {
+      if (this.pinnedInquiryItem && !this.isShowingInquiryAnswers) {
+        this.panelEl.style.height = "auto";
+        requestAnimationFrame(() => {
+          if (!this.panelEl || this.hasUserManuallyResized || this.isCollapsed) return;
+          const measured = this.panelEl.offsetHeight;
+          if (measured > 0) {
+            document.body.style.setProperty("--diary-copilot-panel-height", `${measured}px`);
+          }
+        });
+        this.updateFoldButtonState();
+        return;
+      }
       const targetHeight = Math.min(Math.round(window.innerHeight * 0.55), 390);
       this.panelEl.style.height = `${targetHeight}px`;
       this.panelEl.removeClass("is-compact");
@@ -790,8 +813,8 @@ export class CardPanel {
     this.currentItem = item;
     if (!this.panelEl || !this.contentAreaEl) return;
 
-    // When user types in editor, switch inquiry answers view back to real-time continuations
-    if (!isPolishMode && this.isShowingInquiryAnswers) {
+    // When user types in editor without inquiry, switch inquiry answers view back
+    if (!this.pinnedInquiryItem && !isPolishMode && this.isShowingInquiryAnswers) {
       this.isShowingInquiryAnswers = false;
     }
 
@@ -905,20 +928,25 @@ export class CardPanel {
     this.currentCards = [];
     const item = this.currentItem;
 
-    if (this.isShowingInquiryAnswers && this.pinnedInquiryItem) {
-      // Show AI's 4 suggested answers for the pinned question
-      const inq = this.pinnedInquiryItem;
-      const isClosed = this.pinnedInquiryCategory === "closed";
-      if (isClosed) {
-        if (inq.yes1) this.currentCards.push({ title: "🟢 Yes · 自然口語", shortcut: "Alt+1", text: inq.yes1, kind: "continue" });
-        if (inq.yes2) this.currentCards.push({ title: "🟢 Yes · 細膩表達", shortcut: "Alt+2", text: inq.yes2, kind: "continue" });
-        if (inq.no1) this.currentCards.push({ title: "🔴 No · 自然口語", shortcut: "Alt+3", text: inq.no1, kind: "continue" });
-        if (inq.no2) this.currentCards.push({ title: "🔴 No · 細膩表達", shortcut: "Alt+4", text: inq.no2, kind: "continue" });
+    if (this.pinnedInquiryItem) {
+      if (this.isShowingInquiryAnswers) {
+        // Show AI's 4 suggested answers for the pinned question
+        const inq = this.pinnedInquiryItem;
+        const isClosed = this.pinnedInquiryCategory === "closed";
+        if (isClosed) {
+          if (inq.yes1) this.currentCards.push({ title: "🟢 Yes · 自然口語", shortcut: "Alt+1", text: inq.yes1, kind: "continue" });
+          if (inq.yes2) this.currentCards.push({ title: "🟢 Yes · 細膩表達", shortcut: "Alt+2", text: inq.yes2, kind: "continue" });
+          if (inq.no1) this.currentCards.push({ title: "🔴 No · 自然口語", shortcut: "Alt+3", text: inq.no1, kind: "continue" });
+          if (inq.no2) this.currentCards.push({ title: "🔴 No · 細膩表達", shortcut: "Alt+4", text: inq.no2, kind: "continue" });
+        } else {
+          if (inq.openStyle1) this.currentCards.push({ title: "🌿 自然口語", shortcut: "Alt+1", text: inq.openStyle1, kind: "continue" });
+          if (inq.openStyle2) this.currentCards.push({ title: "💭 情感反思", shortcut: "Alt+2", text: inq.openStyle2, kind: "continue" });
+          if (inq.openStyle3) this.currentCards.push({ title: "💼 專業嚴謹", shortcut: "Alt+3", text: inq.openStyle3, kind: "continue" });
+          if (inq.openStyle4) this.currentCards.push({ title: "⚡ 精簡有力", shortcut: "Alt+4", text: inq.openStyle4, kind: "continue" });
+        }
       } else {
-        if (inq.openStyle1) this.currentCards.push({ title: "🌿 自然口語", shortcut: "Alt+1", text: inq.openStyle1, kind: "continue" });
-        if (inq.openStyle2) this.currentCards.push({ title: "💭 情感反思", shortcut: "Alt+2", text: inq.openStyle2, kind: "continue" });
-        if (inq.openStyle3) this.currentCards.push({ title: "💼 專業嚴謹", shortcut: "Alt+3", text: inq.openStyle3, kind: "continue" });
-        if (inq.openStyle4) this.currentCards.push({ title: "⚡ 精簡有力", shortcut: "Alt+4", text: inq.openStyle4, kind: "continue" });
+        // In inquiry mode with answers collapsed: keep currentCards empty so 4 cards are hidden!
+        this.currentCards = [];
       }
     } else if (item) {
       // Show real-time continuation / translation / polish cards
@@ -964,8 +992,6 @@ export class CardPanel {
 
     // 5. Render Cards
     if (this.currentCards.length === 0) {
-      const placeholder = this.contentAreaEl.createDiv({ cls: "diary-copilot-inquiry-hero-prompt" });
-      placeholder.setText("✍️ 根據上方問題，在筆記中寫下回答，即時續寫將在此呈現...（或點擊上方「💡 查看建議回答」展開範例）");
       this.applyPanelHeight();
       return;
     }
