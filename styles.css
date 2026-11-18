@@ -2165,176 +2165,318 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
    Full-Text Shadowing Modal (全篇沉浸影子跟讀 - 提詞機歌詞滾動)
    ========================================================================== */
 
-.diary-copilot-shadowing-modal {
-  display: flex;
-  flex-direction: column;
-  max-width: 680px;
-  width: 95vw;
-  max-height: 85vh;
-  box-sizing: border-box;
+/* Outer Obsidian Modal Window */
+.modal.diary-copilot-shadowing-modal-window {
+  width: 90vw !important;
+  max-width: 760px !important;
+  height: 82vh !important;
+  max-height: 800px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  border-radius: 14px !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4) !important;
 }
 
+/* Modal Inner Container */
+.diary-copilot-shadowing-modal {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  padding: 16px 20px 14px 20px !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+}
+
+/* Header with Title and Speed Buttons */
 .diary-copilot-shadowing-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px;
-  border-bottom: 1px solid var(--background-modifier-border);
-  padding-bottom: 10px;
-  margin-bottom: 10px;
+  flex-shrink: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  flex-wrap: wrap !important;
+  gap: 10px !important;
+  padding-right: 44px !important; /* Avoid Obsidian modal close button */
+  border-bottom: 1px solid var(--background-modifier-border) !important;
+  padding-bottom: 12px !important;
+  margin-bottom: 10px !important;
 }
 
 .diary-copilot-shadowing-header h3 {
-  margin: 0;
-  font-size: 17px;
-  color: var(--text-normal);
+  margin: 0 !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  color: var(--text-normal) !important;
 }
 
 .diary-copilot-shadowing-speed-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
 }
 
 .diary-copilot-shadowing-speed-group .speed-label {
-  font-size: 12px;
-  color: var(--text-muted);
+  font-size: 12px !important;
+  color: var(--text-muted) !important;
 }
 
 .speed-btn {
-  background: var(--background-secondary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 4px;
-  padding: 2px 8px;
-  font-size: 11.5px;
-  color: var(--text-muted);
-  cursor: pointer;
+  background: var(--background-secondary) !important;
+  border: 1px solid var(--background-modifier-border) !important;
+  border-radius: 6px !important;
+  padding: 3px 9px !important;
+  font-size: 12px !important;
+  color: var(--text-muted) !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
 }
 
 .speed-btn.is-active {
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
-  border-color: var(--interactive-accent);
-  font-weight: 600;
+  background: var(--interactive-accent) !important;
+  color: var(--text-on-accent) !important;
+  border-color: var(--interactive-accent) !important;
+  font-weight: 600 !important;
 }
 
+/* Teleprompter Scrollable Container */
 .diary-copilot-shadowing-teleprompter {
-  flex: 1;
-  overflow-y: auto;
-  max-height: 48vh;
-  padding: 12px;
-  background: var(--background-secondary-alt);
-  border-radius: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  scroll-behavior: smooth;
+  flex: 1 1 auto !important;
+  min-height: 0 !important; /* Critical: allow flex child to scroll */
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 12px !important;
+  background: var(--background-secondary-alt) !important;
+  border-radius: 10px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  scroll-behavior: smooth !important;
 }
 
+.diary-copilot-shadowing-empty {
+  padding: 32px 16px !important;
+  text-align: center !important;
+  color: var(--text-muted) !important;
+  font-size: 14px !important;
+}
+
+/* Sentence Cards */
 .diary-copilot-shadowing-sentence {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px 14px;
-  border-radius: 8px;
-  background: var(--background-primary);
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  opacity: 0.6;
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 12px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 12px 14px !important;
+  border-radius: 8px !important;
+  background: var(--background-primary) !important;
+  border: 1.5px solid transparent !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  opacity: 0.65 !important;
 }
 
 .diary-copilot-shadowing-sentence:hover {
-  opacity: 0.85;
+  opacity: 0.9 !important;
+  background: var(--background-primary-alt, var(--background-secondary)) !important;
 }
 
 .diary-copilot-shadowing-sentence.is-active {
   opacity: 1 !important;
   border-color: var(--interactive-accent) !important;
-  background: var(--background-secondary) !important;
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
-  transform: scale(1.015);
+  background: var(--background-primary) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14) !important;
+  transform: scale(1.01) !important;
+}
+
+.diary-copilot-shadowing-sentence.is-passed {
+  opacity: 0.45 !important;
 }
 
 .sentence-num {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-muted);
-  min-width: 20px;
+  flex-shrink: 0 !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: var(--text-muted) !important;
+  min-width: 24px !important;
+  line-height: 1.6 !important;
 }
 
 .diary-copilot-shadowing-sentence.is-active .sentence-num {
-  color: var(--interactive-accent);
+  color: var(--interactive-accent) !important;
 }
 
 .sentence-text {
-  font-size: 15.5px;
-  line-height: 1.55;
-  color: var(--text-normal);
-  word-break: break-word;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  width: 0 !important; /* Critical: forces flex child to obey parent width & wrap */
+  font-size: 15px !important;
+  line-height: 1.6 !important;
+  color: var(--text-normal) !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
 }
 
 .diary-copilot-shadowing-sentence.is-active .sentence-text {
-  color: var(--text-normal);
-  font-weight: 600;
+  color: var(--text-normal) !important;
+  font-weight: 600 !important;
 }
 
-/* Audio Player Bottom Controls */
-.diary-copilot-shadowing-player {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-top: 14px;
-  border-top: 1px solid var(--background-modifier-border);
+/* Audio Player Bottom Dock - Fixed, Never Overlaps */
+.diary-copilot-shadowing-dock {
+  flex-shrink: 0 !important;
+  background: var(--background-primary) !important;
+  border-top: 1px solid var(--background-modifier-border) !important;
+  padding-top: 12px !important;
+  margin-top: 10px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  z-index: 10 !important;
 }
 
-.player-progress-container {
-  width: 100%;
-  height: 6px;
-  background: var(--background-modifier-border);
-  border-radius: 3px;
-  overflow: hidden;
+.diary-copilot-shadowing-progress-wrapper {
+  width: 100% !important;
+  height: 5px !important;
+  background: var(--background-modifier-border) !important;
+  border-radius: 3px !important;
+  overflow: hidden !important;
 }
 
-.player-progress-bar {
-  height: 100%;
-  background: var(--interactive-accent);
-  transition: width 0.3s ease;
+.diary-copilot-shadowing-progress-bar {
+  height: 100% !important;
+  width: 0%;
+  background: var(--interactive-accent) !important;
+  transition: width 0.25s ease !important;
 }
 
-.player-controls-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px;
+.diary-copilot-shadowing-status {
+  font-size: 12.5px !important;
+  color: var(--text-muted) !important;
+  text-align: center !important;
+  line-height: 1.4 !important;
 }
 
-.player-ctrl-btn {
-  padding: 6px 14px;
-  border-radius: 6px;
-  font-size: 13px;
-  cursor: pointer;
+.diary-copilot-shadowing-controls {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 
-.player-play-btn {
+.diary-copilot-shadowing-play-btn {
+  flex: 1 1 auto !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  min-width: 140px !important;
   background: var(--interactive-accent) !important;
   color: var(--text-on-accent) !important;
-  border: none;
-  font-weight: 600;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  border-radius: 8px !important;
+  border: none !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  transition: all 0.15s ease !important;
 }
 
-.player-replay-btn,
-.player-finish-btn {
-  background: var(--background-secondary);
-  border: 1px solid var(--background-modifier-border);
-  color: var(--text-normal);
+.diary-copilot-shadowing-play-btn:hover {
+  opacity: 0.9 !important;
+  transform: translateY(-1px) !important;
 }
 
-.player-status-text {
-  font-size: 13px;
-  color: var(--text-muted);
+.diary-copilot-shadowing-sec-group {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex: 1 1 auto !important;
+  justify-content: flex-end !important;
+}
+
+.diary-copilot-shadowing-sub-btn {
+  height: 40px !important;
+  min-height: 40px !important;
+  padding: 0 12px !important;
+  border-radius: 8px !important;
+  background: var(--background-secondary) !important;
+  border: 1px solid var(--background-modifier-border) !important;
+  color: var(--text-normal) !important;
+  font-size: 13px !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  transition: all 0.15s ease !important;
+}
+
+.diary-copilot-shadowing-sub-btn:hover {
+  background: var(--background-modifier-hover) !important;
+  color: var(--text-normal) !important;
+}
+
+.diary-copilot-shadowing-done-btn {
+  background: rgba(16, 185, 129, 0.12) !important;
+  border-color: rgba(16, 185, 129, 0.4) !important;
+  color: #10b981 !important;
+  font-weight: 600 !important;
+}
+
+.diary-copilot-shadowing-done-btn:hover {
+  background: rgba(16, 185, 129, 0.22) !important;
+}
+
+/* Ergonomics for Mobile and Tablet Devices */
+@media (max-width: 768px) {
+  .modal.diary-copilot-shadowing-modal-window {
+    width: 96vw !important;
+    height: 90vh !important;
+    max-height: 94vh !important;
+    border-radius: 12px !important;
+  }
+
+  .diary-copilot-shadowing-modal {
+    padding: 14px 14px 10px 14px !important;
+  }
+
+  .diary-copilot-shadowing-header {
+    padding-right: 38px !important;
+  }
+
+  .diary-copilot-shadowing-controls {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .diary-copilot-shadowing-play-btn {
+    width: 100% !important;
+    height: 46px !important;
+    font-size: 15px !important;
+  }
+
+  .diary-copilot-shadowing-sec-group {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr 1.25fr !important;
+    gap: 6px !important;
+  }
+
+  .diary-copilot-shadowing-sub-btn {
+    width: 100% !important;
+    height: 40px !important;
+    padding: 0 4px !important;
+    font-size: 12px !important;
+  }
 }
 
 /* CodeMirror Inline Draft Mark: 100% pure text in doc, styled as gray italic in editor */

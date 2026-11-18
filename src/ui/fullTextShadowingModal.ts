@@ -28,6 +28,7 @@ export class FullTextShadowingModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("diary-copilot-shadowing-modal");
+    this.modalEl.addClass("diary-copilot-shadowing-modal-window");
 
     // 1. Header Bar
     const header = contentEl.createDiv({ cls: "diary-copilot-shadowing-header" });
@@ -53,37 +54,43 @@ export class FullTextShadowingModal extends Modal {
     this.sentenceElements = [];
 
     if (this.sentences.length === 0) {
-      teleprompter.createDiv({ text: "未偵測到英文日記句子。" });
+      teleprompter.createDiv({ cls: "diary-copilot-shadowing-empty", text: "未偵測到英文日記句子。" });
     } else {
       this.sentences.forEach((sentence, idx) => {
-        const span = teleprompter.createDiv({
+        const itemEl = teleprompter.createDiv({
           cls: `diary-copilot-shadowing-sentence ${idx === 0 ? "is-upcoming" : ""}`,
-          text: sentence,
         });
-        span.addEventListener("click", () => {
+        itemEl.createSpan({ cls: "sentence-num", text: `${idx + 1}.` });
+        itemEl.createDiv({ cls: "sentence-text", text: sentence });
+        itemEl.addEventListener("click", () => {
           this.currentSentenceIdx = idx;
           this.highlightCurrentSentence();
           if (this.isPlaying) {
             this.playNextSentence();
           }
         });
-        this.sentenceElements.push(span);
+        this.sentenceElements.push(itemEl);
       });
     }
 
-    // 3. Status & Progress bar
-    const progressWrapper = contentEl.createDiv({ cls: "diary-copilot-shadowing-progress-wrapper" });
+    // 3. Bottom Controls Dock (Fixed at bottom of modal, never overlaps sentences)
+    const dockEl = contentEl.createDiv({ cls: "diary-copilot-shadowing-dock" });
+
+    // Progress bar
+    const progressWrapper = dockEl.createDiv({ cls: "diary-copilot-shadowing-progress-wrapper" });
     this.progressBarEl = progressWrapper.createDiv({ cls: "diary-copilot-shadowing-progress-bar" });
-    this.statusTextEl = contentEl.createDiv({
+
+    // Status Text
+    this.statusTextEl = dockEl.createDiv({
       cls: "diary-copilot-shadowing-status",
       text: "🎧 建議戴上耳機，落後半拍同步開口複誦 (Shadowing)",
     });
 
-    // 4. Action Controls Bar
-    const controlBar = contentEl.createDiv({ cls: "diary-copilot-shadowing-controls" });
+    // Action Controls Bar
+    const controlBar = dockEl.createDiv({ cls: "diary-copilot-shadowing-controls" });
 
     this.playBtn = controlBar.createEl("button", {
-      cls: "diary-copilot-action-btn diary-copilot-shadowing-play-btn",
+      cls: "diary-copilot-shadowing-play-btn",
       text: "▶️ 開始朗讀跟讀",
     });
     this.playBtn.addEventListener("click", () => {
@@ -94,8 +101,10 @@ export class FullTextShadowingModal extends Modal {
       }
     });
 
-    const restartBtn = controlBar.createEl("button", {
-      cls: "diary-copilot-action-btn",
+    const secGroup = controlBar.createDiv({ cls: "diary-copilot-shadowing-sec-group" });
+
+    const restartBtn = secGroup.createEl("button", {
+      cls: "diary-copilot-shadowing-sub-btn",
       text: "🔄 從頭播放",
     });
     restartBtn.addEventListener("click", () => {
@@ -103,8 +112,8 @@ export class FullTextShadowingModal extends Modal {
       this.play();
     });
 
-    const reTidyBtn = controlBar.createEl("button", {
-      cls: "diary-copilot-action-btn",
+    const reTidyBtn = secGroup.createEl("button", {
+      cls: "diary-copilot-shadowing-sub-btn",
       text: "✨ 重新整理",
       attr: { title: "重新呼叫 AI 整理今日日記並更新跟讀內容" },
     });
@@ -113,8 +122,8 @@ export class FullTextShadowingModal extends Modal {
       await tidyUpTodayDiary(this.app, this.plugin);
     });
 
-    const doneBtn = controlBar.createEl("button", {
-      cls: "diary-copilot-action-btn diary-copilot-shadowing-done-btn",
+    const doneBtn = secGroup.createEl("button", {
+      cls: "diary-copilot-shadowing-sub-btn diary-copilot-shadowing-done-btn",
       text: "✅ 完成跟讀並紀錄",
     });
     doneBtn.addEventListener("click", async () => {
