@@ -197,7 +197,12 @@ export class FullTextShadowingModal extends Modal {
           this.playNextSentence();
         }, 250);
       },
-      this.playbackRate
+      this.playbackRate,
+      (err) => {
+        if (!this.isPlaying) return;
+        this.pause();
+        new Notice("⚠️ 語音朗讀播放失敗，請檢查網路連線", 3000);
+      }
     );
   }
 

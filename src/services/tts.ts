@@ -4,9 +4,10 @@ import { requestUrl, Notice, Platform } from "obsidian";
  * High-Reliability Text-to-Speech (TTS) Service for Diary Copilot
  * 
  * Multi-layer architecture:
- * Layer 1: High Quality Cloud Audio (Amazon Polly Salli via ttsmp3) fetched via native Obsidian requestUrl into Blob URL
- * Layer 2: Youdao American English audio stream (le=eng) fetched via requestUrl into Blob URL
- * Layer 3: Native Web SpeechSynthesis (offline fallback for systems with configured voices)
+ * Layer 1: Google Translate American English TTS (gtx client) with seamless MP3 frame concatenation for long sentences
+ * Layer 2: Google Translate TTS secondary endpoint (tw-ob client)
+ * Layer 3: Amazon Polly Salli via ttsmp3
+ * Layer 4: Native Web SpeechSynthesis (offline fallback)
  */
 
 let activeAudio: HTMLAudioElement | null = null;
@@ -36,7 +37,48 @@ export function splitTextIntoSentences(text: string): string[] {
     .filter((s) => s.length > 0 && /[a-zA-Z]/.test(s));
 }
 
-export async function speakSentence(text: string, onEnd?: () => void, rate = 1.0) {
+/**
+ * Splits sentences longer than maxLen (default 160 chars) into natural clause chunks
+ * (e.g. by punctuation [,;:—–-] or spaces) for Google Translate TTS API.
+ */
+function chunkTextForTTS(text: string, maxLen = 160): string[] {
+  if (text.length <= maxLen) return [text];
+  const chunks: string[] = [];
+  const parts = text.split(/([,;:—–\-]|\s+)/);
+  let cur = "";
+
+  for (const p of parts) {
+    if ((cur + p).length <= maxLen) {
+      cur += p;
+    } else {
+      if (cur.trim()) chunks.push(cur.trim());
+      cur = p;
+    }
+  }
+  if (cur.trim()) chunks.push(cur.trim());
+  return chunks.length > 0 ? chunks : [text.slice(0, maxLen)];
+}
+
+async function fetchGoogleTTSBuffer(text: string, client = "gtx"): Promise<ArrayBuffer> {
+  const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=en&client=${client}&q=${encodeURIComponent(text)}`;
+  const resp = await requestUrl({
+    url,
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    },
+  });
+  if (resp.status === 200 && resp.arrayBuffer && resp.arrayBuffer.byteLength > 200) {
+    return resp.arrayBuffer;
+  }
+  throw new Error(`Google TTS status ${resp.status}`);
+}
+
+export async function speakSentence(
+  text: string,
+  onEnd?: () => void,
+  rate = 1.0,
+  onError?: (err?: any) => void
+) {
   if (!text || typeof window === "undefined") return;
   const cleanText = text.trim();
   if (!cleanText) return;
@@ -44,7 +86,39 @@ export async function speakSentence(text: string, onEnd?: () => void, rate = 1.0
   // Stop any currently playing audio
   stopAudio();
 
-  // Strategy 1: High Quality Cloud Audio (Amazon Polly Salli via ttsmp3)
+  // Strategy 1: Google Translate TTS (client=gtx) with seamless chunk concatenation
+  try {
+    const chunks = chunkTextForTTS(cleanText, 160);
+    const audioBuffers: ArrayBuffer[] = [];
+    for (const chunk of chunks) {
+      const buf = await fetchGoogleTTSBuffer(chunk, "gtx");
+      audioBuffers.push(buf);
+    }
+    const combinedBlob = new Blob(audioBuffers, { type: "audio/mpeg" });
+    const blobUrl = URL.createObjectURL(combinedBlob);
+    await playBlobAudio(blobUrl, rate, onEnd);
+    return;
+  } catch (err) {
+    console.warn("[Diary Copilot TTS] Google TTS gtx failed, trying tw-ob fallback:", err);
+  }
+
+  // Strategy 2: Google Translate TTS secondary endpoint (client=tw-ob)
+  try {
+    const chunks = chunkTextForTTS(cleanText, 160);
+    const audioBuffers: ArrayBuffer[] = [];
+    for (const chunk of chunks) {
+      const buf = await fetchGoogleTTSBuffer(chunk, "tw-ob");
+      audioBuffers.push(buf);
+    }
+    const combinedBlob = new Blob(audioBuffers, { type: "audio/mpeg" });
+    const blobUrl = URL.createObjectURL(combinedBlob);
+    await playBlobAudio(blobUrl, rate, onEnd);
+    return;
+  } catch (err) {
+    console.warn("[Diary Copilot TTS] Google TTS tw-ob failed, trying Polly fallback:", err);
+  }
+
+  // Strategy 3: Amazon Polly Salli via ttsmp3
   try {
     const postData = `msg=${encodeURIComponent(cleanText)}&lang=Salli&source=ttsmp3`;
     const resp = await requestUrl({
@@ -73,26 +147,7 @@ export async function speakSentence(text: string, onEnd?: () => void, rate = 1.0
     console.warn("[Diary Copilot TTS] Polly Salli via requestUrl failed:", err);
   }
 
-  // Strategy 2: Fallback via Youdao (le=eng)
-  try {
-    const youdaoUrl = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(cleanText)}&le=eng`;
-    const audioResp = await requestUrl({
-      url: youdaoUrl,
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-      },
-    });
-    if (audioResp.status === 200 && audioResp.arrayBuffer && audioResp.arrayBuffer.byteLength > 500) {
-      const blob = new Blob([audioResp.arrayBuffer], { type: "audio/mpeg" });
-      const blobUrl = URL.createObjectURL(blob);
-      await playBlobAudio(blobUrl, rate, onEnd);
-      return;
-    }
-  } catch (err) {
-    console.warn("[Diary Copilot TTS] Youdao fallback failed:", err);
-  }
-
-  // Strategy 3: Native Web SpeechSynthesis (Offline fallback)
+  // Strategy 4: Native Web SpeechSynthesis (Offline fallback)
   if ("speechSynthesis" in window) {
     try {
       const synth = window.speechSynthesis;
@@ -107,8 +162,13 @@ export async function speakSentence(text: string, onEnd?: () => void, rate = 1.0
       utterance.onend = () => {
         onEnd?.();
       };
-      utterance.onerror = () => {
-        onEnd?.();
+      utterance.onerror = (e) => {
+        console.warn("[Diary Copilot TTS] SpeechSynthesis error:", e);
+        if (onError) onError(e);
+        else {
+          new Notice("⚠️ 語音朗讀播放失敗，請檢查網路連線", 2500);
+          onEnd?.();
+        }
       };
 
       const voices = synth.getVoices();
@@ -126,8 +186,11 @@ export async function speakSentence(text: string, onEnd?: () => void, rate = 1.0
     }
   }
 
-  new Notice("⚠️ 語音朗讀播放失敗，請檢查網路連線", 2500);
-  onEnd?.();
+  if (onError) {
+    onError(new Error("All TTS strategies failed"));
+  } else {
+    new Notice("⚠️ 語音朗讀播放失敗，請檢查網路連線", 2500);
+  }
 }
 
 export function stopAudio() {
@@ -152,7 +215,7 @@ export function stopAudio() {
 }
 
 function playBlobAudio(blobUrl: string, rate = 1.0, onEnd?: () => void): Promise<void> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     activeBlobUrl = blobUrl;
     const audio = new Audio(blobUrl);
     activeAudio = audio;
@@ -169,15 +232,13 @@ function playBlobAudio(blobUrl: string, rate = 1.0, onEnd?: () => void): Promise
     audio.onerror = (e) => {
       console.warn("[Diary Copilot TTS] Blob Audio playback error:", e);
       stopAudio();
-      onEnd?.();
-      resolve();
+      reject(e);
     };
 
     audio.play().catch((err) => {
       console.warn("[Diary Copilot TTS] Play promise rejected:", err);
       stopAudio();
-      onEnd?.();
-      resolve();
+      reject(err);
     });
   });
 }
