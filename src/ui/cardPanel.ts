@@ -378,6 +378,14 @@ export class CardPanel {
     this.setupKeyboardListeners();
   }
 
+  private lastIsNarrowScreen: boolean | null = null;
+
+  public isNarrowHeader(): boolean {
+    if (Platform.isPhone || Platform.isMobile) return true;
+    const width = this.panelEl?.clientWidth || window.innerWidth;
+    return width < 600;
+  }
+
   /**
    * Adapts header layout:
    * When on narrow phones, vertical/portrait orientation, or panel width < 720px,
@@ -402,6 +410,23 @@ export class CardPanel {
       this.headerEl.removeClass("is-two-row");
       this.panelEl.removeClass("has-two-row-header");
     }
+
+    const isCompactHeader = this.isNarrowHeader();
+    if (isCompactHeader) {
+      this.headerEl.addClass("is-narrow-screen");
+      this.panelEl.addClass("is-narrow-screen");
+    } else {
+      this.headerEl.removeClass("is-narrow-screen");
+      this.panelEl.removeClass("is-narrow-screen");
+    }
+
+    if (this.lastIsNarrowScreen !== null && this.lastIsNarrowScreen !== isCompactHeader) {
+      this.lastIsNarrowScreen = isCompactHeader;
+      // Re-render header actions with updated button text
+      this.renderHeaderActionsBrowse();
+    } else {
+      this.lastIsNarrowScreen = isCompactHeader;
+    }
   }
 
   private onVisualViewportChange: (() => void) | null = null;
@@ -416,14 +441,16 @@ export class CardPanel {
       !this.panelEl.hasClass("is-keyboard-writing") && 
       !this.panelEl.hasClass("is-compact-idle");
 
+    const isNarrow = this.isNarrowHeader();
+
     if (areCardsShowing) {
       this.foldBtnEl.className = "diary-copilot-action-btn diary-copilot-fold-toggle-btn is-expanded";
-      this.foldBtnEl.setText("🔽 關閉字卡");
+      this.foldBtnEl.setText(isNarrow ? "🔽 關閉" : "🔽 關閉字卡");
       this.foldBtnEl.setAttribute("aria-label", "關閉建議字卡（回到功能列）");
       this.foldBtnEl.setAttribute("title", "關閉建議字卡（回到功能列）");
     } else {
       this.foldBtnEl.className = "diary-copilot-action-btn diary-copilot-fold-toggle-btn is-folded";
-      this.foldBtnEl.setText("📖 展開字卡");
+      this.foldBtnEl.setText(isNarrow ? "📖 展開" : "📖 展開字卡");
       this.foldBtnEl.setAttribute("aria-label", "展開建議字卡");
       this.foldBtnEl.setAttribute("title", "展開建議字卡");
     }
@@ -1312,10 +1339,12 @@ export class CardPanel {
 
     // 1. Control Center Bar (Row 1 Right): All core functions in one clean row
     if (this.headerSysEl) {
-      // 1. ✨ 整理跟讀 (整理今日日記 ＋ 開啟全篇沉浸影子跟讀)
+      const isNarrow = this.isNarrowHeader();
+
+      // 1. ✨ 整理 (若手機/窄版為 "✨ 整理"，寬版為 "✨ 整理跟讀")
       const shadowBtn = this.headerSysEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-shadow-all-btn",
-        text: Platform.isPhone ? "✨ 整理跟讀" : "✨ 整理跟讀",
+        text: isNarrow ? "✨ 整理" : "✨ 整理跟讀",
         attr: {
           "aria-label": "整理今日日記並開啟全篇影子跟讀",
           title: "整理今日日記並開啟全篇影子跟讀",
@@ -1332,7 +1361,7 @@ export class CardPanel {
       if (this.pinnedInquiryItem) {
         const resumeBtn = this.headerSysEl.createEl("button", {
           cls: "diary-copilot-action-btn diary-copilot-resume-btn",
-          text: Platform.isPhone ? "✕ 關閉提問" : "✕ 關閉提問",
+          text: isNarrow ? "✕ 提問" : "✕ 關閉提問",
           attr: { title: "關閉提問引導，回到一般寫作模式" },
         });
         resumeBtn.addEventListener("click", (e) => {
@@ -1344,7 +1373,7 @@ export class CardPanel {
       } else {
         const inquiryBtn = this.headerSysEl.createEl("button", {
           cls: "diary-copilot-action-btn diary-copilot-inquiry-btn",
-          text: Platform.isPhone ? "❓ 提問" : "❓ 提問 (F5)",
+          text: isNarrow ? "❓ 提問" : "❓ 提問 (F5)",
           attr: {
             "aria-label": "根據日記內容產生是非或開放引導問句 (F5)",
             title: "根據日記內容產生是非或開放引導問句 (F5)",
@@ -1362,7 +1391,7 @@ export class CardPanel {
       // 3. ✨ 潤飾 (F3) - Always visible in Row 1!
       const polishBtn = this.headerSysEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-polish-btn",
-        text: Platform.isPhone ? "✨ 潤飾" : "✨ 潤飾 (F3)",
+        text: isNarrow ? "✨ 潤飾" : "✨ 潤飾 (F3)",
         attr: {
           "aria-label": "潤飾當前/前一句表達 (F3)",
           title: "潤飾當前/前一句表達 (F3)",
@@ -1376,7 +1405,7 @@ export class CardPanel {
         this.callbacks.onPolishRequest?.();
       });
 
-      // 4. 卡片顯示切換：📖 展開字卡 ⇄ 🔽 關閉字卡
+      // 4. 卡片顯示切換：📖 展開 ⇄ 🔽 關閉
       const areCardsShowing = this.isCardsExpanded && 
         !this.isCollapsed && 
         !this.panelEl.hasClass("is-cards-closed") && 
@@ -1385,7 +1414,9 @@ export class CardPanel {
 
       this.foldBtnEl = this.headerSysEl.createEl("button", {
         cls: `diary-copilot-action-btn diary-copilot-fold-toggle-btn ${areCardsShowing ? "is-expanded" : "is-folded"}`,
-        text: areCardsShowing ? "🔽 關閉字卡" : "📖 展開字卡",
+        text: isNarrow 
+          ? (areCardsShowing ? "🔽 關閉" : "📖 展開")
+          : (areCardsShowing ? "🔽 關閉字卡" : "📖 展開字卡"),
         attr: {
           "aria-label": areCardsShowing ? "關閉建議字卡（回到功能列）" : "展開建議字卡",
           title: areCardsShowing ? "關閉建議字卡（回到功能列）" : "展開建議字卡",
@@ -1397,10 +1428,10 @@ export class CardPanel {
         this.toggleFoldCards();
       });
 
-      // 5. ⚙️ 設定 (始終常駐)
+      // 5. ⚙️ 設定 (在手機/窄版僅顯示齒輪 ⚙️)
       const settingsBtn = this.headerSysEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-settings-btn",
-        text: Platform.isPhone ? "⚙️" : "⚙️ 設定",
+        text: isNarrow ? "⚙️" : "⚙️ 設定",
         attr: { "aria-label": "Diary Copilot 快速設定", title: "Diary Copilot 快速設定" },
       });
       settingsBtn.addEventListener("click", (e) => {

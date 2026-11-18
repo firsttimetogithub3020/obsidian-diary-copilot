@@ -242,7 +242,14 @@ body:not(.is-mobile) .diary-copilot-panel {
     align-items: center !important;
     width: 100% !important;
     flex-wrap: nowrap !important;
-    overflow: hidden !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .diary-copilot-header-row-1::-webkit-scrollbar {
+    display: none !important;
   }
 
   .diary-copilot-header-row-2 {
@@ -253,31 +260,107 @@ body:not(.is-mobile) .diary-copilot-panel {
   }
 }
 
-/* Mobile Phone Narrow Screen Optimization (< 560px) */
-@media (max-width: 560px) {
+/* Mobile Phone & Narrow Screen Header Optimization (< 640px) */
+@media (max-width: 640px) {
   .diary-copilot-brand-text {
     display: none !important;
   }
   .diary-copilot-tone-label {
     display: none !important;
   }
-  .diary-copilot-header-sys {
-    gap: 4px !important;
+  .diary-copilot-brand {
+    flex-shrink: 0 !important;
+    margin-right: 4px !important;
+  }
+  .diary-copilot-header-row-1 {
     overflow-x: auto !important;
+    overflow-y: hidden !important;
     scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  .diary-copilot-header-row-1::-webkit-scrollbar {
+    display: none !important;
+  }
+  .diary-copilot-header-sys {
+    display: flex !important;
+    align-items: center !important;
+    gap: 3px !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex-wrap: nowrap !important;
+    justify-content: flex-end !important;
   }
   .diary-copilot-header-sys::-webkit-scrollbar {
     display: none !important;
   }
   .diary-copilot-header-sys .diary-copilot-action-btn {
-    padding: 4px 8px !important;
+    padding: 3px 6px !important;
     font-size: var(--diary-copilot-btn-font-size, 12px) !important;
-    min-height: 32px !important;
-    height: auto !important;
+    min-height: 30px !important;
+    height: 30px !important;
     border-radius: 6px !important;
     white-space: nowrap !important;
     flex-shrink: 0 !important;
   }
+}
+
+.is-narrow-screen .diary-copilot-brand-text,
+body.is-phone .diary-copilot-brand-text {
+  display: none !important;
+}
+
+.is-narrow-screen .diary-copilot-brand,
+body.is-phone .diary-copilot-brand {
+  flex-shrink: 0 !important;
+  margin-right: 4px !important;
+}
+
+.is-narrow-screen .diary-copilot-header-row-1,
+body.is-phone .diary-copilot-header-row-1 {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.is-narrow-screen .diary-copilot-header-row-1::-webkit-scrollbar,
+body.is-phone .diary-copilot-header-row-1::-webkit-scrollbar {
+  display: none !important;
+}
+
+.is-narrow-screen .diary-copilot-header-sys,
+body.is-phone .diary-copilot-header-sys {
+  display: flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none !important;
+  -webkit-overflow-scrolling: touch !important;
+  flex-wrap: nowrap !important;
+  justify-content: flex-end !important;
+}
+
+.is-narrow-screen .diary-copilot-header-sys::-webkit-scrollbar,
+body.is-phone .diary-copilot-header-sys::-webkit-scrollbar {
+  display: none !important;
+}
+
+.is-narrow-screen .diary-copilot-header-sys .diary-copilot-action-btn,
+body.is-phone .diary-copilot-header-sys .diary-copilot-action-btn {
+  padding: 3px 6px !important;
+  font-size: var(--diary-copilot-btn-font-size, 12px) !important;
+  min-height: 30px !important;
+  height: 30px !important;
+  border-radius: 6px !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
 }
 
 .diary-copilot-brand {
