@@ -8,6 +8,7 @@ export interface KeymapCallbacks {
   onDismiss: () => void;
   onPolishRequest?: () => void;
   onInquiryRequest?: () => void;
+  onToggleCardsRequest?: () => void;
   isShadowMode?: () => boolean;
   onDirectPaste?: () => void;
 }
@@ -82,6 +83,14 @@ export function createDiaryKeymap(callbacks: KeymapCallbacks) {
     return false;
   };
 
+  const toggleCards: Command = () => {
+    if (callbacks.onToggleCardsRequest) {
+      callbacks.onToggleCardsRequest();
+      return true;
+    }
+    return false;
+  };
+
   const handleTab: Command = () => {
     if (callbacks.isShadowMode?.()) {
       callbacks.onDirectPaste?.();
@@ -101,6 +110,7 @@ export function createDiaryKeymap(callbacks: KeymapCallbacks) {
       { key: "Alt-4", run: acceptCard4 },
       { key: "Escape", run: dismiss },
       { key: "F3", run: polish },
+      { key: "F4", run: toggleCards },
       { key: "F5", run: inquiry },
     ])
   );

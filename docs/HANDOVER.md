@@ -12,7 +12,7 @@
 * **專案名稱**：Obsidian Diary Copilot (`obsidian-diary-copilot`)
 * **本機代碼倉庫**：`E:\obsidian-english\obsidian-diary-copilot`
 * **本機 Vault 部署路徑**：`E:\AI-Knowledge-System\Obsidian-Vault\.obsidian\plugins\diary-copilot`
-* **當前最新版本**：`v0.3.62`
+* **當前最新版本**：`v0.3.63`
 * **使用者**：Alan（對話與說明一律使用**繁體中文**；代碼識別碼與 Commit 訊息一律使用英文）。
 
 ---
@@ -83,6 +83,7 @@ flowchart LR
 
 | 版本 | 日期 | 重點改動說明 |
 | :--- | :--- | :--- |
+| **v0.3.63** | 2026-11-18 | 1. 確立快捷鍵職責單一化：`F4` 專責展開/關閉字卡，`Esc` 完整回歸取消灰字與關閉彈窗（方案 A）：<br/>- 診斷原因：使用者發現 `Esc` 在英文寫作過程中具有「取消當前灰字跟寫（Dismiss Ghost Text）」的重要直覺職責。先前若將 `Esc` 作為收摺/展開開關，想單純放棄灰字時會意外收起整組字卡。且單按 `Ctrl` 存在輸入法中英切換、快速鍵誤觸與跨平台鍵位差異。<br/>- F3/F4/F5 一體化頂部快捷操作鏈：<br/>  - `F3`：✨ 潤飾當前/前一句<br/>  - `F4`：**展開 ⇄ 關閉字卡**（CodeMirror 編輯器內與全域 window 均支援）<br/>  - `F5`：❓ 提問引導模式<br/>- Esc 職責回歸：按下 `Esc` 僅專注於取消灰字、關閉查詞懸浮窗與關閉系統 Modal，不再收合字卡面板。<br/>- 桌面端按鈕動態提示同步升級為 `🔽 關閉字卡 (F4)` 與 `📖 展開字卡 (F4)`。<br/>- 新增 Obsidian 原生指令：「展開／關閉建議字卡 (F4)」。<br/>2. 專案版本升級為 v0.3.63。 |
 | **v0.3.62** | 2026-11-18 | 1. 電腦端排版重整：按鈕從最左側起始排列，模式提醒移至按鈕右側（徹底根除字串長度造成的按鈕抖動）：<br/>- 診斷原因：先前模式提醒（`● Diary Copilot` 與 `● ❓ 提問引導模式`）位於 `[📅 今日日記]` 的左邊，由於兩者字元長度不同，在開啟/關閉提問模式時，寬度變化約 35px 會導致其右邊的所有按鈕產生位移抖動。<br/>- 電腦端絕對固定（Desktop Anchor Left）：桌面端將功能按鈕群（`headerSysEl`）設定為 `order: 1` 靠最左起排，起點永遠從 x=0 鎖定；模式提醒（`brandWrapperEl`）設定為 `order: 2` 移至按鈕群右側。文字長度不論如何變化，均只在右側留白區伸展，左側所有功能按鈕位置 100% 絕對固定、零跳動。<br/>2. 手機與平板維持從右到左（Right-to-left Thumb Ergonomics）與靈活自適應：<br/>- 行動端（手機與平板）保留從右至左的靠右排列（`order: 2; justify-content: flex-end`），方便大拇指單手舒適點擊。<br/>- 自適應精簡文字（`📅`、`✨ 整理`、`⚙️`）與平滑橫向滑動保護維持 100% 原生穩定。<br/>3. 專案版本升級為 v0.3.62。 |
 | **v0.3.61** | 2026-11-18 | 1. 功能列按鈕一律自左側品牌/模式指示旁緊接排列（徹底杜絕左右橫跳與狀態列碰撞）：<br/>- 診斷原因：先前在收摺模式（`is-cards-closed` / `is-collapsed` / `is-compact-idle`）時，CSS 套用了 `justify-content: space-between` 與 `justify-content: flex-end`，將功能列按鈕推至畫面最右側（與 Obsidian 狀態列重疊）；而展開字卡時按鈕又回彈到左側，導致使用者按 Esc 切換或開關字卡時「功能列在左側與最右側之間劇烈橫跳」。<br/>- 左側緊密排列（Left-anchored Functional Toolbar）：修改 CSS 與佈局規則，頂部功能列（`row-1` 與 `header-sys`）在任何狀態（展開/收摺/提問/潤飾/精簡）下，一律維持 `justify-content: flex-start`，按鈕緊鄰左側的品牌指示（`● Diary Copilot` 或 `● ❓ 提問引導模式`）由左至右平鋪排列。<br/>- 模式指示一致性：收摺狀態下若處於提問模式，左側依然維持顯示 `● ❓ 提問引導模式`，不再跳回 `Diary Copilot`，確保按鈕起始位置 100% 絕對穩定，切換字卡零跳動。<br/>2. 展開字卡確保顯示完整卡片內容（Auto-fit & Full Visibility）：<br/>- 在提問引導模式下按 Esc 展開時，自動確保建議回答處於展開渲染狀態（`isShowingInquiryAnswers = true`），確保 4 張建議字卡完全呈現且看得清清楚楚。<br/>3. 專案版本升級為 v0.3.61。 |
 | **v0.3.60** | 2026-11-18 | 1. Windows 與 Mac 支援按下 Esc 鍵作為展開/關閉字卡的切換開關（Esc Toggle）：<br/>- 診斷與重構：原先鍵盤監聽中 Esc 鍵僅用於解除灰字跟寫，未與底部建議字卡開關聯動。<br/>- Esc 雙向切換（Toggle）：按下 Esc 鍵時，若有 Obsidian 原生彈窗（`.modal-container`）則維持原生關閉；若有查詞浮窗（SelectionPopover）則優先收合；其餘情況若有灰字則一併清理，並立即觸發 `cardPanel.toggleFoldCards()`，在「展開字卡」與「關閉字卡」之間流暢切換！<br/>- 電腦端按鈕標籤提示：桌面端（Windows / Mac）的字卡切換按鈕文字與提示動態升級為 `🔽 關閉字卡 (Esc)` 與 `📖 展開字卡 (Esc)`。<br/>- 設定選單 Esc 事件隔離：在快速設定選單按下 Esc 關閉時加上 `stopPropagation()`，避免事件冒泡觸發字卡切換。<br/>2. 專案版本升級為 v0.3.60。 |

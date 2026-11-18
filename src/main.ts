@@ -132,6 +132,9 @@ export default class DiaryCopilotPlugin extends Plugin {
         onInquiryRequest: () => {
           this.handleInquiryPrompt();
         },
+        onToggleCardsRequest: () => {
+          this.cardPanel?.toggleFoldCards();
+        },
         isShadowMode: () => this.scheduler.isShadowMode(),
         onDirectPaste: () => this.handleDirectPaste(),
       }),
@@ -140,7 +143,7 @@ export default class DiaryCopilotPlugin extends Plugin {
       }),
     ]);
 
-    // Global Key Listener for Tab (direct paste in shadow mode), Alt/Option+1/2/3/4 card selection, and Escape unlock
+    // Global Key Listener for Tab (direct paste in shadow mode), Alt/Option+1/2/3/4 card selection, F4 toggle cards, and Escape unlock
     this.registerDomEvent(window, "keydown", (e: KeyboardEvent) => {
       if (e.key === "Tab" && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
         if (this.scheduler.isShadowMode()) {
@@ -160,11 +163,15 @@ export default class DiaryCopilotPlugin extends Plugin {
           e.stopPropagation();
           return;
         }
+        if (this.scheduler.isShadowMode()) {
+          this.handleDismiss();
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+      }
+      if (e.key === "F4") {
         if (this.cardPanel) {
-          if (this.scheduler.isShadowMode()) {
-            this.scheduler.clear();
-            this.clearGhostText();
-          }
           this.cardPanel.toggleFoldCards();
           e.preventDefault();
           e.stopPropagation();
@@ -251,6 +258,12 @@ export default class DiaryCopilotPlugin extends Plugin {
       id: "polish-sentence",
       name: "潤飾當前/前一句表達 (F3)",
       callback: () => this.handlePolishSentence(),
+    });
+
+    this.addCommand({
+      id: "toggle-fold-cards",
+      name: "展開／關閉建議字卡 (F4)",
+      callback: () => this.cardPanel?.toggleFoldCards(),
     });
 
     this.addCommand({

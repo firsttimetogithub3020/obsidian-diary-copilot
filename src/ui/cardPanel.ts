@@ -441,14 +441,14 @@ export class CardPanel {
 
     if (areCardsShowing) {
       this.foldBtnEl.className = "diary-copilot-action-btn diary-copilot-fold-toggle-btn is-expanded";
-      this.foldBtnEl.setText(isNarrow ? "🔽 關閉" : (Platform.isDesktop ? "🔽 關閉字卡 (Esc)" : "🔽 關閉字卡"));
-      this.foldBtnEl.setAttribute("aria-label", "關閉建議字卡 (Esc)");
-      this.foldBtnEl.setAttribute("title", "關閉建議字卡 (Esc)");
+      this.foldBtnEl.setText(isNarrow ? "🔽 關閉" : (Platform.isDesktop ? "🔽 關閉字卡 (F4)" : "🔽 關閉字卡"));
+      this.foldBtnEl.setAttribute("aria-label", "關閉建議字卡 (F4)");
+      this.foldBtnEl.setAttribute("title", "關閉建議字卡 (F4)");
     } else {
       this.foldBtnEl.className = "diary-copilot-action-btn diary-copilot-fold-toggle-btn is-folded";
-      this.foldBtnEl.setText(isNarrow ? "📖 展開" : (Platform.isDesktop ? "📖 展開字卡 (Esc)" : "📖 展開字卡"));
-      this.foldBtnEl.setAttribute("aria-label", "展開建議字卡 (Esc)");
-      this.foldBtnEl.setAttribute("title", "展開建議字卡 (Esc)");
+      this.foldBtnEl.setText(isNarrow ? "📖 展開" : (Platform.isDesktop ? "📖 展開字卡 (F4)" : "📖 展開字卡"));
+      this.foldBtnEl.setAttribute("aria-label", "展開建議字卡 (F4)");
+      this.foldBtnEl.setAttribute("title", "展開建議字卡 (F4)");
     }
   }
 
@@ -1489,11 +1489,11 @@ export class CardPanel {
         text: isNarrow 
           ? (areCardsShowing ? "🔽 關閉" : "📖 展開")
           : (areCardsShowing 
-              ? (Platform.isDesktop ? "🔽 關閉字卡 (Esc)" : "🔽 關閉字卡") 
-              : (Platform.isDesktop ? "📖 展開字卡 (Esc)" : "📖 展開字卡")),
+              ? (Platform.isDesktop ? "🔽 關閉字卡 (F4)" : "🔽 關閉字卡") 
+              : (Platform.isDesktop ? "📖 展開字卡 (F4)" : "📖 展開字卡")),
         attr: {
-          "aria-label": areCardsShowing ? "關閉建議字卡 (Esc)" : "展開建議字卡 (Esc)",
-          title: areCardsShowing ? "關閉建議字卡 (Esc)" : "展開建議字卡 (Esc)",
+          "aria-label": areCardsShowing ? "關閉建議字卡 (F4)" : "展開建議字卡 (F4)",
+          title: areCardsShowing ? "關閉建議字卡 (F4)" : "展開建議字卡 (F4)",
         },
       });
       this.foldBtnEl.addEventListener("click", (e) => {
