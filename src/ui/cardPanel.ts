@@ -2041,6 +2041,10 @@ export class CardPanel {
             this.desktopVoiceInputEl.value = "";
           }
           this.finishOralRecording();
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          e.stopPropagation();
+          this.cancelOralShadowing();
         }
       });
       this.oralLiveTextEl = null;
@@ -2289,11 +2293,15 @@ export class CardPanel {
   /**
    * Cancel Oral Shadowing without mutating note
    */
-  private cancelOralShadowing() {
+  public cancelOralShadowing() {
     this.oralPassed = false;
     this.isOralListening = false;
     this.oralLatestTranscript = "";
     this.clearAutoPassTimer();
+    if (this.desktopVoiceInputEl) {
+      this.desktopVoiceInputEl.blur();
+      this.desktopVoiceInputEl.value = "";
+    }
     globalSpeechRecognizer.stop();
     this.isOralMode = false;
     if (this.oralPassTimeout) {

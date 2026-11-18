@@ -171,6 +171,12 @@ export default class DiaryCopilotPlugin extends Plugin {
           e.stopPropagation();
           return;
         }
+        if (this.cardPanel?.isOralActive()) {
+          this.cardPanel.cancelOralShadowing();
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         if (this.scheduler.isShadowMode()) {
           this.handleDismiss();
           e.preventDefault();
@@ -1113,10 +1119,10 @@ export default class DiaryCopilotPlugin extends Plugin {
     }
 
     // Anti-duplicate Dictation / IME flush guard:
-    // When finishing native speech dictation (Mac Fn Fn, Windows Win+H, iOS mic), pressing Enter often causes
+    // When finishing native speech dictation (Mac Fn Fn, Windows Win+H, iOS mic), pressing Enter or ESC causes
     // the OS dictation engine to flush its buffered text into the newly focused editor, duplicating the sentence!
-    // If a transaction within 4000ms of adoption inserts text that duplicates lastAdoptedText, eliminate the duplicate!
-    if (this.lastAdoptedText && Date.now() - this.lastAdoptedTime < 4000) {
+    // If a transaction within 6000ms of adoption inserts text that duplicates lastAdoptedText, eliminate the duplicate!
+    if (this.lastAdoptedText && Date.now() - this.lastAdoptedTime < 6000) {
       const normLast = this.lastAdoptedText.toLowerCase().replace(/[^a-z0-9]/g, "");
       if (normLast.length >= 10) {
         for (const tr of update.transactions) {
@@ -1130,7 +1136,7 @@ export default class DiaryCopilotPlugin extends Plugin {
                   (normIns.length >= 15 && normLast.includes(normIns)) ||
                   (normLast.length >= 15 && normIns.includes(normLast)))
               ) {
-                console.warn("[Diary Copilot] Intercepted and eliminated duplicate dictation flush on Enter:", insStr);
+                console.warn("[Diary Copilot] Intercepted and eliminated duplicate dictation flush (Enter/ESC):", insStr);
                 const replacement = insStr.includes("\n") ? "\n" : "";
                 window.setTimeout(() => {
                   const ev = this.getEditorView();
@@ -1569,9 +1575,17 @@ export default class DiaryCopilotPlugin extends Plugin {
     const docLength = editorView.state.doc.length;
     const fullDoc = editorView.state.doc.toString();
 
-    // On desktop, refocus editor
+    // On desktop, refocus editor (for oral adoption, slightly defer so OS dictation cleans up its session)
     if (!Platform.isMobile) {
-      editor.focus();
+      if (sourceChannel === "oral") {
+        window.setTimeout(() => {
+          if (!Platform.isMobile) {
+            editor.focus();
+          }
+        }, 300);
+      } else {
+        editor.focus();
+      }
     }
 
     const currentCursor = editor.posToOffset(editor.getCursor());
