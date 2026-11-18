@@ -2,7 +2,7 @@
 
 /* Card Panel Container */
 .diary-copilot-panel {
-  --diary-copilot-btn-font-size: calc(var(--diary-copilot-font-size, 13.5px) - 2px);
+  --diary-copilot-btn-font-size: var(--diary-copilot-font-size, 13.5px);
   --diary-copilot-subtext-font-size: calc(var(--diary-copilot-font-size, 13.5px) - 1.5px);
   position: absolute;
   left: 0;
@@ -265,9 +265,10 @@
     display: none !important;
   }
   .diary-copilot-header-sys .diary-copilot-action-btn {
-    padding: 4px 7px !important;
-    font-size: 12px !important;
-    height: 32px !important;
+    padding: 4px 8px !important;
+    font-size: var(--diary-copilot-btn-font-size, 12px) !important;
+    min-height: 32px !important;
+    height: auto !important;
     border-radius: 6px !important;
     white-space: nowrap !important;
     flex-shrink: 0 !important;
@@ -2312,8 +2313,9 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
 .diary-copilot-panel.is-compact-idle:not(.is-resizing),
 .diary-copilot-panel.is-cards-closed:not(.is-resizing),
 .diary-copilot-panel.is-collapsed:not(.is-resizing) {
-  min-height: calc(60px + env(safe-area-inset-bottom, 0px));
-  padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+  min-height: 40px;
+  height: var(--diary-copilot-panel-height, auto);
+  padding: 6px 12px calc(6px + env(safe-area-inset-bottom, 0px));
   overflow: visible !important;
 }
 
@@ -2379,7 +2381,8 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
 .diary-copilot-panel.is-cards-closed .diary-copilot-header-row-1,
 .diary-copilot-panel.is-collapsed .diary-copilot-header-row-1 {
   margin-bottom: 0 !important;
-  height: 38px !important;
+  min-height: 36px !important;
+  height: 100% !important;
   display: flex !important;
   flex-direction: row !important;
   align-items: center !important;
@@ -2548,6 +2551,7 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
 .diary-copilot-settings-body {
   padding: 14px 18px;
   overflow-y: auto;
+  overflow-x: hidden !important;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -2598,20 +2602,23 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
   font-weight: normal;
 }
 
-/* Item 2: Tone Grid */
+/* Item 2: Tone List (純上下垂直捲動，無左右排列) */
 .diary-copilot-tone-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
 }
 
 .diary-copilot-tone-chip {
-  padding: 8px 10px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px;
   border: 1px solid var(--background-modifier-border);
   background-color: var(--background-secondary);
   border-radius: 8px;
   cursor: pointer;
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--text-normal);
   display: flex;
   flex-direction: column;
@@ -2634,12 +2641,18 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
 .diary-copilot-tone-chip-name {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
 }
 
 .diary-copilot-tone-chip-desc {
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-muted);
+  margin-top: 3px;
+  white-space: normal;
+  line-height: 1.4;
+}
   margin-top: 2px;
   white-space: nowrap;
   overflow: hidden;

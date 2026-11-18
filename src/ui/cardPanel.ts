@@ -499,7 +499,7 @@ export class CardPanel {
     if (Platform.isMobile) {
       return `calc(${baseHeight}px + env(safe-area-inset-bottom, 0px))`;
     }
-    return `${Math.max(40, baseHeight - 14)}px`;
+    return `${baseHeight}px`;
   }
 
   public closeCards(forKeyboard = false, silent = false) {
@@ -2214,7 +2214,7 @@ export class CardPanel {
       else if (opt.id === "humorous") icon = "😄";
       else if (opt.id === "vivid") icon = "🎨";
 
-      chipName.setText(`${icon} ${opt.label.split(" ")[0]}`);
+      chipName.setText(`${icon} ${opt.label}`);
       chip.createDiv({ cls: "diary-copilot-tone-chip-desc", text: opt.desc });
 
       chip.addEventListener("click", () => {
@@ -2233,12 +2233,12 @@ export class CardPanel {
     const heightRow = secHeight.createDiv({ cls: "diary-copilot-setting-stepper-row" });
 
     let curHeight = this.callbacks.getCollapsedHeight?.() || 60;
-    const heightPresets = [48, 60, 72, 84];
+    const heightPresets = [48, 60, 72, 84, 100];
     const presetsDiv = heightRow.createDiv({ cls: "diary-copilot-stepper-presets" });
     const presetBtns: { [h: number]: HTMLElement } = {};
 
     const updateHeightDisplay = (newH: number) => {
-      curHeight = Math.max(40, Math.min(100, newH));
+      curHeight = Math.max(40, Math.min(140, newH));
       heightVal.setText(`${curHeight}px`);
       Object.entries(presetBtns).forEach(([val, btn]) => {
         if (parseInt(val, 10) === curHeight) {

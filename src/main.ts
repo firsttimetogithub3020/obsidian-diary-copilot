@@ -374,7 +374,7 @@ export default class DiaryCopilotPlugin extends Plugin {
       const local = localStorage.getItem("diary-copilot-collapsed-height");
       if (local) {
         const parsed = parseInt(local, 10);
-        if (!isNaN(parsed) && parsed >= 40 && parsed <= 120) return parsed;
+        if (!isNaN(parsed) && parsed >= 40 && parsed <= 140) return parsed;
       }
     } catch {}
     return this.settings.collapsedHeight || 60;
@@ -1060,14 +1060,9 @@ export default class DiaryCopilotPlugin extends Plugin {
     const paragraphSummary = this.summaryManager.getParagraphSummary(filePath);
     const styleSummary = this.data.styleSummary?.summary;
 
-    // In Compact Mode (精簡模式): Do NOT trigger real-time continuation cards!
-    // Compact mode focuses purely on: Inquiry Guided Questions -> Voice Answer -> Polish -> Shadowing.
-    if (this.settings.copilotMode === "compact") {
-      return;
-    }
-
-    // Trigger scheduler
-    this.scheduler.handleDocChange(context, styleSummary, paragraphSummary);
+    // Option 1: Zero typing passive continuation distraction.
+    // Typing never triggers automatic prediction cards or ghost text.
+    // Diary Copilot operates purely on active user requests (❓ Inquiry, ✨ Polish, ✨ Shadowing) and Alt+1~4 shortcuts.
 
     // Update paragraph summary in background if newline was inserted
     for (const tr of update.transactions) {
