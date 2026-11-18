@@ -28,6 +28,7 @@ export default class DiaryCopilotPlugin extends Plugin {
 
   // Active view tracking
   private activeView: MarkdownView | null = null;
+  private lastActiveMarkdownView: MarkdownView | null = null;
   private currentFilePath = "";
   private cardPanel: CardPanel | null = null;
   private currentActiveEditorView: EditorView | null = null;
@@ -328,13 +329,20 @@ export default class DiaryCopilotPlugin extends Plugin {
 
     // Listen to active leaf and file changes to mount/unmount CardPanel
     this.registerEvent(
-      this.app.workspace.on("active-leaf-change", () => {
+      this.app.workspace.on("active-leaf-change", (leaf) => {
+        if (leaf?.view && ((leaf.view as any).getViewType?.() === "markdown" || leaf.view instanceof MarkdownView)) {
+          this.lastActiveMarkdownView = leaf.view as MarkdownView;
+        }
         this.syncActiveView();
       })
     );
 
     this.registerEvent(
       this.app.workspace.on("file-open", () => {
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (view) {
+          this.lastActiveMarkdownView = view;
+        }
         this.syncActiveView();
       })
     );
@@ -507,31 +515,61 @@ export default class DiaryCopilotPlugin extends Plugin {
   }
 
   toggleCopilotGlobally() {
-    this.isCopilotGloballyMuted = !this.isCopilotGloballyMuted;
-    if (this.isCopilotGloballyMuted) {
+    const isPanelCurrentlyOpen = !this.isCopilotGloballyMuted && this.cardPanel && !this.cardPanel.isHidden();
+
+    if (isPanelCurrentlyOpen) {
+      // User explicitly wants to CLOSE Copilot
+      this.isCopilotGloballyMuted = true;
       this.cardPanel?.destroy();
       this.cardPanel = null;
       this.clearGhostText();
       this.scheduler.clear();
+      this.updateRibbonIconState();
       new Notice("已全域關閉 Diary Copilot 面板（開關指令優先，絕不自動重開）");
     } else {
+      // User explicitly wants to OPEN Copilot!
+      this.isCopilotGloballyMuted = false;
+      // Clear manual disable list so previous individual note closes don't block the global switch!
+      this.manuallyDisabledNotes.clear();
+
+      // Resolve current active file or view to guarantee eligibility
+      const activeFile = this.app.workspace.getActiveFile() || this.lastActiveMarkdownView?.file || this.getActiveMarkdownView()?.file;
+      if (activeFile) {
+        this.manuallyEnabledNotes.add(activeFile.path);
+      }
+
       this.syncActiveView();
+      if (this.cardPanel) {
+        this.cardPanel.show();
+      }
+
+      // On Mac/iOS/iPad: clicking ribbon might have microsecond async focus delay; schedule retry
+      window.setTimeout(() => {
+        if (!this.cardPanel || this.cardPanel.isHidden()) {
+          this.syncActiveView();
+          if (this.cardPanel) {
+            this.cardPanel.show();
+          }
+        }
+        this.updateRibbonIconState();
+      }, 80);
+
+      this.updateRibbonIconState();
       new Notice("已全域開啟 Diary Copilot 面板");
     }
-    this.updateRibbonIconState();
   }
 
   toggleCopilotInCurrentNote() {
-    const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const activeMarkdownView = this.getActiveMarkdownView() || this.app.workspace.getActiveViewOfType(MarkdownView) || (this.app.workspace as any).getMostRecentLeaf?.()?.view;
     if (!activeMarkdownView || !activeMarkdownView.file) {
       new Notice("請先開啟一篇筆記");
       return;
     }
 
     const filePath = activeMarkdownView.file.path;
-    const isCurrentlyEligible = this.isEligibleNote(activeMarkdownView.file);
+    const isCurrentlyOpen = this.cardPanel && !this.cardPanel.isHidden();
 
-    if (isCurrentlyEligible && this.cardPanel && !this.cardPanel.isHidden()) {
+    if (isCurrentlyOpen) {
       // User explicitly WANTS TO CLOSE!
       this.manuallyDisabledNotes.add(filePath);
       this.manuallyEnabledNotes.delete(filePath);
@@ -539,13 +577,13 @@ export default class DiaryCopilotPlugin extends Plugin {
       this.cardPanel = null;
       this.clearGhostText();
       this.scheduler.clear();
+      this.updateRibbonIconState();
       new Notice("已關閉此筆記的 Copilot 面板（開關指令優先，絕不自動重開）");
     } else {
       // User explicitly WANTS TO OPEN!
       // If Copilot is currently globally muted, un-mute it so this explicit request takes effect!
       if (this.isCopilotGloballyMuted) {
         this.isCopilotGloballyMuted = false;
-        this.updateRibbonIconState();
         new Notice("💡 已自動為您解除全域關閉，並在此筆記啟用 Copilot 面板");
       } else {
         new Notice("已在此筆記啟用 Copilot 面板");
@@ -556,25 +594,77 @@ export default class DiaryCopilotPlugin extends Plugin {
       if (this.cardPanel) {
         this.cardPanel.show();
       }
+      this.updateRibbonIconState();
     }
   }
 
   getActiveMarkdownView(): MarkdownView | null {
+    // 1. Direct active view of type MarkdownView
     const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (activeView && activeView.file && this.isEligibleNote(activeView.file)) {
       this.activeView = activeView;
+      this.lastActiveMarkdownView = activeView;
       return activeView;
     }
-    if (this.activeView && this.activeView.file && this.isEligibleNote(this.activeView.file)) {
-      if ((this.activeView as any).containerEl?.isConnected !== false) {
-        return this.activeView;
+
+    // 2. Active leaf view in workspace (handles cases where focus shifted to ribbon/sidebar)
+    const activeLeafView = this.app.workspace.activeLeaf?.view;
+    if (activeLeafView && (activeLeafView instanceof MarkdownView || (activeLeafView as any).getViewType?.() === "markdown")) {
+      const mv = activeLeafView as MarkdownView;
+      if (mv.file && this.isEligibleNote(mv.file)) {
+        this.activeView = mv;
+        this.lastActiveMarkdownView = mv;
+        return mv;
       }
     }
+
+    // 3. Most recent leaf (official Obsidian workspace API for finding active editor)
+    const recentLeaf = (this.app.workspace as any).getMostRecentLeaf?.();
+    if (recentLeaf && recentLeaf.view) {
+      const rView = recentLeaf.view;
+      if (rView instanceof MarkdownView || (rView as any).getViewType?.() === "markdown") {
+        const mv = rView as MarkdownView;
+        if (mv.file && this.isEligibleNote(mv.file)) {
+          this.activeView = mv;
+          this.lastActiveMarkdownView = mv;
+          return mv;
+        }
+      }
+    }
+
+    // 4. Cached activeView or lastActiveMarkdownView whose DOM is still connected
+    const cachedView = this.activeView || this.lastActiveMarkdownView;
+    if (cachedView && cachedView.file && this.isEligibleNote(cachedView.file)) {
+      if ((cachedView as any).containerEl?.isConnected !== false) {
+        this.activeView = cachedView;
+        return cachedView;
+      }
+    }
+
+    // 5. Active file matching leaf
+    const activeFile = this.app.workspace.getActiveFile();
+    if (activeFile && this.isEligibleNote(activeFile)) {
+      const leaves = this.app.workspace.getLeavesOfType("markdown");
+      for (const leaf of leaves) {
+        const mv = leaf.view as MarkdownView;
+        if (mv && mv.file && mv.file.path === activeFile.path) {
+          this.activeView = mv;
+          this.lastActiveMarkdownView = mv;
+          return mv;
+        }
+      }
+    }
+
+    // 6. Iterate all open markdown leaves in workspace
     const leaves = this.app.workspace.getLeavesOfType("markdown");
     for (const leaf of leaves) {
-      if (leaf.view instanceof MarkdownView && leaf.view.file && this.isEligibleNote(leaf.view.file)) {
-        this.activeView = leaf.view;
-        return leaf.view;
+      const mv = leaf.view as MarkdownView;
+      if (mv && mv.file && this.isEligibleNote(mv.file)) {
+        if ((mv as any).containerEl?.isConnected !== false) {
+          this.activeView = mv;
+          this.lastActiveMarkdownView = mv;
+          return mv;
+        }
       }
     }
     return null;
@@ -795,6 +885,7 @@ export default class DiaryCopilotPlugin extends Plugin {
           this.cardPanel?.renderIdleState();
         }
       }
+      this.updateRibbonIconState();
     } else {
       this.activeView = null;
       this.currentFilePath = "";
@@ -804,6 +895,7 @@ export default class DiaryCopilotPlugin extends Plugin {
       this.currentPolishItem = null;
       this.scheduler.clear();
       this.clearGhostText();
+      this.updateRibbonIconState();
     }
   }
 
@@ -1812,11 +1904,12 @@ export default class DiaryCopilotPlugin extends Plugin {
 
   private updateRibbonIconState() {
     if (!this.ribbonIconEl) return;
-    if (this.isCopilotGloballyMuted) {
-      this.ribbonIconEl.setAttribute("aria-label", "Diary Copilot (已全域關閉，點擊開啟)");
+    const isClosed = this.isCopilotGloballyMuted || !this.cardPanel || this.cardPanel.isHidden();
+    if (isClosed) {
+      this.ribbonIconEl.setAttribute("aria-label", "Diary Copilot (已關閉，點擊開啟)");
       this.ribbonIconEl.style.opacity = "0.45";
     } else {
-      this.ribbonIconEl.setAttribute("aria-label", "Diary Copilot (已全域開啟，點擊關閉)");
+      this.ribbonIconEl.setAttribute("aria-label", "Diary Copilot (已開啟，點擊關閉)");
       this.ribbonIconEl.style.opacity = "1";
     }
   }
