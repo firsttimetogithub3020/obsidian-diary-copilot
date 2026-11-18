@@ -241,15 +241,8 @@ export class CardPanel {
 
   public updateStatusBarOffset() {
     if (Platform.isMobile) return;
-    try {
-      const statusBar = document.querySelector(".status-bar");
-      if (statusBar) {
-        const width = (statusBar as HTMLElement).offsetWidth || 280;
-        this.panelEl?.style.setProperty("--diary-copilot-status-bar-offset", `${Math.max(280, width + 16)}px`);
-      } else {
-        this.panelEl?.style.setProperty("--diary-copilot-status-bar-offset", "0px");
-      }
-    } catch {}
+    // Desktop layout: full-width balanced alignment without artificial right squeeze
+    this.panelEl?.style.setProperty("--diary-copilot-status-bar-offset", "0px");
   }
 
   private setupResizeListeners() {

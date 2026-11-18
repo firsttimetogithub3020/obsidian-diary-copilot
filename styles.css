@@ -23,9 +23,9 @@
   overflow: visible;
 }
 
-/* On desktop, add right padding to avoid colliding with Obsidian status bar (.status-bar) */
+/* On desktop, provide clean balanced padding so cards span full width and align naturally */
 body:not(.is-mobile) .diary-copilot-panel {
-  padding-right: var(--diary-copilot-status-bar-offset, 320px) !important;
+  padding: 6px 14px 8px !important;
 }
 
 .diary-copilot-panel.is-animating {
