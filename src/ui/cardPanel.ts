@@ -505,9 +505,9 @@ export class CardPanel {
     this.panelEl.addClass("is-compact");
     this.panelEl.addClass("is-compact-idle");
 
-    const collapsedHeight = Platform.isMobile ? 60 : 46;
-    this.panelEl.style.height = `${collapsedHeight}px`;
-    document.body.style.setProperty("--diary-copilot-panel-height", `${collapsedHeight}px`);
+    const collapsedHeight = Platform.isMobile ? "calc(60px + env(safe-area-inset-bottom, 0px))" : "46px";
+    this.panelEl.style.height = collapsedHeight;
+    document.body.style.setProperty("--diary-copilot-panel-height", collapsedHeight);
 
     this.updateFoldButtonState();
     if (!forKeyboard) {
@@ -537,8 +537,8 @@ export class CardPanel {
     if (!this.panelEl) return;
 
     if (this.isKeyboardWriting || !this.isCardsExpanded || this.panelEl.hasClass("is-cards-closed") || this.isCollapsed) {
-      const collapsedHeight = Platform.isMobile ? 60 : 46;
-      this.panelEl.style.height = `${collapsedHeight}px`;
+      const collapsedHeight = Platform.isMobile ? "calc(60px + env(safe-area-inset-bottom, 0px))" : "46px";
+      this.panelEl.style.height = collapsedHeight;
       this.panelEl.addClass("is-compact");
       this.panelEl.addClass("is-collapsed");
       this.panelEl.addClass("is-cards-closed");
@@ -546,18 +546,18 @@ export class CardPanel {
       if (this.isKeyboardWriting) {
         this.panelEl.addClass("is-keyboard-writing");
       }
-      document.body.style.setProperty("--diary-copilot-panel-height", `${collapsedHeight}px`);
+      document.body.style.setProperty("--diary-copilot-panel-height", collapsedHeight);
       this.updateFoldButtonState();
       return;
     }
 
     // In compact mode with no cards and no inquiry (idle single-row toolbar)
     if (this.copilotMode === "compact" && this.currentCards.length === 0 && !this.pinnedInquiryItem && !this.hasUserManuallyResized) {
-      const compactBarHeight = Platform.isMobile ? 60 : 48;
-      this.panelEl.style.height = `${compactBarHeight}px`;
+      const compactBarHeight = Platform.isMobile ? "calc(60px + env(safe-area-inset-bottom, 0px))" : "48px";
+      this.panelEl.style.height = compactBarHeight;
       this.panelEl.addClass("is-compact");
       this.panelEl.addClass("is-compact-idle");
-      document.body.style.setProperty("--diary-copilot-panel-height", `${compactBarHeight}px`);
+      document.body.style.setProperty("--diary-copilot-panel-height", compactBarHeight);
       this.updateFoldButtonState();
       return;
     }
