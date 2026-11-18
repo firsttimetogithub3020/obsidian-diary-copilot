@@ -1932,6 +1932,9 @@ export class CardPanel {
     this.renderHeaderActionsOral();
 
     const spokenText = this.desktopVoiceInputEl ? this.desktopVoiceInputEl.value : this.oralLatestTranscript;
+    if (this.desktopVoiceInputEl) {
+      this.desktopVoiceInputEl.blur();
+    }
     const match = evaluateOralMatch(spokenText, this.oralTargetText, true);
     this.updateOralVisuals(match);
 
@@ -2032,6 +2035,11 @@ export class CardPanel {
       this.desktopVoiceInputEl.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
           e.preventDefault();
+          e.stopPropagation();
+          if (this.desktopVoiceInputEl) {
+            this.desktopVoiceInputEl.blur();
+            this.desktopVoiceInputEl.value = "";
+          }
           this.finishOralRecording();
         }
       });
@@ -2207,6 +2215,10 @@ export class CardPanel {
       this.oralPassTimeout = null;
     }
     globalSpeechRecognizer.stop();
+    if (this.desktopVoiceInputEl) {
+      this.desktopVoiceInputEl.blur();
+      this.desktopVoiceInputEl.value = "";
+    }
     this.renderHeaderActionsOral();
 
     // 1. Visual success feedback
@@ -2254,6 +2266,10 @@ export class CardPanel {
       this.oralPassTimeout = null;
     }
     globalSpeechRecognizer.stop();
+    if (this.desktopVoiceInputEl) {
+      this.desktopVoiceInputEl.blur();
+      this.desktopVoiceInputEl.value = "";
+    }
     this.isOralMode = false;
     const targetText = this.oralTargetText;
     const kind = this.oralKind;
