@@ -271,10 +271,9 @@ body:not(.is-mobile) .diary-copilot-brand-wrapper {
     align-items: center !important;
     width: 100% !important;
     flex-wrap: nowrap !important;
-    overflow-x: auto !important;
+    overflow-x: hidden !important;
     overflow-y: hidden !important;
     scrollbar-width: none !important;
-    -webkit-overflow-scrolling: touch !important;
   }
 
   .diary-copilot-brand-wrapper {
@@ -312,10 +311,9 @@ body:not(.is-mobile) .diary-copilot-brand-wrapper {
     margin-right: 4px !important;
   }
   .diary-copilot-header-row-1 {
-    overflow-x: auto !important;
+    overflow-x: hidden !important;
     overflow-y: hidden !important;
     scrollbar-width: none !important;
-    -webkit-overflow-scrolling: touch !important;
   }
   .diary-copilot-header-row-1::-webkit-scrollbar {
     display: none !important;
@@ -323,13 +321,12 @@ body:not(.is-mobile) .diary-copilot-brand-wrapper {
   .diary-copilot-header-sys {
     display: flex !important;
     align-items: center !important;
-    gap: 3px !important;
+    gap: 2.5px !important;
     flex: 1 1 auto !important;
     min-width: 0 !important;
-    overflow-x: auto !important;
+    overflow-x: hidden !important;
     overflow-y: hidden !important;
     scrollbar-width: none !important;
-    -webkit-overflow-scrolling: touch !important;
     flex-wrap: nowrap !important;
     justify-content: flex-end !important;
   }
@@ -337,11 +334,11 @@ body:not(.is-mobile) .diary-copilot-brand-wrapper {
     display: none !important;
   }
   .diary-copilot-header-sys .diary-copilot-action-btn {
-    padding: 3px 6px !important;
-    font-size: var(--diary-copilot-btn-font-size, 12px) !important;
-    min-height: 30px !important;
-    height: 30px !important;
-    border-radius: 6px !important;
+    padding: 2px 4.5px !important;
+    font-size: var(--diary-copilot-btn-font-size, 11px) !important;
+    min-height: 27px !important;
+    height: 27px !important;
+    border-radius: 5px !important;
     white-space: nowrap !important;
     flex-shrink: 0 !important;
   }
@@ -360,10 +357,9 @@ body.is-phone .diary-copilot-brand {
 
 .is-narrow-screen .diary-copilot-header-row-1,
 body.is-phone .diary-copilot-header-row-1 {
-  overflow-x: auto !important;
+  overflow-x: hidden !important;
   overflow-y: hidden !important;
   scrollbar-width: none !important;
-  -webkit-overflow-scrolling: touch !important;
 }
 
 .is-narrow-screen .diary-copilot-header-row-1::-webkit-scrollbar,
@@ -375,13 +371,12 @@ body.is-phone .diary-copilot-header-row-1::-webkit-scrollbar {
 body.is-phone .diary-copilot-header-sys {
   display: flex !important;
   align-items: center !important;
-  gap: 3px !important;
+  gap: 2.5px !important;
   flex: 1 1 auto !important;
   min-width: 0 !important;
-  overflow-x: auto !important;
+  overflow-x: hidden !important;
   overflow-y: hidden !important;
   scrollbar-width: none !important;
-  -webkit-overflow-scrolling: touch !important;
   flex-wrap: nowrap !important;
   justify-content: flex-end !important;
 }
@@ -393,11 +388,11 @@ body.is-phone .diary-copilot-header-sys::-webkit-scrollbar {
 
 .is-narrow-screen .diary-copilot-header-sys .diary-copilot-action-btn,
 body.is-phone .diary-copilot-header-sys .diary-copilot-action-btn {
-  padding: 3px 6px !important;
-  font-size: var(--diary-copilot-btn-font-size, 12px) !important;
-  min-height: 30px !important;
-  height: 30px !important;
-  border-radius: 6px !important;
+  padding: 2px 4.5px !important;
+  font-size: var(--diary-copilot-btn-font-size, 11px) !important;
+  min-height: 27px !important;
+  height: 27px !important;
+  border-radius: 5px !important;
   white-space: nowrap !important;
   flex-shrink: 0 !important;
 }

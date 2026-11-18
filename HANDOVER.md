@@ -12,7 +12,7 @@
 * **專案名稱**：Obsidian Diary Copilot (`obsidian-diary-copilot`)
 * **本機代碼倉庫**：`E:\obsidian-english\obsidian-diary-copilot`
 * **本機 Vault 部署路徑**：`E:\AI-Knowledge-System\Obsidian-Vault\.obsidian\plugins\diary-copilot`
-* **當前最新版本**：`v0.3.71`
+* **當前最新版本**：`v0.3.72`
 * **使用者**：Alan（對話與說明一律使用**繁體中文**；代碼識別碼與 Commit 訊息一律使用英文）。
 
 ---
@@ -97,6 +97,7 @@ flowchart TD
 
 | 版本 | 日期 | 重點改動說明 |
 | :--- | :--- | :--- |
+| **v0.3.72** | 2026-11-19 | 1. iPhone 模式功能列緊湊雙字排版與全面取消左右滑動（消除 Obsidian 原生側邊欄手勢衝突）：<br/>- 診斷原因：Obsidian 行動版具有原生邊緣滑動手勢（從左往右滑拉出檔案樹、從右往左滑拉出側邊大綱）。先前頂部功能列設置了 `overflow-x: auto` 與 `-webkit-overflow-scrolling: touch`，導致 iOS WebKit 將手指橫向滑動鎖定在工具列內部，造成手勢衝突且操作卡頓。<br/>- 全面取消左右滑動（Zero Gesture Trapping）：將功能列容器（`diary-copilot-header-row-1` 與 `diary-copilot-header-sys`）的 `overflow-x` 嚴格設定為 `hidden !important`，並徹底移除 `-webkit-overflow-scrolling: touch`，讓手指橫向手勢 100% 順暢穿透至 Obsidian 原生導航系統。<br/>- 緊湊雙字呈現（Compact 2-char Toolbar）：窄螢幕與手機版下按鈕標籤一律精簡為乾淨俐落的「雙字」呈現（`📅 日記`、`✨ 整理`、`❓ 提問` / `✕ 提問`、`✨ 潤飾`、`🔽 關閉` / `📖 展開`、`⚙️`、`✕`），內距縮為 `2px 4.5px`，按鈕間距微調為 `2.5px`，總寬度壓至 ~275px，在 iPhone 375px~430px 螢幕下整列完整容納、零裁切零換行。<br/>2. 專案版本升級為 v0.3.72。 |
 | **v0.3.71** | 2026-11-19 | 1. 徹底還原 Windows / 潤飾模式替換原文能力，消除 EditorUpdate 過度攔截：<br/>- 診斷原因：v0.3.69 / v0.3.70 在 `handleEditorUpdate` 中嘗試以非同步定時器抹除 OS 聽寫的重複沖刷時，誤將外掛自身剛替換寫入筆記的合法 transaction 判定為重複並於 10ms 後派發刪除，導致 Windows 及所有平台在跟讀成功或自動填入後「無法替換原文」或文字被撤銷。<br/>- 徹底修復：徹底拔除 `handleEditorUpdate` 中任何對編輯器內文的破壞性刪除與反向 dispatch，100% 恢復 `adoptSuggestion` 對 `from/to` 區間的精確原子替換。<br/>- 輸入框生命週期乾淨閉環：防重複保留於輸入端防線（`desktopVoiceInputEl` 達標立即 blur 與清空，以及全域 ESC/Enter 鍵安全事件阻斷），完全不影響主編輯區的任何正常替換與寫入操作。<br/>2. 專案版本升級為 v0.3.71。 |
 | **v0.3.70** | 2026-11-19 | 1. 徹底根除 Mac / Windows 按下 ESC 鍵時觸發的作業系統語音聽寫二次重複寫入：<br/>- 診斷原因：在 Mac 系統中，Apple Dictation（連按兩次 Fn）在結束時可由 `Enter` 或 `Escape` 鍵提交。在跟讀達標句子自動貼入筆記後，若使用者按下 `ESC` 想關閉浮窗或解除聚焦，macOS / Windows 聽寫緩衝區會將未關閉的聽寫結果再次提交至筆記，導致與 Enter 鍵一模一樣的二次複製 Bug。<br/>- 防護 1（全局 Escape 事件安全攔截）：在全域鍵盤監聽中優先偵測 `isOralActive()`，若跟讀進行中按 ESC，立即主動中斷語音、清空並模糊 `desktopVoiceInputEl`，絕不讓 OS 聽寫引擎殘留緩衝。<br/>- 防護 2（延遲編輯器聚焦）：跟讀自動填入完成後，稍作延遲 300ms 再將焦點交給 Obsidian 編輯器，確保 OS 聽寫 session 完全安全退場，杜絕游標轉移造成的跨視窗沖刷。<br/>- 防護 3（交易層擴展至 6 秒全面阻絕 Enter 與 ESC 沖刷）：智慧重複句子消除器攔截窗口升級至 6000ms，無論使用者按 Enter（帶換行）或 ESC（不帶換行），只要出現重複句子一律在 CodeMirror 交易底層原地抹除！<br/>2. 專案版本升級為 v0.3.70。 |
 | **v0.3.69** | 2026-11-19 | 1. 深度根除 Mac / Windows / iOS 原生語音聽寫在 Enter 鍵時的二次沖刷寫入（IME / Dictation Flush Eliminator）：<br/>- 診斷原因：在 Mac（連按兩次 Fn）或 Windows（Win+H）進行語音跟讀時，當吻合度達標自動貼入筆記後，作業系統的聽寫引擎（Apple Dictation）依然在背景維持未提交的緩衝 session。當使用者在輸入框或編輯區按下 `Enter` 換行時，Electron 與 macOS 聽寫引擎會強制將未完成的緩衝文字再次沖刷（flush）輸出至當前焦點編輯器，導致編輯區瞬間出現兩句一模一樣的句子！<br/>- 防護 1（即時離焦與輸入框乾淨清空）：在跟讀判定達標瞬間與按下 Enter 瞬間，立即對 `desktopVoiceInputEl` 執行 `blur()` 與 `value = ""`，主動通知 OS 聽寫引擎結束 session，阻止緩衝轉移。<br/>- 防護 2（CodeMirror 核心交易層智慧攔截消除）：在 `handleEditorUpdate` 中攔截任何在套用後 4000ms 內由 Enter 或 OS 沖刷進來的重複句子（比對正規化文字），一旦發現重複立即自動撤銷該句並僅保留使用者想要的換行 `\n`，徹底在編輯器層面阻斷重複寫入，全平台（Mac, Windows, iPhone, iPad, Android）徹底絕收！<br/>2. 專案版本升級為 v0.3.69。 |

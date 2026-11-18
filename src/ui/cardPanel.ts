@@ -1429,7 +1429,7 @@ export class CardPanel {
       // 0. 📅 開啟今日日記
       const todayBtn = this.headerSysEl.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-today-diary-btn",
-        text: isNarrow ? "📅" : "📅 今日日記",
+        text: isNarrow ? "📅 日記" : "📅 今日日記",
         attr: {
           "aria-label": "開啟今日日記 (Diary Copilot)",
           title: "開啟今日日記 (Diary Copilot)",
