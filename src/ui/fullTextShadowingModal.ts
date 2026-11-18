@@ -4,10 +4,65 @@ import { speakSentence, stopAudio, splitTextIntoSentences, isAudioPlaying, unloc
 import { tidyUpTodayDiary } from "../commands/tidyUp";
 import { setupPinchZoom, PinchZoomController } from "./pinchZoom";
 
+export interface ShadowingSection {
+  title: string;
+  sentences: string[];
+}
+
+/**
+ * Parses full note text into distinct sections separated by markdown # headings
+ */
+export function parseShadowingSections(fullText: string): ShadowingSection[] {
+  if (!fullText) return [];
+  // Strip YAML frontmatter if present
+  const clean = fullText.replace(/^---[\s\S]*?\n---\s*/, "").trim();
+  const lines = clean.split("\n");
+  const rawSections: { title: string; lines: string[] }[] = [];
+  let currentTitle = "導言";
+  let currentLines: string[] = [];
+
+  for (const line of lines) {
+    // Matches markdown headings (#, ##, ###)
+    const match = line.match(/^#{1,3}\s+(.+)$/);
+    if (match) {
+      if (currentLines.length > 0) {
+        rawSections.push({ title: currentTitle, lines: currentLines });
+      }
+      currentTitle = match[1].replace(/[*_#]/g, "").trim();
+      currentLines = [];
+    } else {
+      currentLines.push(line);
+    }
+  }
+  if (currentLines.length > 0) {
+    rawSections.push({ title: currentTitle, lines: currentLines });
+  }
+
+  // Filter sections that have actual sentences
+  const sections: ShadowingSection[] = [];
+  for (const raw of rawSections) {
+    const text = raw.lines.join("\n").trim();
+    const sentences = splitTextIntoSentences(text);
+    if (sentences.length > 0) {
+      sections.push({
+        title: raw.title,
+        sentences,
+      });
+    }
+  }
+
+  return sections;
+}
+
 export class FullTextShadowingModal extends Modal {
   private plugin: DiaryCopilotPlugin;
   private fullText: string;
   private file: TFile;
+  private allSentences: string[] = [];
+  private sections: ShadowingSection[] = [];
+  private activeSectionIdx = 0; // 0 = 全部, 1..N = sections[0..N-1]
+  private sectionTabEls: HTMLElement[] = [];
+  private teleprompterEl: HTMLElement | null = null;
   private sentences: string[] = [];
   private currentSentenceIdx = 0;
   private isPlaying = false;
@@ -24,7 +79,9 @@ export class FullTextShadowingModal extends Modal {
     this.plugin = plugin;
     this.fullText = fullText;
     this.file = file;
-    this.sentences = splitTextIntoSentences(fullText);
+    this.allSentences = splitTextIntoSentences(fullText);
+    this.sections = parseShadowingSections(fullText);
+    this.sentences = this.allSentences;
   }
 
   onOpen() {
@@ -66,30 +123,39 @@ export class FullTextShadowingModal extends Modal {
       });
     });
 
-    // 2. Teleprompter Lyrics View
-    const teleprompter = contentEl.createDiv({ cls: "diary-copilot-shadowing-teleprompter" });
-    this.sentenceElements = [];
+    // 1.5 Section Tabs (Shown when 2 or more distinct # heading sections exist)
+    if (this.sections.length >= 2) {
+      const sectionsBar = contentEl.createDiv({ cls: "diary-copilot-shadowing-sections-bar" });
+      this.sectionTabEls = [];
 
-    if (this.sentences.length === 0) {
-      teleprompter.createDiv({ cls: "diary-copilot-shadowing-empty", text: "未偵測到英文日記句子。" });
-    } else {
-      this.sentences.forEach((sentence, idx) => {
-        const itemEl = teleprompter.createDiv({
-          cls: `diary-copilot-shadowing-sentence ${idx === 0 ? "is-upcoming" : ""}`,
+      // Tab 0: 全部
+      const allTab = sectionsBar.createEl("button", {
+        cls: "diary-copilot-shadowing-section-pill is-active",
+        text: `📖 全部 (${this.allSentences.length}句)`,
+      });
+      allTab.addEventListener("click", () => {
+        unlockAudio();
+        this.switchSection(0);
+      });
+      this.sectionTabEls.push(allTab);
+
+      // Tabs 1..N: Individual # headings
+      this.sections.forEach((sec, idx) => {
+        const tab = sectionsBar.createEl("button", {
+          cls: "diary-copilot-shadowing-section-pill",
+          text: `# ${sec.title} (${sec.sentences.length}句)`,
         });
-        itemEl.createSpan({ cls: "sentence-num", text: `${idx + 1}.` });
-        itemEl.createDiv({ cls: "sentence-text", text: sentence });
-        itemEl.addEventListener("click", () => {
+        tab.addEventListener("click", () => {
           unlockAudio();
-          this.currentSentenceIdx = idx;
-          this.highlightCurrentSentence();
-          if (this.isPlaying) {
-            this.playNextSentence();
-          }
+          this.switchSection(idx + 1);
         });
-        this.sentenceElements.push(itemEl);
+        this.sectionTabEls.push(tab);
       });
     }
+
+    // 2. Teleprompter Lyrics View
+    this.teleprompterEl = contentEl.createDiv({ cls: "diary-copilot-shadowing-teleprompter" });
+    this.renderTeleprompter();
 
     // 3. Bottom Controls Dock (Fixed at bottom of modal, never overlaps sentences)
     const dockEl = contentEl.createDiv({ cls: "diary-copilot-shadowing-dock" });
@@ -149,9 +215,74 @@ export class FullTextShadowingModal extends Modal {
     doneBtn.addEventListener("click", () => {
       this.close();
     });
+  }
 
-    // Auto-highlight first sentence
+  private renderTeleprompter() {
+    if (!this.teleprompterEl) return;
+    this.teleprompterEl.empty();
+    this.sentenceElements = [];
+
+    if (this.sentences.length === 0) {
+      this.teleprompterEl.createDiv({ cls: "diary-copilot-shadowing-empty", text: "未偵測到英文日記句子。" });
+    } else {
+      this.sentences.forEach((sentence, idx) => {
+        const itemEl = this.teleprompterEl!.createDiv({
+          cls: `diary-copilot-shadowing-sentence ${idx === 0 ? "is-upcoming" : ""}`,
+        });
+        itemEl.createSpan({ cls: "sentence-num", text: `${idx + 1}.` });
+        itemEl.createDiv({ cls: "sentence-text", text: sentence });
+        itemEl.addEventListener("click", () => {
+          unlockAudio();
+          this.currentSentenceIdx = idx;
+          this.highlightCurrentSentence();
+          if (this.isPlaying) {
+            this.playNextSentence();
+          }
+        });
+        this.sentenceElements.push(itemEl);
+      });
+    }
+
     this.highlightCurrentSentence();
+  }
+
+  private switchSection(sectionIdx: number) {
+    if (this.activeSectionIdx === sectionIdx) return;
+    this.activeSectionIdx = sectionIdx;
+
+    // Invalidate active playback session & stop audio
+    this.isPlaying = false;
+    this.playSessionId++;
+    stopAudio();
+
+    if (sectionIdx === 0) {
+      this.sentences = this.allSentences;
+    } else {
+      this.sentences = this.sections[sectionIdx - 1].sentences;
+    }
+    this.currentSentenceIdx = 0;
+
+    // Update active visual state on section tabs
+    this.sectionTabEls.forEach((tab, i) => {
+      if (i === sectionIdx) tab.addClass("is-active");
+      else tab.removeClass("is-active");
+    });
+
+    // Re-render teleprompter list for the newly selected section
+    this.renderTeleprompter();
+
+    // Reset controls
+    if (this.playBtn) {
+      this.playBtn.setText("▶️ 開始朗讀跟讀");
+      this.playBtn.removeClass("is-playing");
+    }
+    if (this.statusTextEl) {
+      const sectionName = sectionIdx === 0 ? "全部日記" : `「${this.sections[sectionIdx - 1].title}」`;
+      this.statusTextEl.setText(`🎧 已切換至 ${sectionName}，點擊「▶️ 開始朗讀跟讀」開始`);
+    }
+    if (this.progressBarEl) {
+      this.progressBarEl.style.width = "0%";
+    }
   }
 
   private play() {
@@ -185,7 +316,7 @@ export class FullTextShadowingModal extends Modal {
     const currentSession = ++this.playSessionId;
 
     if (this.currentSentenceIdx >= this.sentences.length) {
-      // Completed all sentences!
+      // Completed all sentences in the active section!
       this.onFullTextCompleted();
       return;
     }
@@ -239,10 +370,11 @@ export class FullTextShadowingModal extends Modal {
       this.playBtn.setText("🔄 再次跟讀");
       this.playBtn.removeClass("is-playing");
     }
+    const sectionName = this.activeSectionIdx === 0 ? "今日全篇" : `「${this.sections[this.activeSectionIdx - 1]?.title || ""}」`;
     if (this.statusTextEl) {
-      this.statusTextEl.setText("🎉 恭喜！今日全篇影子跟讀完成！已為大腦建立道地語流記憶！");
+      this.statusTextEl.setText(`🎉 恭喜！${sectionName} 影子跟讀完成！已為大腦建立道地語流記憶！`);
     }
-    new Notice("🎉 今日全篇影子跟讀完成！已為大腦建立道地語流記憶！", 3500);
+    new Notice(`🎉 恭喜！${sectionName} 影子跟讀完成！`, 3500);
   }
 
   onClose() {

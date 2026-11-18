@@ -1019,10 +1019,9 @@ export default class DiaryCopilotPlugin extends Plugin {
     const englishMatch = content.match(/##\s+English\s*\n([\s\S]*?)(?=\n##|$)/i);
     const existingEnglish = englishMatch && englishMatch[1]?.trim() ? englishMatch[1].trim() : null;
 
-    // Strip frontmatter and markdown headings to extract raw draft text
+    // Strip frontmatter to extract raw draft text (preserve # headings for section-based shadowing!)
     const rawDraft = content
       .replace(/^---\n[\s\S]*?\n---\s*/, "")
-      .replace(/^#.*$/gm, "")
       .trim();
 
     if (!rawDraft && !existingEnglish) {

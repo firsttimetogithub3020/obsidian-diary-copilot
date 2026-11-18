@@ -2433,6 +2433,48 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
   font-weight: 600 !important;
 }
 
+/* Section Tabs Bar (shown when multiple headings exist) */
+.diary-copilot-shadowing-sections-bar {
+  flex-shrink: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding: 0 0 8px 0 !important;
+  margin-bottom: 8px !important;
+  scrollbar-width: none !important;
+}
+
+.diary-copilot-shadowing-sections-bar::-webkit-scrollbar {
+  display: none !important;
+}
+
+.diary-copilot-shadowing-section-pill {
+  background: var(--background-secondary) !important;
+  border: 1px solid var(--background-modifier-border) !important;
+  border-radius: 14px !important;
+  padding: 4px 11px !important;
+  font-size: 12px !important;
+  color: var(--text-muted) !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  transition: all 0.15s ease !important;
+}
+
+.diary-copilot-shadowing-section-pill:hover {
+  background: var(--background-modifier-hover) !important;
+  color: var(--text-normal) !important;
+}
+
+.diary-copilot-shadowing-section-pill.is-active {
+  background: var(--interactive-accent) !important;
+  color: var(--text-on-accent, #ffffff) !important;
+  border-color: var(--interactive-accent) !important;
+  font-weight: 600 !important;
+}
+
 /* Teleprompter Scrollable Container */
 .diary-copilot-shadowing-teleprompter {
   flex: 1 1 auto !important;
