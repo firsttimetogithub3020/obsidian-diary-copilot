@@ -1533,8 +1533,9 @@ export default class DiaryCopilotPlugin extends Plugin {
       }
     }
 
-    // On mobile, ALWAYS use direct paste (never delete text for impossible ghost typing!)
-    const shouldDirectPaste = isDirectPaste || Platform.isMobile;
+    // Use direct paste when explicitly requested (e.g. clicking ⚡ 自動填入 or completing oral shadowing).
+    // Otherwise (clicking card body or pressing Alt+1~4), inject ghost text for shadow typing across all platforms!
+    const shouldDirectPaste = isDirectPaste;
 
     if (from >= 0 && to >= 0) {
       from = Math.max(0, Math.min(from, docLength));

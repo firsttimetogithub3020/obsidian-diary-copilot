@@ -127,6 +127,7 @@ export class CardPanel {
   private oralLiveTextEl: HTMLElement | null = null;
   private oralProgressFillEl: HTMLElement | null = null;
   private oralScoreBadgeEl: HTMLElement | null = null;
+  private oralDockControlsEl: HTMLElement | null = null;
   private desktopVoiceInputEl: HTMLInputElement | null = null;
   private settingsMenuOverlayEl: HTMLElement | null = null;
   private settingsEscapeHandler: ((e: KeyboardEvent) => void) | null = null;
@@ -1150,7 +1151,7 @@ export class CardPanel {
       });
       const headerEl = cardEl.createDiv({ cls: "diary-copilot-hero-header" });
       headerEl.createSpan({ cls: "diary-copilot-hero-badge", text: card.title });
-      if (!Platform.isMobile && card.shortcut) {
+      if (card.shortcut) {
         headerEl.createSpan({ cls: "key-hint", text: card.shortcut });
       }
 
@@ -1161,7 +1162,50 @@ export class CardPanel {
         cardEl.createDiv({ cls: "diary-copilot-card-translation-source", text: card.subText });
       }
 
-      // Single click selects card, highlights it, updates header actions, injects ghost text, and focuses editor!
+      // Action Bar inside each grid card: [ 🔊 朗讀 ] [ 🎙️ 跟讀 ] [ ⚡ 自動填入 / ⚡ 填入替換 ]
+      const cardActions = cardEl.createDiv({ cls: "diary-copilot-card-actions" });
+
+      const ttsBtn = cardActions.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-card-action-btn diary-copilot-tts-btn",
+        text: "🔊 朗讀",
+        attr: { title: "聆聽標準美式發音" },
+      });
+      ttsBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        speakSentence(card.text);
+      });
+
+      const oralBtn = cardActions.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-card-action-btn diary-copilot-oral-btn",
+        text: "🎙️ 跟讀",
+        attr: { title: "開口說英語，視覺化即時判讀並自動填入" },
+      });
+      oralBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.dismissSoftKeyboard();
+        this.resetToAutoFit();
+        this.startOralShadowing(card.text, card.kind, this.currentItem?.sourceRange);
+      });
+
+      const isReplace = card.kind === "translation" || !!this.currentItem?.sourceRange;
+      const pasteBtn = cardActions.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-card-action-btn diary-copilot-card-paste-btn",
+        text: isReplace ? "⚡ 填入替換" : "⚡ 自動填入",
+        attr: { title: isReplace ? "直接以此表達替換日記原文" : "直接填入筆記" },
+      });
+      pasteBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.dismissSoftKeyboard();
+        this.callbacks.onAdopt(card.text, card.kind, this.currentItem?.sourceRange, true);
+        if (Platform.isMobile) {
+          this.closeCards(false, true);
+        }
+      });
+
+      // Single click on card body selects card, highlights it, updates header actions, and injects ghost text for shadow typing!
       // The 2x2 grid remains completely intact, ensuring panel height stays 100% stable with zero jitter!
       cardEl.addEventListener("click", (e) => {
         const sel = window.getSelection()?.toString().trim();
@@ -1190,7 +1234,7 @@ export class CardPanel {
 
     const heroHeader = heroCard.createDiv({ cls: "diary-copilot-hero-header" });
     heroHeader.createSpan({ cls: "diary-copilot-hero-badge", text: activeCard.title });
-    if (!Platform.isMobile && activeCard.shortcut) {
+    if (activeCard.shortcut) {
       heroHeader.createSpan({ cls: "key-hint", text: activeCard.shortcut });
     }
 
@@ -1201,7 +1245,7 @@ export class CardPanel {
       heroCard.createDiv({ cls: "diary-copilot-card-translation-source", text: activeCard.subText });
     }
 
-    // Hero Card Action Bar (🔊 朗讀, 🎙️ 跟讀, ⚡ 填入替換)
+    // Hero Card Action Bar (🔊 朗讀, 🎙️ 跟讀, ⚡ 自動填入 / ⚡ 填入替換)
     const cardActions = heroCard.createDiv({ cls: "diary-copilot-hero-actions" });
 
     const ttsBtn = cardActions.createEl("button", {
@@ -1231,7 +1275,7 @@ export class CardPanel {
     const isReplace = activeCard.kind === "translation" || !!this.currentItem?.sourceRange;
     const pasteBtn = cardActions.createEl("button", {
       cls: "diary-copilot-action-btn diary-copilot-hero-action-btn diary-copilot-hero-paste-btn",
-      text: isReplace ? "⚡ 填入替換" : "⚡ 填入",
+      text: isReplace ? "⚡ 填入替換" : "⚡ 自動填入",
       attr: { title: isReplace ? "直接以此表達替換日記原文" : "直接填入筆記" },
     });
     pasteBtn.addEventListener("click", (e) => {
@@ -1244,14 +1288,10 @@ export class CardPanel {
       }
     });
 
-    // Tap on card: on desktop injects ghost text for shadow typing; on mobile keeps keyboard down without deleting text
+    // Tap on card: on all platforms (desktop, tablet, mobile) injects ghost text for shadow typing!
     heroCard.addEventListener("click", (e) => {
       const sel = window.getSelection()?.toString().trim();
       if (sel && sel.length > 0) return;
-      if (Platform.isMobile) {
-        this.dismissSoftKeyboard();
-        return;
-      }
       this.callbacks.onCardSelect?.(activeCard.text, activeCard.kind, this.currentItem?.sourceRange);
     });
 
@@ -1807,6 +1847,77 @@ export class CardPanel {
         this.cancelOralShadowing();
       });
     }
+
+    this.renderOralDockControls();
+  }
+
+  /**
+   * Prominent Ergonomic Action Dock inside Oral Studio (Thumb-friendly 44px on mobile)
+   */
+  private renderOralDockControls() {
+    if (!this.oralDockControlsEl) return;
+    this.oralDockControlsEl.empty();
+
+    // 1. 🔊 聽示範
+    const listenBtn = this.oralDockControlsEl.createEl("button", {
+      cls: "diary-copilot-action-btn diary-copilot-oral-dock-btn diary-copilot-tts-btn",
+      text: "🔊 聽示範",
+      attr: { title: "聆聽此句子標準美式發音" },
+    });
+    listenBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      speakSentence(this.oralTargetText);
+    });
+
+    // 2. ⏹️ 說完了 (when listening) or 🔄 重試 (when stopped/waiting)
+    if (this.isOralListening) {
+      const stopBtn = this.oralDockControlsEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-oral-dock-btn diary-copilot-stop-listening-btn",
+        text: "⏹️ 說完了",
+        attr: { title: "唸完後點擊直接結算，無需等待" },
+      });
+      stopBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.finishOralRecording();
+      });
+    } else {
+      const retryBtn = this.oralDockControlsEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-oral-dock-btn diary-copilot-retry-btn",
+        text: "🔄 重試",
+        attr: { title: "重新開始跟讀練習" },
+      });
+      retryBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.restartOralShadowing();
+      });
+    }
+
+    // 3. ⚡ 直接填入 (Skip oral drill, paste directly)
+    const pasteBtn = this.oralDockControlsEl.createEl("button", {
+      cls: "diary-copilot-action-btn diary-copilot-oral-dock-btn diary-copilot-oral-paste-btn",
+      text: "⚡ 直接填入",
+      attr: { title: "跳過口說練習，直接將此句填入筆記" },
+    });
+    pasteBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.handleOralAdoptDirect();
+    });
+
+    // 4. ✕ 取消
+    const cancelBtn = this.oralDockControlsEl.createEl("button", {
+      cls: "diary-copilot-action-btn diary-copilot-oral-dock-btn diary-copilot-oral-cancel-btn",
+      text: "✕ 取消",
+      attr: { title: "取消跟讀並返回字卡" },
+    });
+    cancelBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.cancelOralShadowing();
+    });
   }
 
   /**
@@ -1944,6 +2055,10 @@ export class CardPanel {
             ? "點擊鍵盤 🎙️ 說出句子 · 達 70% 吻合度自動填入"
             : (Platform.isMacOS ? "按兩次 Fn 語音聽寫 · 隨時可點「⏹️ 說完了」" : "按 Win+H 語音口說 · 隨時可點「⏹️ 說完了」")),
     });
+
+    // 5. Prominent Ergonomic Action Buttons directly in Workspace (Thumb-friendly 44px on mobile)
+    this.oralDockControlsEl = this.oralWorkspaceEl.createDiv({ cls: "diary-copilot-oral-dock-controls" });
+    this.renderOralDockControls();
 
     this.applyPanelHeight();
   }

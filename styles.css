@@ -682,7 +682,8 @@ body.is-phone .diary-copilot-header-sys .diary-copilot-action-btn {
   flex: 1;
 }
 
-/* Dedicated Action Bar inside Hero Card */
+/* Dedicated Action Bar inside Hero Card and 2x2 Grid Cards */
+.diary-copilot-card-actions,
 .diary-copilot-hero-actions {
   display: flex;
   align-items: center;
@@ -691,25 +692,40 @@ body.is-phone .diary-copilot-header-sys .diary-copilot-action-btn {
   margin-top: 8px;
   padding-top: 6px;
   border-top: 1px solid var(--background-modifier-border);
+  flex-wrap: wrap;
 }
 
+.diary-copilot-card-action-btn,
 .diary-copilot-hero-action-btn {
   height: 32px !important;
+  min-height: 32px !important;
   padding: 4px 10px !important;
   font-size: 12px !important;
   font-weight: 500 !important;
   border-radius: 6px !important;
+  cursor: pointer;
 }
 
+.diary-copilot-card-paste-btn,
 .diary-copilot-hero-paste-btn {
   background-color: var(--interactive-accent) !important;
   color: var(--text-on-accent) !important;
   font-weight: 600 !important;
-  border: none !important;
+  border: 1px solid var(--interactive-accent) !important;
 }
 
+.diary-copilot-card-paste-btn:hover,
 .diary-copilot-hero-paste-btn:hover {
   background-color: var(--interactive-accent-hover) !important;
+}
+
+.is-mobile .diary-copilot-card-action-btn,
+.is-mobile .diary-copilot-hero-action-btn {
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 6px 12px !important;
+  font-size: 13px !important;
+  border-radius: 8px !important;
 }
 
 /* Capsule Tabs Row: 2x2 Grid Layout for Complete Visibility */
@@ -978,6 +994,78 @@ body.is-phone .diary-copilot-header-sys .diary-copilot-action-btn {
 
 .diary-copilot-oral-tip {
   color: var(--text-faint);
+}
+
+/* Dedicated Ergonomic Action Dock inside Oral Studio */
+.diary-copilot-oral-dock-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--background-modifier-border);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.diary-copilot-oral-dock-btn {
+  min-height: 42px !important;
+  height: 42px !important;
+  padding: 6px 14px !important;
+  font-size: 13.5px !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  touch-action: manipulation;
+  white-space: nowrap;
+}
+
+.diary-copilot-oral-dock-btn.diary-copilot-stop-listening-btn {
+  background: rgba(239, 68, 68, 0.15) !important;
+  color: var(--text-error, #ef4444) !important;
+  border: 1.5px solid var(--text-error, #ef4444) !important;
+}
+
+.diary-copilot-oral-dock-btn.diary-copilot-stop-listening-btn:hover {
+  background: var(--text-error, #ef4444) !important;
+  color: #ffffff !important;
+}
+
+.diary-copilot-oral-dock-btn.diary-copilot-retry-btn {
+  background: rgba(245, 158, 11, 0.15) !important;
+  color: var(--text-warning, #f59e0b) !important;
+  border: 1.5px solid var(--text-warning, #f59e0b) !important;
+}
+
+.diary-copilot-oral-dock-btn.diary-copilot-retry-btn:hover {
+  background: var(--text-warning, #f59e0b) !important;
+  color: #ffffff !important;
+}
+
+.diary-copilot-oral-dock-btn.diary-copilot-oral-paste-btn {
+  background: var(--interactive-accent) !important;
+  color: var(--text-on-accent) !important;
+  border: 1.5px solid var(--interactive-accent) !important;
+}
+
+.diary-copilot-oral-dock-btn.diary-copilot-oral-paste-btn:hover {
+  background: var(--interactive-accent-hover) !important;
+}
+
+.is-mobile .diary-copilot-oral-dock-controls {
+  gap: 6px;
+}
+
+.is-mobile .diary-copilot-oral-dock-btn {
+  min-height: 44px !important;
+  height: 44px !important;
+  font-size: 13.5px !important;
+  padding: 8px 10px !important;
+  flex: 1 1 0;
 }
 
 /* Desktop Voice Input (Windows Win+H / Mac Dictation) */
