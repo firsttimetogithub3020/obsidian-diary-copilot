@@ -12,7 +12,7 @@
 * **專案名稱**：Obsidian Diary Copilot (`obsidian-diary-copilot`)
 * **本機代碼倉庫**：`E:\obsidian-english\obsidian-diary-copilot`
 * **本機 Vault 部署路徑**：`E:\AI-Knowledge-System\Obsidian-Vault\.obsidian\plugins\diary-copilot`
-* **當前最新版本**：`v0.3.60`
+* **當前最新版本**：`v0.3.61`
 * **使用者**：Alan（對話與說明一律使用**繁體中文**；代碼識別碼與 Commit 訊息一律使用英文）。
 
 ---
@@ -83,6 +83,7 @@ flowchart LR
 
 | 版本 | 日期 | 重點改動說明 |
 | :--- | :--- | :--- |
+| **v0.3.61** | 2026-11-18 | 1. 功能列按鈕一律自左側品牌/模式指示旁緊接排列（徹底杜絕左右橫跳與狀態列碰撞）：<br/>- 診斷原因：先前在收摺模式（`is-cards-closed` / `is-collapsed` / `is-compact-idle`）時，CSS 套用了 `justify-content: space-between` 與 `justify-content: flex-end`，將功能列按鈕推至畫面最右側（與 Obsidian 狀態列重疊）；而展開字卡時按鈕又回彈到左側，導致使用者按 Esc 切換或開關字卡時「功能列在左側與最右側之間劇烈橫跳」。<br/>- 左側緊密排列（Left-anchored Functional Toolbar）：修改 CSS 與佈局規則，頂部功能列（`row-1` 與 `header-sys`）在任何狀態（展開/收摺/提問/潤飾/精簡）下，一律維持 `justify-content: flex-start`，按鈕緊鄰左側的品牌指示（`● Diary Copilot` 或 `● ❓ 提問引導模式`）由左至右平鋪排列。<br/>- 模式指示一致性：收摺狀態下若處於提問模式，左側依然維持顯示 `● ❓ 提問引導模式`，不再跳回 `Diary Copilot`，確保按鈕起始位置 100% 絕對穩定，切換字卡零跳動。<br/>2. 展開字卡確保顯示完整卡片內容（Auto-fit & Full Visibility）：<br/>- 在提問引導模式下按 Esc 展開時，自動確保建議回答處於展開渲染狀態（`isShowingInquiryAnswers = true`），確保 4 張建議字卡完全呈現且看得清清楚楚。<br/>3. 專案版本升級為 v0.3.61。 |
 | **v0.3.60** | 2026-11-18 | 1. Windows 與 Mac 支援按下 Esc 鍵作為展開/關閉字卡的切換開關（Esc Toggle）：<br/>- 診斷與重構：原先鍵盤監聽中 Esc 鍵僅用於解除灰字跟寫，未與底部建議字卡開關聯動。<br/>- Esc 雙向切換（Toggle）：按下 Esc 鍵時，若有 Obsidian 原生彈窗（`.modal-container`）則維持原生關閉；若有查詞浮窗（SelectionPopover）則優先收合；其餘情況若有灰字則一併清理，並立即觸發 `cardPanel.toggleFoldCards()`，在「展開字卡」與「關閉字卡」之間流暢切換！<br/>- 電腦端按鈕標籤提示：桌面端（Windows / Mac）的字卡切換按鈕文字與提示動態升級為 `🔽 關閉字卡 (Esc)` 與 `📖 展開字卡 (Esc)`。<br/>- 設定選單 Esc 事件隔離：在快速設定選單按下 Esc 關閉時加上 `stopPropagation()`，避免事件冒泡觸發字卡切換。<br/>2. 專案版本升級為 v0.3.60。 |
 | **v0.3.59** | 2026-11-18 | 1. 電腦端排版解放：字卡寬度滿版對齊、高度自然縮減（徹底消除右側黑邊）：<br/>- 診斷原因：早期版本為了避讓 Obsidian 右下角狀態列（.status-bar），在桌面端面板被硬性加上了高達 320px~360px 的 `padding-right`，導致電腦端 2x2 網格被強行擠壓在左側 70% 空間，右側出現大片黑色死區，且因為每張卡變窄，英文句子折成 5-6 行讓字卡被撐得非常高，大幅遮擋上方的編輯區。<br/>- 滿版對齊（Full-Width Balanced Alignment）：移除桌面端壓迫性的 `padding-right: 320px` 限制，面板內距回歸純淨平衡的 `padding: 6px 14px 8px`。<br/>- 空間效益最大化：2x2 網格字卡與提問條隨即自然向右展開對齊版面，單行能容納更多單字，句子折行減少至 2-3 行，字卡垂直高度大幅壓縮，真正做到「字卡更寬、更氣派、向上遮蔽最少」！<br/>2. 專案版本升級為 v0.3.59。 |
 | **v0.3.58** | 2026-11-18 | 1. 實現方案 2：支援單個 `#` 標題分段沉浸跟讀（Section-based Shadowing）：<br/>- 漸進浮現設計（Progressive Disclosure）：若日記只有一篇無標題文字，介面 100% 保持原樣（零干擾）；若偵測到 2 個以上 `# 標題`，跟讀彈窗頂部自動浮現橫向標籤列：`[ 📖 全部 (X句) ] [ # 標題1 (Y句) ] [ # 標題2 (Z句) ]`。<br/>- 即時無縫切換（Instant Section Switch）：點選任一標籤，提詞機立即切換至該章節句子並從 1 重新編號，進度條同步重置，朗讀專注於該章節，讀完提示章節完成，亦可隨時切回全部，零刷新零重開。<br/>- 筆記檔案零風險（Zero Mutation）：純記憶體分段，完全不改動任何 Markdown 檔案，無資料覆蓋遺失風險。<br/>- 保留 `#` 標題解析：調整 `handleFullTextShadowing`，不再預先剔除 `#` 標題，完整將標題章節結構傳遞至跟讀彈窗。<br/>2. 專案版本升級為 v0.3.58。 |

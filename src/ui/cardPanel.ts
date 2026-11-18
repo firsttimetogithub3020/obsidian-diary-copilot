@@ -526,6 +526,17 @@ export class CardPanel {
     this.panelEl.removeClass("is-compact-idle");
     this.panelEl.removeClass("is-compact");
 
+    if (this.brandTextEl) {
+      this.brandTextEl.setText(this.pinnedInquiryItem ? "❓ 提問引導模式" : "Diary Copilot");
+    }
+
+    if (this.pinnedInquiryItem) {
+      if (!this.isShowingInquiryAnswers) {
+        this.isShowingInquiryAnswers = true;
+      }
+      this.renderBrowseMode();
+    }
+
     this.applyPanelHeight();
     this.updateFoldButtonState();
     if (!silent) {
@@ -557,6 +568,10 @@ export class CardPanel {
     const collapsedHeight = this.getCollapsedHeight();
     this.panelEl.style.height = collapsedHeight;
     document.body.style.setProperty("--diary-copilot-panel-height", collapsedHeight);
+
+    if (this.brandTextEl) {
+      this.brandTextEl.setText(this.pinnedInquiryItem ? "❓ 提問引導模式" : "Diary Copilot");
+    }
 
     this.updateFoldButtonState();
     if (!forKeyboard && !silent) {
@@ -704,10 +719,12 @@ export class CardPanel {
     globalSpeechRecognizer.stop();
 
     if (this.statusDotEl) {
-      this.statusDotEl.className = "diary-copilot-status-dot is-idle";
+      this.statusDotEl.className = this.pinnedInquiryItem 
+        ? "diary-copilot-status-dot is-inquiry" 
+        : "diary-copilot-status-dot is-idle";
     }
     if (this.brandTextEl) {
-      this.brandTextEl.setText("Diary Copilot");
+      this.brandTextEl.setText(this.pinnedInquiryItem ? "❓ 提問引導模式" : "Diary Copilot");
     }
     if (this.toneWrapperEl) {
       this.toneWrapperEl.style.display = (this.copilotMode === "compact" || this.pinnedInquiryItem) ? "none" : "flex";
