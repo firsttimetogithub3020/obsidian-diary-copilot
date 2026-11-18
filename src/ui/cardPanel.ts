@@ -1493,77 +1493,11 @@ export class CardPanel {
       });
     }
 
-    // On mobile: heroCard already has [🔊 朗讀] [🎙️ 跟讀] [⚡ 填入替換]!
-    // To keep layout neat and NEVER duplicate buttons, completely hide Row 2 on mobile:
-    if (Platform.isMobile) {
-      if (this.headerEl) {
-        const row2 = this.headerEl.querySelector(".diary-copilot-header-row-2") as HTMLElement;
-        if (row2) row2.style.display = "none";
-      }
-      return;
-    }
-
-    // Desktop:
-    if (this.copilotMode === "compact" && this.currentCards.length === 0 && !this.pinnedInquiryItem) {
-      if (this.headerEl) {
-        const row2 = this.headerEl.querySelector(".diary-copilot-header-row-2") as HTMLElement;
-        if (row2) row2.style.display = "none";
-      }
-      return;
-    } else {
-      if (this.headerEl) {
-        const row2 = this.headerEl.querySelector(".diary-copilot-header-row-2") as HTMLElement;
-        if (row2) row2.style.display = "flex";
-      }
-    }
-
-    const activeCard = this.currentCards[this.activeTabIdx] || this.currentCards[0];
-
-    if (activeCard && this.headerAudioEl) {
-      // 1. 🔊 朗讀 (TTS) - Left Group (Row 2 Left)
-      const ttsBtn = this.headerAudioEl.createEl("button", {
-        cls: "diary-copilot-action-btn diary-copilot-tts-btn",
-        text: "🔊 朗讀",
-        attr: { title: "聆聽標準美式發音" },
-      });
-      ttsBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        speakSentence(activeCard.text);
-      });
-
-      // 2. 🎙️ 語音跟讀 (Starts Visual Oral Studio) - Left Group (Row 2 Left)
-      const oralBtn = this.headerAudioEl.createEl("button", {
-        cls: "diary-copilot-action-btn diary-copilot-oral-btn",
-        text: "🎙️ 跟讀",
-        attr: { title: "開口說英語，視覺化即時判讀並自動填入" },
-      });
-      oralBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        this.dismissSoftKeyboard();
-        this.resetToAutoFit();
-        this.startOralShadowing(activeCard.text, activeCard.kind, this.currentItem?.sourceRange);
-      });
-    }
-
-    if (activeCard && this.headerActionsEl) {
-      // 3. ⚡ 填入 / 接續 (Direct Paste / Tab) - Right Group (Row 2 Right)
-      const isReplace = activeCard.kind === "translation" || !!this.currentItem?.sourceRange;
-      const pasteBtn = this.headerActionsEl.createEl("button", {
-        cls: "diary-copilot-action-btn diary-copilot-direct-paste-btn",
-        text: isReplace ? "⚡ 填入替換" : (Platform.isPhone ? "⚡ 填入" : "⚡ 填入 (Tab)"),
-        attr: { title: isReplace ? "直接以此表達替換日記原文" : "直接將此續寫句填入筆記 (Tab)" },
-      });
-      pasteBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        this.dismissSoftKeyboard();
-        this.callbacks.onAdopt(activeCard.text, activeCard.kind, this.currentItem?.sourceRange, true);
-        if (Platform.isMobile) {
-          this.closeCards(false, true);
-        }
-      });
+    // All cards (on desktop 2x2 grid and mobile single-card) already have [🔊 朗讀] [🎙️ 跟讀] [⚡ 自動填入 / ⚡ 填入替換] inside each card!
+    // To keep layout neat and completely avoid duplicate buttons, hide Row 2 in browse mode across all platforms:
+    if (this.headerEl) {
+      const row2 = this.headerEl.querySelector(".diary-copilot-header-row-2") as HTMLElement;
+      if (row2) row2.style.display = "none";
     }
   }
 
