@@ -17,27 +17,37 @@
 
 ---
 
-## 二、核心更新與同步架構（最重要規範，絕不可違背）
+## 二、核心更新與跨裝置發布架構（最高鐵律，絕不可違背）
+
+> [!CAUTION]
+> **給所有接手此專案的 Coding Agents 的最高警告**：
+> 1. 本外掛有**另一個獨立的 Obsidian 帳號**在 iPhone、iPad、Mac 等跨平台裝置上活躍使用，該帳號無法透過本機的 Obsidian Sync 獲得代碼。
+> 2. 第三方社群工具（如 BRAT 外掛）連線 GitHub 下載經常不穩定且無法保證及時生效。
+> 3. **因此，外掛內部必須始終具備「自行連線 GitHub 下載更新」的能力（`src/services/updater.ts`）！嚴禁擅自移除 GitHub 直連下載邏輯！**
+> 4. **發布時必須同步更新 GitHub Release 實體檔案與倉庫 `main.js`，絕不可只改版本號！**
 
 ### 1. 雙軌更新閉環（Dual Update Pipeline）
-本專案支援兩種靈活的跨裝置更新閉環：
 ```mermaid
 flowchart TD
     A["電腦本機修改代碼"] --> B["npm run deploy (編譯 main.js 與 styles.css)"]
-    B --> C["本機 Vault 部署"]
-    B --> D["Git Push & GitHub Release 發布"]
-    C --> E["同一帳號：Obsidian Sync 雲端同步"]
-    D --> F["不同帳號裝置 (iPhone / Mac / iPad)：直接自公開 GitHub 下載更新"]
-    E --> G["點擊更新或重開外掛立即生效"]
+    B --> C["本機 Vault 熱部署"]
+    B --> D["Git Push (含 main.js) & gh release create"]
+    C --> E["同一帳號：本機 Obsidian Sync 雲端同步"]
+    D --> F["另一獨立帳號 (iPhone / iPad / Mac)：<br/>點擊 ⚙️ 設定 ➔ [🚀 檢查並更新外掛]<br/>外掛內部自動連線公開 GitHub 下載最新檔案覆蓋並重載"]
+    E --> G["完成更新，即刻生效"]
     F --> G
 ```
 
-### 2. GitHub 的真實定位與重要性
-* 本專案 GitHub 倉庫設定為 **Public**，使用者在**不同 Obsidian 帳號**的其他裝置（如 iPhone、Mac、iPad）上，外掛內部內建自動連線至 GitHub 倉庫與 GitHub Release 抓取最新 `main.js`、`styles.css` 與 `manifest.json`。
-* **發布規範**：每次發布新版本時，必須確保：
-  1. 編譯出的 `main.js` 納入 Git 倉庫並推送至 `origin main`。
-  2. 發布 GitHub Release（包含 `main.js`、`styles.css`、`manifest.json` 資產）。
-  3. 如此一來，任何裝置（無論是否與本機同一個 Obsidian Sync 帳號）均可一鍵點擊更新！
+### 2. 每次發布版本的標準閉環三步驟（Mandatory Release Protocol）
+每次版本遞增（無論是大版更或小修復），代理人**必須且只能**嚴格依序執行：
+1. **編譯與熱部署**：
+   執行 `npm run deploy`，確保本地輸出最新 `main.js`、`styles.css`、`manifest.json`。
+2. **Git 倉庫推送（必須包含 `main.js`）**：
+   `git add -A && git commit -m "..." && git push origin main`
+   （`.gitignore` 絕對不可忽略 `main.js`，確保 GitHub `main` 分支隨時可作為 Raw CDN 備援下載）。
+3. **發布 GitHub Release 實體資產**：
+   執行 `gh release create vX.Y.Z main.js manifest.json styles.css --title "..." --notes "..."`
+   （確保 GitHub Releases 頁面具備實體二進位檔案，供所有跨帳號之 iPhone/iPad/Mac 自主下載更新）。
 
 ---
 
