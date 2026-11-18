@@ -682,6 +682,9 @@ export default class DiaryCopilotPlugin extends Plugin {
             }
             return null;
           },
+          onOpenTodayDiary: () => {
+            openTodayDiary(this.app, this);
+          },
           onTidyUpRequest: () => {
             tidyUpTodayDiary(this.app, this);
           },

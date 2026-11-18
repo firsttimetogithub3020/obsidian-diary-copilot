@@ -35,6 +35,7 @@ export interface CardPanelCallbacks {
   getEditorSelection?: () => { text: string; from: number; to: number } | null;
   onLocateDocText?: (text: string) => { from: number; to: number } | null;
   onGetSentenceToPolish?: () => { text: string; from: number; to: number } | null;
+  onOpenTodayDiary?: () => void;
   onTidyUpRequest?: () => void;
   onFullTextShadowingRequest?: () => void;
   getCopilotMode?: () => CopilotMode;
@@ -1380,6 +1381,21 @@ export class CardPanel {
     // 1. Control Center Bar (Row 1 Right): All core functions in one clean row
     if (this.headerSysEl) {
       const isNarrow = this.isNarrowHeader();
+
+      // 0. 📅 開啟今日日記
+      const todayBtn = this.headerSysEl.createEl("button", {
+        cls: "diary-copilot-action-btn diary-copilot-today-diary-btn",
+        text: isNarrow ? "📅" : "📅 今日日記",
+        attr: {
+          "aria-label": "開啟今日日記 (Diary Copilot)",
+          title: "開啟今日日記 (Diary Copilot)",
+        },
+      });
+      todayBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.callbacks.onOpenTodayDiary?.();
+      });
 
       // 1. ✨ 整理 (若手機/窄版為 "✨ 整理"，寬版為 "✨ 整理跟讀")
       const shadowBtn = this.headerSysEl.createEl("button", {
