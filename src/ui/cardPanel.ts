@@ -384,6 +384,7 @@ export class CardPanel {
 
   private onVisualViewportChange: (() => void) | null = null;
   private isKeyboardWriting = false;
+  private isDismissingKeyboard = false;
 
   public updateFoldButtonState() {
     if (!this.foldBtnEl) return;
@@ -412,6 +413,7 @@ export class CardPanel {
     // 1. Capture focusin: When user places cursor inside editor/contentEditable (keyboard appearing)
     document.addEventListener("focusin", (e: FocusEvent) => {
       if (!Platform.isMobile) return;
+      if (this.isDismissingKeyboard) return;
       const target = e.target as HTMLElement | null;
       if (!target) return;
       if (this.panelEl && this.panelEl.contains(target)) return;
@@ -424,6 +426,7 @@ export class CardPanel {
     // 2. Viewport and window resize detection: Virtual keyboard open/close
     const handleViewportCheck = () => {
       if (!Platform.isMobile) return;
+      if (this.isDismissingKeyboard) return;
       const screenH = window.screen?.height || window.innerHeight;
       const innerH = window.innerHeight;
       const vvH = window.visualViewport ? window.visualViewport.height : innerH;
@@ -452,6 +455,7 @@ export class CardPanel {
   }
 
   public dismissSoftKeyboard() {
+    this.isDismissingKeyboard = true;
     forceDismissSoftKeyboard();
     try {
       this.callbacks.onDismissKeyboard?.();
@@ -460,15 +464,17 @@ export class CardPanel {
       this.isKeyboardWriting = false;
       this.panelEl?.removeClass("is-keyboard-writing");
       this.updateFoldButtonState();
-    }, 280);
+      this.isDismissingKeyboard = false;
+    }, 450);
   }
 
-  public openCards() {
+  public openCards(silent = false) {
     if (!this.panelEl) return;
     this.dismissSoftKeyboard();
     this.isCardsExpanded = true;
     this.isCollapsed = false;
     this.isKeyboardWriting = false;
+    this.hasUserManuallyResized = false;
     this.panelEl.removeClass("is-cards-closed");
     this.panelEl.removeClass("is-keyboard-writing");
     this.panelEl.removeClass("is-collapsed");
@@ -477,10 +483,12 @@ export class CardPanel {
 
     this.applyPanelHeight();
     this.updateFoldButtonState();
-    new Notice("📖 已展開字卡", 1000);
+    if (!silent) {
+      new Notice("📖 已展開字卡", 1000);
+    }
   }
 
-  public closeCards(forKeyboard = false) {
+  public closeCards(forKeyboard = false, silent = false) {
     if (!this.panelEl) return;
     this.isCardsExpanded = false;
     this.isCollapsed = true;
@@ -498,7 +506,7 @@ export class CardPanel {
     document.body.style.setProperty("--diary-copilot-panel-height", collapsedHeight);
 
     this.updateFoldButtonState();
-    if (!forKeyboard) {
+    if (!forKeyboard && !silent) {
       new Notice("🔽 已關閉字卡", 1000);
     }
   }
@@ -539,8 +547,8 @@ export class CardPanel {
       return;
     }
 
-    // In compact mode with no cards and no inquiry (idle single-row toolbar)
-    if (this.copilotMode === "compact" && this.currentCards.length === 0 && !this.pinnedInquiryItem && !this.hasUserManuallyResized) {
+    // In compact mode with no cards, no inquiry, and not loading (idle single-row toolbar)
+    if (this.copilotMode === "compact" && this.currentCards.length === 0 && !this.pinnedInquiryItem && !this.hasUserManuallyResized && !this.panelEl.hasClass("is-loading")) {
       const compactBarHeight = Platform.isMobile ? "calc(60px + env(safe-area-inset-bottom, 0px))" : "48px";
       this.panelEl.style.height = compactBarHeight;
       this.panelEl.addClass("is-compact");
@@ -657,8 +665,15 @@ export class CardPanel {
 
   setLoading(message = "思考地道表達中...") {
     if (!this.panelEl || !this.contentAreaEl) return;
+    this.isCollapsed = false;
+    this.isCardsExpanded = true;
+    this.hasUserManuallyResized = false;
+    this.dismissSoftKeyboard();
     this.panelEl.removeClass("is-hidden");
+    this.panelEl.removeClass("is-collapsed");
+    this.panelEl.removeClass("is-cards-closed");
     this.panelEl.removeClass("is-compact-idle");
+    this.panelEl.removeClass("is-compact");
     this.panelEl.addClass("is-loading");
 
     if (this.statusDotEl) {
@@ -668,6 +683,7 @@ export class CardPanel {
       this.brandTextEl.setText(message);
     }
     this.applyPanelHeight();
+    this.updateFoldButtonState();
   }
 
   setError(message = "⚠️ 連線異常或尚未設定 API Key") {
@@ -735,28 +751,35 @@ export class CardPanel {
       return;
     }
 
-    if (isPolishMode) {
-      this.openCards();
-    }
-
     this.renderBrowseMode();
+
+    if (isPolishMode) {
+      this.openCards(true);
+    }
   }
 
   setPinnedInquiry(item: InquiryItem) {
     if (!this.panelEl || !this.contentAreaEl) return;
     this.pinnedInquiryItem = item;
     this.pinnedInquiryCategory = "closed";
-    this.isShowingInquiryAnswers = false;
+    this.isShowingInquiryAnswers = true;
     this.activeTabIdx = 0;
-    this.openCards();
+    this.hasUserManuallyResized = false;
+    this.isCollapsed = false;
+    this.isCardsExpanded = true;
 
     this.panelEl.removeClass("is-hidden");
     this.panelEl.removeClass("is-loading");
+    this.panelEl.removeClass("is-collapsed");
+    this.panelEl.removeClass("is-cards-closed");
+    this.panelEl.removeClass("is-compact-idle");
+    this.panelEl.removeClass("is-compact");
     if (this.statusDotEl) {
       this.statusDotEl.className = "diary-copilot-status-dot";
     }
 
     this.renderBrowseMode();
+    this.openCards(true);
   }
 
   updateInquiry(item: InquiryItem) {
@@ -1023,7 +1046,7 @@ export class CardPanel {
 
     const toggleAnswerBtn = actionGroup.createEl("button", {
       cls: `diary-copilot-pinned-toggle-btn ${this.isShowingInquiryAnswers ? "is-active" : ""}`,
-      text: this.isShowingInquiryAnswers ? "✍️ 顯示即時續寫" : "💡 查看建議回答",
+      text: this.isShowingInquiryAnswers ? "✍️ 收起建議回答" : "💡 查看建議回答",
       attr: { title: this.isShowingInquiryAnswers ? "換回根據您輸入即時產生的續寫句卡" : "查看 AI 針對此問題構思的範例回答" },
     });
     toggleAnswerBtn.addEventListener("click", (e) => {
@@ -1158,6 +1181,9 @@ export class CardPanel {
       e.preventDefault();
       this.dismissSoftKeyboard();
       this.callbacks.onAdopt(activeCard.text, activeCard.kind, this.currentItem?.sourceRange, true);
+      if (Platform.isMobile) {
+        this.closeCards(false, true);
+      }
     });
 
     // Tap on card: on desktop injects ghost text for shadow typing; on mobile keeps keyboard down without deleting text
@@ -1297,7 +1323,7 @@ export class CardPanel {
           e.stopPropagation();
           e.preventDefault();
           this.dismissSoftKeyboard();
-          this.resetToAutoFit();
+          this.openCards(true);
           this.callbacks.onInquiryRequest?.();
         });
       }
@@ -1314,7 +1340,8 @@ export class CardPanel {
       polishBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         e.preventDefault();
-        this.openCards();
+        this.dismissSoftKeyboard();
+        this.openCards(true);
         this.callbacks.onPolishRequest?.();
       });
 
@@ -1431,6 +1458,9 @@ export class CardPanel {
         e.preventDefault();
         this.dismissSoftKeyboard();
         this.callbacks.onAdopt(activeCard.text, activeCard.kind, this.currentItem?.sourceRange, true);
+        if (Platform.isMobile) {
+          this.closeCards(false, true);
+        }
       });
     }
   }
@@ -1494,7 +1524,7 @@ export class CardPanel {
         e.stopPropagation();
         e.preventDefault();
         this.dismissSoftKeyboard();
-        this.resetToAutoFit();
+        this.openCards(true);
         this.callbacks.onPolishRequest?.();
       });
     }
@@ -2007,14 +2037,21 @@ export class CardPanel {
     }
 
     // 2. Visual confirmation delay (450ms) so user perceives the celebratory outcome
+    const targetText = this.oralTargetText;
+    const kind = this.oralKind;
+    const sourceRange = this.oralSourceRange;
+
     this.oralPassTimeout = window.setTimeout(() => {
       this.isOralMode = false;
       if (this.callbacks.onOralAdopt) {
-        this.callbacks.onOralAdopt(this.oralTargetText, this.oralKind, this.oralSourceRange);
+        this.callbacks.onOralAdopt(targetText, kind, sourceRange);
       } else {
-        this.callbacks.onAdopt(this.oralTargetText, this.oralKind, this.oralSourceRange, true);
+        this.callbacks.onAdopt(targetText, kind, sourceRange, true);
       }
       this.renderIdleState();
+      if (Platform.isMobile) {
+        this.closeCards(false, true);
+      }
     }, 450);
   }
 
@@ -2028,12 +2065,19 @@ export class CardPanel {
     this.clearAutoPassTimer();
     globalSpeechRecognizer.stop();
     this.isOralMode = false;
+    const targetText = this.oralTargetText;
+    const kind = this.oralKind;
+    const sourceRange = this.oralSourceRange;
+
     if (this.callbacks.onOralAdopt) {
-      this.callbacks.onOralAdopt(this.oralTargetText, this.oralKind, this.oralSourceRange);
+      this.callbacks.onOralAdopt(targetText, kind, sourceRange);
     } else {
-      this.callbacks.onAdopt(this.oralTargetText, this.oralKind, this.oralSourceRange, true);
+      this.callbacks.onAdopt(targetText, kind, sourceRange, true);
     }
     this.renderIdleState();
+    if (Platform.isMobile) {
+      this.closeCards(false, true);
+    }
   }
 
   /**

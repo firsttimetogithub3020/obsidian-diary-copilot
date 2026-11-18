@@ -494,8 +494,29 @@ export default class DiaryCopilotPlugin extends Plugin {
     }
   }
 
+  getActiveMarkdownView(): MarkdownView | null {
+    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (activeView && activeView.file && this.isEligibleNote(activeView.file)) {
+      this.activeView = activeView;
+      return activeView;
+    }
+    if (this.activeView && this.activeView.file && this.isEligibleNote(this.activeView.file)) {
+      if ((this.activeView as any).containerEl?.isConnected !== false) {
+        return this.activeView;
+      }
+    }
+    const leaves = this.app.workspace.getLeavesOfType("markdown");
+    for (const leaf of leaves) {
+      if (leaf.view instanceof MarkdownView && leaf.view.file && this.isEligibleNote(leaf.view.file)) {
+        this.activeView = leaf.view;
+        return leaf.view;
+      }
+    }
+    return null;
+  }
+
   syncActiveView() {
-    const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const activeMarkdownView = this.getActiveMarkdownView();
 
     if (activeMarkdownView && this.isEligibleNote(activeMarkdownView.file)) {
       if (activeMarkdownView.editor) {
@@ -595,7 +616,7 @@ export default class DiaryCopilotPlugin extends Plugin {
             return this.locateDocText(text);
           },
           onGetSentenceToPolish: () => {
-            const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+            const activeView = this.getActiveMarkdownView();
             if (!activeView || !activeView.editor) return null;
             const editor = activeView.editor;
             const selectedText = editor.getSelection();
@@ -748,7 +769,7 @@ export default class DiaryCopilotPlugin extends Plugin {
   }
 
   getRecentDiaryContext(): string {
-    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const activeView = this.getActiveMarkdownView();
     if (activeView && activeView.editor) {
       return activeView.editor.getValue().slice(-600);
     }
@@ -756,7 +777,7 @@ export default class DiaryCopilotPlugin extends Plugin {
   }
 
   getEditorSelection(): { text: string; from: number; to: number } | null {
-    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const activeView = this.getActiveMarkdownView();
     if (!activeView || !activeView.editor) return null;
     const editor = activeView.editor;
     const selectedText = editor.getSelection();
@@ -773,7 +794,7 @@ export default class DiaryCopilotPlugin extends Plugin {
   }
 
   locateDocText(text: string): { from: number; to: number } | null {
-    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const activeView = this.getActiveMarkdownView();
     if (!activeView || !activeView.editor) return null;
     const editor = activeView.editor;
     const doc = editor.getValue();
@@ -785,10 +806,10 @@ export default class DiaryCopilotPlugin extends Plugin {
   }
 
   async insertSpokenDraft(spokenText: string): Promise<{ from: number; to: number; rawInserted: string }> {
-    let activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    let activeView = this.getActiveMarkdownView();
     if (!activeView || !activeView.file) {
       await openTodayDiary(this.app, this);
-      activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+      activeView = this.getActiveMarkdownView();
     }
     if (!activeView || !activeView.editor) {
       return { from: 0, to: 0, rawInserted: "" };
@@ -843,10 +864,10 @@ export default class DiaryCopilotPlugin extends Plugin {
     draftInfo?: { from: number; to: number; sourceText: string; rawInserted: string },
     kind: "continue" | "oral" = "continue"
   ) {
-    let activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    let activeView = this.getActiveMarkdownView();
     if (!activeView || !activeView.file) {
       await openTodayDiary(this.app, this);
-      activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+      activeView = this.getActiveMarkdownView();
     }
     if (activeView && activeView.editor) {
       const editor = activeView.editor;
@@ -915,10 +936,10 @@ export default class DiaryCopilotPlugin extends Plugin {
   }
 
   async handleFullTextShadowing() {
-    let activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    let activeView = this.getActiveMarkdownView();
     if (!activeView || !activeView.file) {
       await openTodayDiary(this.app, this);
-      activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+      activeView = this.getActiveMarkdownView();
     }
     if (!activeView || !activeView.file) {
       new Notice("請先開啟日記筆記");
@@ -1032,7 +1053,7 @@ export default class DiaryCopilotPlugin extends Plugin {
   }
 
   async handlePolishSentence(explicitText?: string) {
-    const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const activeMarkdownView = this.getActiveMarkdownView();
     if (!activeMarkdownView || !activeMarkdownView.file) {
       new Notice("請先在筆記編輯器內操作");
       return;
@@ -1041,6 +1062,7 @@ export default class DiaryCopilotPlugin extends Plugin {
     // Dismiss soft keyboard on mobile so user has full view of polish cards
     forceDismissSoftKeyboard();
     this.cardPanel?.dismissSoftKeyboard();
+    this.cardPanel?.openCards(true);
 
     // If note is in another folder (e.g. 日記 or 書摘), auto-invoke Copilot for this note
     if (!this.isEligibleNote(activeMarkdownView.file)) {
@@ -1102,6 +1124,9 @@ export default class DiaryCopilotPlugin extends Plugin {
     }
 
     this.isPolishMode = true;
+    this.isInquiryMode = false;
+    this.currentInquiryItem = null;
+    this.cardPanel?.clearPinnedInquiry();
     this.cardPanel?.setLoading("✨ 正在為您構思 4 種更地道優雅的表達方式...");
     this.clearGhostText();
 
@@ -1153,11 +1178,15 @@ export default class DiaryCopilotPlugin extends Plugin {
   }
 
   async handleInquiryPrompt() {
-    const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const activeMarkdownView = this.getActiveMarkdownView();
     if (!activeMarkdownView || !activeMarkdownView.file) {
       new Notice("請先在筆記編輯器內操作");
       return;
     }
+
+    forceDismissSoftKeyboard();
+    this.cardPanel?.dismissSoftKeyboard();
+    this.cardPanel?.openCards(true);
 
     if (!this.isEligibleNote(activeMarkdownView.file)) {
       this.manuallyEnabledNotes.add(activeMarkdownView.file.path);
@@ -1249,8 +1278,8 @@ export default class DiaryCopilotPlugin extends Plugin {
   }
 
   getEditorView(): EditorView | null {
-    const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!activeMarkdownView || !activeMarkdownView.editor) return null;
+    const activeMarkdownView = this.getActiveMarkdownView();
+    if (!activeMarkdownView || !activeMarkdownView.editor) return this.currentActiveEditorView || null;
     // @ts-ignore
     const cm = (activeMarkdownView.editor as any).cm as EditorView;
     if (cm) {
@@ -1310,20 +1339,87 @@ export default class DiaryCopilotPlugin extends Plugin {
     return true;
   }
 
+  resolveDualContextSnap(
+    doc: string,
+    cursorOffset: number,
+    selectionRange?: { from: number; to: number } | null
+  ): { pos: number; formattedText: (text: string) => string } {
+    let target = Math.max(0, Math.min(cursorOffset, doc.length));
+
+    // 1. Explicit selection awareness: if user recently selected text within last 10s
+    if (
+      selectionRange &&
+      selectionRange.to > selectionRange.from &&
+      Date.now() - this.lastSelectedTime < 10000 &&
+      selectionRange.to <= doc.length
+    ) {
+      target = selectionRange.to;
+    } else {
+      // 2. Semantic sentence boundary snap (Anti-fragment)
+      if (target < doc.length) {
+        const nextNewline = doc.indexOf("\n", target);
+        const lineEnd = nextNewline === -1 ? doc.length : nextNewline;
+        const lineSlice = doc.slice(target, lineEnd);
+
+        // Look forward within the current line for sentence punctuation: . ! ? 。 ！ ？
+        const punctMatch = lineSlice.match(/[.!?。！？]/);
+        if (punctMatch && punctMatch.index !== undefined) {
+          // Snap right after the sentence punctuation
+          target = target + punctMatch.index + 1;
+        } else {
+          // If no punctuation on this line, check if cursor is inside a word
+          const isPrevWord = target > 0 && /\w/.test(doc.charAt(target - 1));
+          const isNextWord = target < doc.length && /\w/.test(doc.charAt(target));
+          if (isPrevWord && isNextWord) {
+            // Cursor is inside a word: snap forward to the end of this word
+            const wordEndMatch = lineSlice.match(/^\w+/);
+            if (wordEndMatch) {
+              target = target + wordEndMatch[0].length;
+            }
+          }
+        }
+      }
+    }
+
+    // 3. Anti-Glue Guard (Double-sided whitespace & punctuation check)
+    return {
+      pos: target,
+      formattedText: (text: string) => {
+        const clean = text.trim();
+        if (!clean) return "";
+
+        const prevChar = target > 0 ? doc.charAt(target - 1) : "";
+        const nextChar = target < doc.length ? doc.charAt(target) : "";
+
+        // Needs leading space if preceding character is not whitespace and not a newline
+        const needsLeadingSpace = prevChar.length > 0 && !/\s/.test(prevChar);
+
+        // Needs trailing space if following character is not whitespace, not newline, and not punctuation
+        const needsTrailingSpace =
+          nextChar.length > 0 && !/\s/.test(nextChar) && !/[.!?,:;。！？，：；]/.test(nextChar);
+
+        const prefix = needsLeadingSpace ? " " : "";
+        const suffix = needsTrailingSpace ? " " : "";
+        return `${prefix}${clean}${suffix}`;
+      },
+    };
+  }
+
   adoptSuggestion(
     text: string,
     kind: "continue" | "alternative" | "translation",
     sourceRange?: { from: number; to: number },
-    isDirectPaste = false
+    isDirectPaste = false,
+    sourceChannel: "click" | "oral" | "keyboard" = "click"
   ) {
-    const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView) || this.activeView;
+    const activeMarkdownView = this.getActiveMarkdownView();
     if (!activeMarkdownView || !activeMarkdownView.file) return;
     this.activeView = activeMarkdownView;
 
     const editorView = this.getEditorView();
     if (!editorView) return;
 
-    const cleanText = text.trim();
+    let cleanText = text.trim();
     if (!cleanText) return;
 
     const editor = activeMarkdownView.editor;
@@ -1410,8 +1506,15 @@ export default class DiaryCopilotPlugin extends Plugin {
         this.scheduler.clear();
         this.clearGhostText();
         this.cardPanel?.renderIdleState();
-        this.recordAdoption(cleanText, kind, replacedText);
-        new Notice("⚡ 已成功填入替換！", 1500);
+        if (Platform.isMobile) {
+          this.cardPanel?.closeCards(false, true);
+        }
+        this.recordAdoption(cleanText, sourceChannel === "oral" ? "oral" : kind, replacedText);
+        if (sourceChannel === "oral") {
+          new Notice("🎉 語音跟讀成功！已自動替換筆記！", 2500);
+        } else {
+          new Notice("⚡ 已成功填入替換！", 1500);
+        }
         return;
       } else {
         // Desktop shadow typing: delete the original sentence
@@ -1425,20 +1528,35 @@ export default class DiaryCopilotPlugin extends Plugin {
         this.currentPolishItem = null;
       }
     } else {
+      // Scheme 3: Dual-Context Aware Snap for inserting new sentences (Continuation / Inquiry)
+      const snap = this.resolveDualContextSnap(fullDoc, targetPos, this.lastSelectedRange);
+      targetPos = snap.pos;
+      const formattedInsert = snap.formattedText(cleanText);
+
       if (shouldDirectPaste) {
-        // Direct paste: insert at current cursor!
+        // Direct paste: insert at snapped position with anti-glue formatting!
         editorView.dispatch({
-          changes: { from: targetPos, to: targetPos, insert: cleanText },
-          selection: { anchor: targetPos + cleanText.length },
+          changes: { from: targetPos, to: targetPos, insert: formattedInsert },
+          selection: { anchor: targetPos + formattedInsert.length },
           userEvent: "input",
         });
         this.scheduler.clear();
         this.clearGhostText();
         this.cardPanel?.renderIdleState();
-        this.recordAdoption(cleanText, kind);
-        new Notice("⚡ 已成功填入筆記！", 1500);
+        if (Platform.isMobile) {
+          this.cardPanel?.closeCards(false, true);
+        }
+        this.recordAdoption(cleanText, sourceChannel === "oral" ? "oral" : kind);
+        if (sourceChannel === "oral") {
+          new Notice("🎉 語音跟讀成功！已自動套入筆記！", 2500);
+        } else {
+          new Notice("⚡ 已成功填入筆記！", 1500);
+        }
         return;
       }
+
+      // For desktop shadow typing: use formatted text as target
+      cleanText = formattedInsert;
     }
 
     // Set cursor to target position
@@ -1461,7 +1579,7 @@ export default class DiaryCopilotPlugin extends Plugin {
     const anchorPos = this.scheduler.getAnchorPos();
     if (!targetText) return;
 
-    const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const activeMarkdownView = this.getActiveMarkdownView();
     if (!activeMarkdownView || !activeMarkdownView.file) return;
 
     const editorView = this.getEditorView();
@@ -1485,6 +1603,9 @@ export default class DiaryCopilotPlugin extends Plugin {
     this.scheduler.clear();
     this.clearGhostText();
     this.cardPanel?.renderIdleState();
+    if (Platform.isMobile) {
+      this.cardPanel?.closeCards(false, true);
+    }
 
     this.recordAdoption(targetText, "continue");
     new Notice("⚡ 已直接填入完整句子！", 1500);
@@ -1503,70 +1624,12 @@ export default class DiaryCopilotPlugin extends Plugin {
     kind: "continue" | "alternative" | "translation",
     sourceRange?: { from: number; to: number }
   ) {
-    const activeMarkdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const activeMarkdownView = this.getActiveMarkdownView();
     if (!activeMarkdownView || !activeMarkdownView.file) return;
+    this.activeView = activeMarkdownView;
 
-    const editorView = this.getEditorView();
-    if (!editorView) return;
-
-    const editor = activeMarkdownView.editor;
-    const cleanText = text.trim();
-
-    let targetFrom: number;
-    let targetTo: number;
-    let replacedText = "";
-
-    // If there is an active shadow typing session (e.g. user began typing then did oral):
-    if (this.scheduler.isShadowMode()) {
-      const anchorPos = this.scheduler.getAnchorPos();
-      const currentCursor = editor.posToOffset(editor.getCursor());
-      targetFrom = anchorPos;
-      targetTo = Math.max(anchorPos, currentCursor);
-    } else if (sourceRange) {
-      targetFrom = Math.min(sourceRange.from, sourceRange.to);
-      targetTo = Math.max(sourceRange.from, sourceRange.to);
-      replacedText = editorView.state.doc.sliceString(targetFrom, targetTo);
-    } else {
-      const curPos = editor.posToOffset(editor.getCursor());
-      targetFrom = curPos;
-      targetTo = curPos;
-    }
-
-    const docLen = editorView.state.doc.length;
-    targetFrom = Math.max(0, Math.min(targetFrom, docLen));
-    targetTo = Math.max(0, Math.min(targetTo, docLen));
-
-    // Atomic insertion/replacement into document
-    editorView.dispatch({
-      changes: {
-        from: targetFrom,
-        to: targetTo,
-        insert: cleanText,
-      },
-      selection: { anchor: targetFrom + cleanText.length },
-      userEvent: "input",
-    });
-
-    if (Platform.isMobile) {
-      this.cardPanel?.dismissSoftKeyboard();
-    } else {
-      editor.focus();
-    }
-
-    // Clear shadow state & restore panel
-    this.scheduler.clear();
-    this.clearGhostText();
-    this.cardPanel?.renderIdleState();
-
-    this.recordAdoption(cleanText, kind, replacedText);
-    new Notice("🎉 語音跟讀成功！已將標準句子放入筆記", 2500);
-
-    // Refetch next continuation suggestions
-    const newContext = extractContextFromDoc(editor.getValue(), targetFrom + cleanText.length);
-    const filePath = activeMarkdownView.file.path;
-    const paragraphSummary = this.summaryManager.getParagraphSummary(filePath);
-    const styleSummary = this.data.styleSummary?.summary;
-    this.scheduler.handleDocChange(newContext, styleSummary, paragraphSummary);
+    // Use unified adoptSuggestion with direct paste = true and sourceChannel = "oral"
+    this.adoptSuggestion(text, kind, sourceRange, true, "oral");
   }
 
   recordAdoption(text: string, kind: string, sourceText?: string) {

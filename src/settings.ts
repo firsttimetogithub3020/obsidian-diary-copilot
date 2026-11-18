@@ -73,14 +73,14 @@ export class DiaryCopilotSettingTab extends PluginSettingTab {
 
     new Setting(updateCard)
       .setName(`外掛版本：v${this.plugin.manifest.version}（跨平台全裝置支援）`)
-      .setDesc("本外掛具備全自動更新能力：每次啟動時會在背景檢查 GitHub 最新版本並自動更新。您亦可隨時點擊右側按鈕立即更新。")
+      .setDesc("支援本機熱重載與 Obsidian Sync 多裝置同步：點擊右側按鈕可立即偵測 Plugin 資料夾同步狀態並安全重載。")
       .addButton((btn) => {
         btn
           .setButtonText("🚀 立即檢查並更新外掛")
           .setCta()
           .onClick(async () => {
             btn.setDisabled(true);
-            btn.setButtonText("正在檢查...");
+            btn.setButtonText("正在重載...");
             await this.plugin.checkForUpdates(true);
             btn.setDisabled(false);
             btn.setButtonText("🚀 立即檢查並更新外掛");
