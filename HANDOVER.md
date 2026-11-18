@@ -12,7 +12,7 @@
 * **專案名稱**：Obsidian Diary Copilot (`obsidian-diary-copilot`)
 * **本機代碼倉庫**：`E:\obsidian-english\obsidian-diary-copilot`
 * **本機 Vault 部署路徑**：`E:\AI-Knowledge-System\Obsidian-Vault\.obsidian\plugins\diary-copilot`
-* **當前最新版本**：`v0.3.67`
+* **當前最新版本**：`v0.3.68`
 * **使用者**：Alan（對話與說明一律使用**繁體中文**；代碼識別碼與 Commit 訊息一律使用英文）。
 
 ---
@@ -97,6 +97,7 @@ flowchart TD
 
 | 版本 | 日期 | 重點改動說明 |
 | :--- | :--- | :--- |
+| **v0.3.68** | 2026-11-18 | 1. 徹底杜絕 Mac / iOS / 跨平台口說跟讀重複貼入（Triple-layer Anti-duplicate Guard）：<br/>- 診斷原因：在 Mac / Desktop / iOS 裝置上，若語音聽寫達標或點擊「⏹️ 說完了」時，450ms 動畫延遲結算與重複點擊/Enter 可能觸發兩次結算；且提問模式下建議回答誤帶入先前的 `currentItem?.sourceRange` 舊區間；外加 `onOralShadowComplete` 與 `onOralAdopt` 缺乏同步互斥保護。<br/>- 防護 1（CardPanel 防重入狀態鎖）：`handleOralPass`、`finishOralRecording`、`handleOralAdoptDirect` 全面增設 `if (this.oralPassed) return;` 阻斷防護，並在任一入口觸發時立即清除 `oralPassTimeout` 與 `autoPassTimer`，徹底杜絕 450ms 延遲期間的二次觸發。<br/>- 防護 2（提問模式 Range 純化）：提問模式下的建議回答均為新段落，強制將 `sourceRange` 置為 `undefined`，絕不殘留舊潤飾句子的定位區間。<br/>- 防護 3（全域原子冪等擴大至 2500ms）：將直接貼入的防重複窗口擴展至 2.5 秒，且 `onOralShadowComplete` 與 `adoptSuggestion` 共享統一時間戳防禦，徹底杜絕任何系統層級的雙重寫入。<br/>2. 專案版本升級為 v0.3.68。 |
 | **v0.3.67** | 2026-11-18 | 1. 提問模式「收起建議回答 ⇄ 查看建議回答」按鈕真實生效（徹底消除殘留卡片干擾）：<br/>- 診斷原因：先前點擊「收起建議回答」時，面板僅切換 `isShowingInquiryAnswers = false`，但在 `renderBrowseMode` 中仍有 `else if (item)` 分支，導致系統掉入先前的 `this.currentItem` 舊潤飾字卡，造成按鈕雖然寫「查看建議回答」，下方卻依然常駐 4 張舊字卡，無法真正收摺。<br/>- 真實收起與高度自適應（Clean Collapse & Auto-fit）：收起狀態下明確將 `currentCards` 置空，並移除多餘的佔位區塊，讓面板高度立即自動收縮至只保留「提問條」與「頂部功能列」（約 70~80px），徹底騰出筆記主編輯區視野供使用者自由作答；點擊「💡 查看建議回答」則精準展開 4 張建議回答卡片並自然撐開高度。<br/>- 雙向聯動同步：頂部工具列 `F6`（展開/關閉字卡）在提問模式下與「查看/收起建議回答」保持 100% 雙向狀態聯動同步。<br/>2. 專案版本升級為 v0.3.67。 |
 | **v0.3.66** | 2026-11-18 | 1. 查詞懸浮窗詞性標籤（`popover-pos`）嚴格鎖定保留（絕不遺失）：<br/>- 確保反白查詞懸浮窗在擁有 `🔊` 發音按鈕的同時，單字詞性標記（如 `n.`、`v.`、`phr.`）100% 絕對保留於單字後方，若為多詞片語且 API 未回傳詞性時自動備援標記 `phr.`。<br/>2. 整篇整理「初稿盲點替換紀錄」大幅精煉去重（聚焦單字/片語/慣用語新表達）：<br/>- 診斷原因：先前多次點擊「✨ 整理跟讀」時，筆記中原有的 `### 💡 口說與寫作初稿盲點替換紀錄` 會被當作初稿重複讀取，造成每次重新整理時盲點紀錄指數堆疊，且直接倒出完整大段落與整句，失去了提煉核心表達的價值。<br/>- 徹底剔除舊紀錄：讀取初稿時自動透過正則表達式剔除任何先前的盲點或表達升級區塊，杜絕二次整理堆疊。<br/>- 精煉單字/片語升級（Expression Upgrades）：提示詞與資料結構升級為 `upgrades` 欄位，由 AI 提煉 1~4 項精確「單字、片語、慣用語」（`初稿表達 ➔ 升級表達 (中文釋義)`），徹底告別整段冗長重複，聚焦於道地新表達的發現與吸收！<br/>3. 專案版本升級為 v0.3.66。 |
 | **v0.3.65** | 2026-11-18 | 1. 反白即時查詞懸浮窗（SelectionPopover）補齊 `🔊` 語音朗讀發音功能：<br/>- 診斷原因：反白查詞浮窗先前僅呈現單字、詞性、簡明翻譯與關閉鈕，缺少發音按鈕，使用者反白生字時無法即時聽取聽覺語音。<br/>- 雙重發音入口（Dual Pronunciation Trigger）：<br/>  1. 右側操作區新增 `[🔊]` 獨立發音按鈕，點擊立即透過 Google TTS 串流輸出標準美音發音。<br/>  2. 單字標籤本體（`.popover-term`）亦支援點擊發音與游標懸浮提示，隨心點按即播。<br/>2. 專案版本升級為 v0.3.65。 |

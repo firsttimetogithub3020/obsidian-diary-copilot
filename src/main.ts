@@ -89,6 +89,14 @@ export default class DiaryCopilotPlugin extends Plugin {
           if (this.cardPanel?.isOralActive()) {
             return;
           }
+          const cleanText = targetText.trim();
+          if (this.lastAdoptedText === cleanText && Date.now() - this.lastAdoptedTime < 2500) {
+            console.warn("[Diary Copilot] Suppressed duplicate onOralShadowComplete within 2.5s:", cleanText);
+            return;
+          }
+          this.lastAdoptedText = cleanText;
+          this.lastAdoptedTime = Date.now();
+
           const editorView = this.getEditorView();
           if (editorView) {
             editorView.dispatch({
@@ -1510,10 +1518,10 @@ export default class DiaryCopilotPlugin extends Plugin {
     let cleanText = text.trim();
     if (!cleanText) return;
 
-    // Atomic Idempotency Guard: prevent double-insertion race conditions within 1500ms
+    // Atomic Idempotency Guard: prevent double-insertion race conditions within 2500ms
     if (isDirectPaste) {
-      if (this.lastAdoptedText === cleanText && Date.now() - this.lastAdoptedTime < 1500) {
-        console.warn("[Diary Copilot] Suppressed duplicate direct adoption within 1.5s:", cleanText);
+      if (this.lastAdoptedText === cleanText && Date.now() - this.lastAdoptedTime < 2500) {
+        console.warn("[Diary Copilot] Suppressed duplicate direct adoption within 2.5s:", cleanText);
         return;
       }
       this.lastAdoptedText = cleanText;

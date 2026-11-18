@@ -1208,6 +1208,7 @@ export class CardPanel {
       // Action Bar inside each grid card: [ 🔊 朗讀 ] [ 🎙️ 跟讀 ] [ ⚡ 自動填入 / ⚡ 填入替換 ]
       const cardActions = cardEl.createDiv({ cls: "diary-copilot-card-actions" });
 
+      const effectiveSourceRange = this.pinnedInquiryItem ? undefined : this.currentItem?.sourceRange;
       const ttsBtn = cardActions.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-card-action-btn diary-copilot-tts-btn",
         text: "🔊 朗讀",
@@ -1229,10 +1230,10 @@ export class CardPanel {
         e.preventDefault();
         this.dismissSoftKeyboard();
         this.resetToAutoFit();
-        this.startOralShadowing(card.text, card.kind, this.currentItem?.sourceRange);
+        this.startOralShadowing(card.text, card.kind, effectiveSourceRange);
       });
 
-      const isReplace = card.kind === "translation" || !!this.currentItem?.sourceRange;
+      const isReplace = !this.pinnedInquiryItem && (card.kind === "translation" || !!this.currentItem?.sourceRange);
       const pasteBtn = cardActions.createEl("button", {
         cls: "diary-copilot-action-btn diary-copilot-card-action-btn diary-copilot-card-paste-btn",
         text: isReplace ? "⚡ 填入替換" : "⚡ 自動填入",
@@ -1242,7 +1243,7 @@ export class CardPanel {
         e.stopPropagation();
         e.preventDefault();
         this.dismissSoftKeyboard();
-        this.callbacks.onAdopt(card.text, card.kind, this.currentItem?.sourceRange, true);
+        this.callbacks.onAdopt(card.text, card.kind, effectiveSourceRange, true);
         if (Platform.isMobile) {
           this.closeCards(false, true);
         }
@@ -1259,7 +1260,7 @@ export class CardPanel {
           else el.removeClass("is-selected");
         });
         this.renderHeaderActionsBrowse();
-        this.callbacks.onCardSelect?.(card.text, card.kind, this.currentItem?.sourceRange);
+        this.callbacks.onCardSelect?.(card.text, card.kind, effectiveSourceRange);
       });
     });
   }
@@ -1302,6 +1303,7 @@ export class CardPanel {
       speakSentence(activeCard.text);
     });
 
+    const effectiveSourceRange = this.pinnedInquiryItem ? undefined : this.currentItem?.sourceRange;
     const oralBtn = cardActions.createEl("button", {
       cls: "diary-copilot-action-btn diary-copilot-hero-action-btn diary-copilot-oral-btn",
       text: "🎙️ 跟讀",
@@ -1312,10 +1314,10 @@ export class CardPanel {
       e.preventDefault();
       this.dismissSoftKeyboard();
       this.resetToAutoFit();
-      this.startOralShadowing(activeCard.text, activeCard.kind, this.currentItem?.sourceRange);
+      this.startOralShadowing(activeCard.text, activeCard.kind, effectiveSourceRange);
     });
 
-    const isReplace = activeCard.kind === "translation" || !!this.currentItem?.sourceRange;
+    const isReplace = !this.pinnedInquiryItem && (activeCard.kind === "translation" || !!this.currentItem?.sourceRange);
     const pasteBtn = cardActions.createEl("button", {
       cls: "diary-copilot-action-btn diary-copilot-hero-action-btn diary-copilot-hero-paste-btn",
       text: isReplace ? "⚡ 填入替換" : "⚡ 自動填入",
@@ -1325,7 +1327,7 @@ export class CardPanel {
       e.stopPropagation();
       e.preventDefault();
       this.dismissSoftKeyboard();
-      this.callbacks.onAdopt(activeCard.text, activeCard.kind, this.currentItem?.sourceRange, true);
+      this.callbacks.onAdopt(activeCard.text, activeCard.kind, effectiveSourceRange, true);
       if (Platform.isMobile) {
         this.closeCards(false, true);
       }
@@ -1335,7 +1337,7 @@ export class CardPanel {
     heroCard.addEventListener("click", (e) => {
       const sel = window.getSelection()?.toString().trim();
       if (sel && sel.length > 0) return;
-      this.callbacks.onCardSelect?.(activeCard.text, activeCard.kind, this.currentItem?.sourceRange);
+      this.callbacks.onCardSelect?.(activeCard.text, activeCard.kind, effectiveSourceRange);
     });
 
     // 2. Capsule Tabs Row below Hero Card (shows pagination pills)
@@ -1923,6 +1925,7 @@ export class CardPanel {
    * Manual Stop: User tapped "⏹️ 說完了", immediately stops microphone and evaluates.
    */
   private finishOralRecording() {
+    if (this.oralPassed) return;
     this.clearAutoPassTimer();
     this.isOralListening = false;
     globalSpeechRecognizer.stop();
@@ -2195,9 +2198,14 @@ export class CardPanel {
    * Handles successful oral match (>= 70%) with celebratory visual feedback & atomic note insertion
    */
   private handleOralPass(match: OralMatchResult) {
+    if (this.oralPassed) return;
     this.oralPassed = true;
     this.isOralListening = false;
     this.clearAutoPassTimer();
+    if (this.oralPassTimeout) {
+      window.clearTimeout(this.oralPassTimeout);
+      this.oralPassTimeout = null;
+    }
     globalSpeechRecognizer.stop();
     this.renderHeaderActionsOral();
 
@@ -2218,6 +2226,7 @@ export class CardPanel {
     const sourceRange = this.oralSourceRange;
 
     this.oralPassTimeout = window.setTimeout(() => {
+      this.oralPassTimeout = null;
       this.isOralMode = false;
       if (this.callbacks.onOralAdopt) {
         this.callbacks.onOralAdopt(targetText, kind, sourceRange);
@@ -2235,10 +2244,15 @@ export class CardPanel {
    * Direct paste button clicked from Oral Studio
    */
   private handleOralAdoptDirect() {
+    if (this.oralPassed) return;
     this.oralPassed = true;
     this.isOralListening = false;
     this.oralLatestTranscript = "";
     this.clearAutoPassTimer();
+    if (this.oralPassTimeout) {
+      window.clearTimeout(this.oralPassTimeout);
+      this.oralPassTimeout = null;
+    }
     globalSpeechRecognizer.stop();
     this.isOralMode = false;
     const targetText = this.oralTargetText;
