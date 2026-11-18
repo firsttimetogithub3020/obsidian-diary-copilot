@@ -17,6 +17,7 @@ export class FullTextShadowingModal extends Modal {
   private statusTextEl: HTMLElement | null = null;
   private progressBarEl: HTMLElement | null = null;
   private pinchZoomCtrl: PinchZoomController | null = null;
+  private playSessionId = 0;
 
   constructor(app: App, plugin: DiaryCopilotPlugin, fullText: string, file: TFile) {
     super(app);
@@ -168,6 +169,7 @@ export class FullTextShadowingModal extends Modal {
 
   private pause() {
     this.isPlaying = false;
+    this.playSessionId++;
     stopAudio();
     if (this.playBtn) {
       this.playBtn.setText("▶️ 繼續跟讀");
@@ -180,6 +182,8 @@ export class FullTextShadowingModal extends Modal {
 
   private playNextSentence() {
     if (!this.isPlaying) return;
+    const currentSession = ++this.playSessionId;
+
     if (this.currentSentenceIdx >= this.sentences.length) {
       // Completed all sentences!
       this.onFullTextCompleted();
@@ -192,16 +196,17 @@ export class FullTextShadowingModal extends Modal {
     speakSentence(
       sentenceText,
       () => {
-        if (!this.isPlaying) return;
+        if (!this.isPlaying || this.playSessionId !== currentSession) return;
         this.currentSentenceIdx++;
         // Small 250ms natural breathing pause between sentences
         window.setTimeout(() => {
+          if (!this.isPlaying || this.playSessionId !== currentSession) return;
           this.playNextSentence();
         }, 250);
       },
       this.playbackRate,
       (err) => {
-        if (!this.isPlaying) return;
+        if (!this.isPlaying || this.playSessionId !== currentSession) return;
         this.pause();
         new Notice("⚠️ 語音朗讀播放失敗，請檢查網路連線", 3000);
       }
@@ -242,6 +247,7 @@ export class FullTextShadowingModal extends Modal {
 
   onClose() {
     this.isPlaying = false;
+    this.playSessionId++;
     stopAudio();
     if (this.pinchZoomCtrl) {
       this.pinchZoomCtrl.cleanup();

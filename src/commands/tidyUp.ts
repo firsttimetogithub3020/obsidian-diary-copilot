@@ -138,10 +138,14 @@ export async function tidyUpTodayDiary(app: App, plugin: DiaryCopilotPlugin) {
       modelOverride: plugin.settings.tidyModel || plugin.settings.model,
     });
 
-    // Clean JSON response (strip ```json fences if model wrapped them)
+    // Clean JSON response (strip ```json fences if model wrapped them, extract outer JSON object)
     let cleanedJson = responseText.trim();
     if (cleanedJson.startsWith("```")) {
       cleanedJson = cleanedJson.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```$/, "");
+    }
+    const jsonMatch = cleanedJson.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      cleanedJson = jsonMatch[0];
     }
 
     const result = JSON.parse(cleanedJson);

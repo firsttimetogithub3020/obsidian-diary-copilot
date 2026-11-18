@@ -59,18 +59,24 @@ export function isAudioPlaying(): boolean {
 
 export function splitTextIntoSentences(text: string): string[] {
   if (!text) return [];
-  // Clean markdown headers / bullets
+  // Clean markdown headers / bullets / wiki-links
   const clean = text
     .replace(/^#+\s+/gm, "")
     .replace(/^[-*+]\s+/gm, "")
     .replace(/\[\[(.*?)\]\]/g, "$1")
     .trim();
 
-  // Match sentences ending in punctuation
-  const rawSentences = clean.match(/[^.!?\n]+[.!?]+(?:\s+|$)|[^.!?\n]+$/g) || [clean];
-  return rawSentences
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0 && /[a-zA-Z]/.test(s));
+  // Protect decimal numbers (e.g. 0.3.52, 3.14) and common abbreviations (e.g., i.e., Dr., etc.)
+  const protectedText = clean
+    .replace(/(\d)\.(\d)/g, "$1§DOT§$2")
+    .replace(/\b(e\.g|i\.e|etc|vs|dr|mr|mrs|ms|prof)\./gi, "$1§DOT§");
+
+  // Split on newlines OR sentence endings followed by whitespace
+  const rawParts = protectedText.split(/\n+|(?:(?<=[.!?])\s+(?=[A-Z0-9"“'‘—–-]|$))/);
+
+  return rawParts
+    .map((p) => p.replace(/§DOT§/g, ".").trim())
+    .filter((p) => p.length > 0 && /[a-zA-Z]/.test(p));
 }
 
 /**
@@ -123,16 +129,18 @@ function decodeAudioDataSafe(ctx: AudioContext, buffer: ArrayBuffer): Promise<Au
 }
 
 function concatenateAudioBuffers(ctx: AudioContext, buffers: AudioBuffer[]): AudioBuffer {
+  if (buffers.length === 0) return ctx.createBuffer(1, 1, 22050);
   if (buffers.length === 1) return buffers[0];
   const totalLength = buffers.reduce((acc, b) => acc + b.length, 0);
-  const numberOfChannels = buffers[0].numberOfChannels;
+  const numberOfChannels = Math.max(...buffers.map((b) => b.numberOfChannels));
   const sampleRate = buffers[0].sampleRate;
   const out = ctx.createBuffer(numberOfChannels, totalLength, sampleRate);
   for (let ch = 0; ch < numberOfChannels; ch++) {
     const channelData = out.getChannelData(ch);
     let offset = 0;
     for (const b of buffers) {
-      channelData.set(b.getChannelData(ch), offset);
+      const srcChannel = ch < b.numberOfChannels ? ch : 0;
+      channelData.set(b.getChannelData(srcChannel), offset);
       offset += b.length;
     }
   }
@@ -143,7 +151,14 @@ async function playWithAudioContext(buffers: ArrayBuffer[], rate = 1.0, onEnd?: 
   const ctx = getAudioContext();
   if (!ctx) throw new Error("AudioContext not supported");
   if (ctx.state === "suspended") {
-    await ctx.resume();
+    try {
+      await Promise.race([
+        ctx.resume(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("AudioContext resume timeout")), 800)),
+      ]);
+    } catch {
+      throw new Error("AudioContext suspended and cannot resume without user gesture");
+    }
   }
 
   stopAudio();
