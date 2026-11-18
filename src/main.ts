@@ -170,7 +170,7 @@ export default class DiaryCopilotPlugin extends Plugin {
           return;
         }
       }
-      if (e.key === "F4") {
+      if (e.key === "F6") {
         if (this.cardPanel) {
           this.cardPanel.toggleFoldCards();
           e.preventDefault();
@@ -262,7 +262,7 @@ export default class DiaryCopilotPlugin extends Plugin {
 
     this.addCommand({
       id: "toggle-fold-cards",
-      name: "展開／關閉建議字卡 (F4)",
+      name: "展開／關閉建議字卡 (F6)",
       callback: () => this.cardPanel?.toggleFoldCards(),
     });
 

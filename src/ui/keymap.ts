@@ -110,7 +110,7 @@ export function createDiaryKeymap(callbacks: KeymapCallbacks) {
       { key: "Alt-4", run: acceptCard4 },
       { key: "Escape", run: dismiss },
       { key: "F3", run: polish },
-      { key: "F4", run: toggleCards },
+      { key: "F6", run: toggleCards },
       { key: "F5", run: inquiry },
     ])
   );
