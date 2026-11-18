@@ -16,6 +16,7 @@ let audioContext: AudioContext | null = null;
 let activeSourceNode: AudioBufferSourceNode | null = null;
 let sharedAudio: HTMLAudioElement | null = null;
 let activeBlobUrl: string | null = null;
+let activeUtterance: SpeechSynthesisUtterance | null = null;
 
 export function getAudioContext(): AudioContext | null {
   if (typeof window === "undefined") return null;
@@ -282,14 +283,17 @@ export async function speakSentence(
       if (synth.paused) synth.resume();
 
       const utterance = new SpeechSynthesisUtterance(cleanText);
+      activeUtterance = utterance;
       utterance.lang = "en-US";
       utterance.rate = 0.95 * rate;
       utterance.pitch = 1.0;
 
       utterance.onend = () => {
+        activeUtterance = null;
         onEnd?.();
       };
       utterance.onerror = (e) => {
+        activeUtterance = null;
         console.warn("[Diary Copilot TTS] SpeechSynthesis error:", e);
         if (onError) onError(e);
         else {
@@ -341,6 +345,11 @@ export function stopAudio() {
       URL.revokeObjectURL(activeBlobUrl);
     } catch {}
     activeBlobUrl = null;
+  }
+  if (activeUtterance) {
+    activeUtterance.onend = null;
+    activeUtterance.onerror = null;
+    activeUtterance = null;
   }
   if (typeof window !== "undefined" && "speechSynthesis" in window) {
     try {

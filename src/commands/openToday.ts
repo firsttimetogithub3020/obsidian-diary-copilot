@@ -1,6 +1,19 @@
 import { App, TFile, Notice } from "obsidian";
 import type DiaryCopilotPlugin from "../main";
 
+async function ensureFolderExists(app: App, folderPath: string) {
+  const parts = folderPath.split("/").filter(Boolean);
+  let cur = "";
+  for (const part of parts) {
+    cur = cur ? `${cur}/${part}` : part;
+    if (!app.vault.getAbstractFileByPath(cur)) {
+      try {
+        await app.vault.createFolder(cur);
+      } catch {}
+    }
+  }
+}
+
 export async function openTodayDiary(app: App, plugin: DiaryCopilotPlugin) {
   const folder = plugin.settings.diaryFolder || "Diary";
   const now = new Date();
@@ -10,15 +23,8 @@ export async function openTodayDiary(app: App, plugin: DiaryCopilotPlugin) {
   const todayStr = `${year}-${month}-${day}`;
   const filePath = `${folder}/${todayStr}.md`;
 
-  // Ensure diary folder exists
-  const folderExists = app.vault.getAbstractFileByPath(folder);
-  if (!folderExists) {
-    try {
-      await app.vault.createFolder(folder);
-    } catch {
-      // folder might already exist
-    }
-  }
+  // Ensure diary folder exists (including any nested ancestor folders)
+  await ensureFolderExists(app, folder);
 
   let file = app.vault.getAbstractFileByPath(filePath);
   if (!file) {
