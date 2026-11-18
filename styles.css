@@ -206,6 +206,32 @@ body:not(.is-mobile) .diary-copilot-panel {
   justify-content: flex-start !important;
 }
 
+/* Desktop: Functional buttons start on the far left (order: 1); brand/mode reminder placed to the right (order: 2) */
+body:not(.is-mobile) .diary-copilot-header-row-1 {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+}
+
+body:not(.is-mobile) .diary-copilot-header-sys {
+  order: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-shrink: 0 !important;
+  justify-content: flex-start !important;
+}
+
+body:not(.is-mobile) .diary-copilot-brand-wrapper {
+  order: 2 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-shrink: 0 !important;
+  margin-left: 6px !important;
+}
+
 /* Single line mode on very wide desktop screens (> 900px) when not in two-row mode */
 @media (min-width: 901px) {
   body:not(.is-mobile) .diary-copilot-panel-header:not(.is-two-row) {
@@ -221,7 +247,7 @@ body:not(.is-mobile) .diary-copilot-panel {
 
   body:not(.is-mobile) .diary-copilot-panel-header:not(.is-two-row) .diary-copilot-header-row-1 {
     justify-content: flex-start !important;
-    gap: 8px !important;
+    gap: 10px !important;
   }
 
   body:not(.is-mobile) .diary-copilot-panel-header:not(.is-two-row) .diary-copilot-header-row-2 {
@@ -241,7 +267,7 @@ body:not(.is-mobile) .diary-copilot-panel {
 
   .diary-copilot-header-row-1 {
     display: flex !important;
-    justify-content: flex-start !important;
+    justify-content: space-between !important;
     align-items: center !important;
     width: 100% !important;
     flex-wrap: nowrap !important;
@@ -249,7 +275,16 @@ body:not(.is-mobile) .diary-copilot-panel {
     overflow-y: hidden !important;
     scrollbar-width: none !important;
     -webkit-overflow-scrolling: touch !important;
-    gap: 8px !important;
+  }
+
+  .diary-copilot-brand-wrapper {
+    order: 1 !important;
+    flex-shrink: 0 !important;
+  }
+
+  .diary-copilot-header-sys {
+    order: 2 !important;
+    justify-content: flex-end !important;
   }
 
   .diary-copilot-header-row-1::-webkit-scrollbar {
@@ -296,7 +331,7 @@ body:not(.is-mobile) .diary-copilot-panel {
     scrollbar-width: none !important;
     -webkit-overflow-scrolling: touch !important;
     flex-wrap: nowrap !important;
-    justify-content: flex-start !important;
+    justify-content: flex-end !important;
   }
   .diary-copilot-header-sys::-webkit-scrollbar {
     display: none !important;
@@ -348,7 +383,7 @@ body.is-phone .diary-copilot-header-sys {
   scrollbar-width: none !important;
   -webkit-overflow-scrolling: touch !important;
   flex-wrap: nowrap !important;
-  justify-content: flex-start !important;
+  justify-content: flex-end !important;
 }
 
 .is-narrow-screen .diary-copilot-header-sys::-webkit-scrollbar,
@@ -2851,9 +2886,26 @@ body.has-diary-copilot-active.is-mobile .mobile-navbar {
   display: flex !important;
   flex-direction: row !important;
   align-items: center !important;
-  justify-content: flex-start !important;
-  gap: 8px !important;
   width: 100% !important;
+}
+
+body:not(.is-mobile) .diary-copilot-panel.is-keyboard-writing .diary-copilot-header-row-1,
+body:not(.is-mobile) .diary-copilot-panel.is-compact-idle .diary-copilot-header-row-1,
+body:not(.is-mobile) .diary-copilot-panel.is-cards-closed .diary-copilot-header-row-1,
+body:not(.is-mobile) .diary-copilot-panel.is-collapsed .diary-copilot-header-row-1 {
+  justify-content: flex-start !important;
+  gap: 10px !important;
+}
+
+.is-mobile .diary-copilot-panel.is-keyboard-writing .diary-copilot-header-row-1,
+.is-mobile .diary-copilot-panel.is-compact-idle .diary-copilot-header-row-1,
+.is-mobile .diary-copilot-panel.is-cards-closed .diary-copilot-header-row-1,
+.is-mobile .diary-copilot-panel.is-collapsed .diary-copilot-header-row-1,
+body.is-mobile .diary-copilot-panel.is-keyboard-writing .diary-copilot-header-row-1,
+body.is-mobile .diary-copilot-panel.is-compact-idle .diary-copilot-header-row-1,
+body.is-mobile .diary-copilot-panel.is-cards-closed .diary-copilot-header-row-1,
+body.is-mobile .diary-copilot-panel.is-collapsed .diary-copilot-header-row-1 {
+  justify-content: space-between !important;
 }
 
 /* Shadowing Preparation Modal (Option A) */
