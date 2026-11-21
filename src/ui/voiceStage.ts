@@ -5,6 +5,7 @@ import { buildVoiceRefineSystemPrompt, buildVoiceRefineUserPrompt } from "../llm
 import { parseVoiceRefineResponse, VoiceRefineResult } from "../engine/parser";
 import { speakSentence } from "../services/tts";
 import { globalSpeechRecognizer, evaluateOralMatch } from "../services/speech";
+import { attachWordLookup } from "./cardPanel";
 
 export interface VoiceStageCallbacks {
   onInsertSpokenDraft?: (spokenText: string) => Promise<{ from: number; to: number; rawInserted: string }>;
@@ -23,6 +24,7 @@ export interface VoiceStageCallbacks {
   getEnglishLevel: () => EnglishLevel;
   getTone: () => DiaryTone;
   getDiaryContext: () => string;
+  onWordLookup?: (word: string, rect: { left: number; top: number; right: number; bottom: number }) => void;
 }
 
 export class VoiceStage {
@@ -145,7 +147,8 @@ export class VoiceStage {
       this.fetchNewInterviewQuestion();
     });
 
-    qCard.createDiv({ cls: "interview-q-en", text: questionEn });
+    const qEnEl = qCard.createDiv({ cls: "interview-q-en", text: questionEn });
+    attachWordLookup(qEnEl, this.callbacks.onWordLookup);
     qCard.createDiv({ cls: "interview-q-zh", text: questionZh });
 
     // Polish Action Bar
@@ -340,7 +343,8 @@ export class VoiceStage {
       header.createSpan({ cls: "diary-copilot-hero-badge", text: c.badge });
 
       // Sentence body
-      cardEl.createDiv({ cls: "diary-copilot-voice-card-text", text: c.text });
+      const textEl = cardEl.createDiv({ cls: "diary-copilot-voice-card-text", text: c.text });
+      attachWordLookup(textEl, this.callbacks.onWordLookup);
 
       // Actions inside card
       const actRow = cardEl.createDiv({ cls: "diary-copilot-voice-card-actions" });

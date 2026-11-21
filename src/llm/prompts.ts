@@ -303,10 +303,11 @@ export function buildInquiryUserPrompt(input: InquiryPromptInput): string {
   const headingLine = input.sectionHeading ? `[Current Section / Topic]: ${input.sectionHeading}\n` : "";
   return `<diary_context>
 ${headingLine}${input.surroundingContext}
-[Recent / Focus sentence]: "${input.currentSentence}"
+[Recent / Focus sentence or title]: "${input.currentSentence}"
 </diary_context>
 
 Based on this diary context and the author's focus, generate thoughtful questions that genuinely connect with their specific experiences, emotions, or reflections:
+If the user only has a section title and has not written any body content yet, focus specifically on inspiring their first reflections, reasons, or stories for this section title.
 1. One closed Yes/No question with 2 YES answers (yes1, yes2) and 2 NO answers (no1, no2). Provide Traditional Chinese translation for the question ("closedChinese").
 2. One open-ended Wh- question with 4 distinctly styled answers (openStyle1, openStyle2, openStyle3, openStyle4). Provide Traditional Chinese translation for the question ("openChinese").
 

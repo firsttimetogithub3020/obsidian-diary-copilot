@@ -856,6 +856,9 @@ export default class DiaryCopilotPlugin extends Plugin {
           getLlmClient: () => {
             return this.llm;
           },
+          onWordLookup: (word, rect) => {
+            this.selectionPopover?.handleSelection(word, rect, true);
+          },
         });
       } else if (fileChanged) {
         this.currentFilePath = activeMarkdownView.file?.path || "";

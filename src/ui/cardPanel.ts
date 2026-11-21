@@ -45,6 +45,7 @@ export interface CardPanelCallbacks {
   onEnglishLevelChange?: (level: EnglishLevel) => void;
   getDiaryContext?: () => string;
   getLlmClient?: () => any;
+  onWordLookup?: (word: string, rect: { left: number; top: number; right: number; bottom: number }) => void;
 }
 
 interface CardDescriptor {
@@ -77,6 +78,131 @@ export function forceDismissSoftKeyboard() {
   } catch (e) {
     // ignore
   }
+}
+
+export function getWordAtPoint(
+  x: number,
+  y: number,
+  containerEl?: HTMLElement
+): { word: string; rect: { left: number; top: number; right: number; bottom: number } } | null {
+  let textNode: Node | null = null;
+  let offset = 0;
+
+  if (typeof document.caretRangeFromPoint === "function") {
+    const range = document.caretRangeFromPoint(x, y);
+    if (range) {
+      textNode = range.startContainer;
+      offset = range.startOffset;
+    }
+  } else if (typeof (document as any).caretPositionFromPoint === "function") {
+    const pos = (document as any).caretPositionFromPoint(x, y);
+    if (pos) {
+      textNode = pos.offsetNode;
+      offset = pos.offset;
+    }
+  }
+
+  if (!textNode) return null;
+
+  if (textNode.nodeType !== Node.TEXT_NODE) {
+    if (textNode.childNodes && textNode.childNodes.length > 0) {
+      const child = textNode.childNodes[Math.min(offset, textNode.childNodes.length - 1)];
+      if (child && child.nodeType === Node.TEXT_NODE) {
+        textNode = child;
+        offset = 0;
+      } else {
+        return null;
+      }
+    } else {
+      return null;
+    }
+  }
+
+  if (containerEl && !containerEl.contains(textNode)) {
+    return null;
+  }
+
+  const text = textNode.textContent || "";
+  if (!text || offset < 0 || offset > text.length) return null;
+
+  const isWordChar = (ch: string) => /[a-zA-Z0-9'’\u4e00-\u9fa5\-]/.test(ch);
+
+  let idx = offset;
+  if (idx >= text.length && idx > 0) idx = text.length - 1;
+  if (!isWordChar(text[idx]) && idx > 0 && isWordChar(text[idx - 1])) {
+    idx = idx - 1;
+  }
+  if (!isWordChar(text[idx])) {
+    return null;
+  }
+
+  let start = idx;
+  while (start > 0 && isWordChar(text[start - 1])) {
+    start--;
+  }
+
+  let end = idx;
+  while (end < text.length && isWordChar(text[end])) {
+    end++;
+  }
+
+  const rawWord = text.slice(start, end).trim();
+  const cleanWord = rawWord.replace(/^['’\-]+|['’\-]+$/g, "");
+  if (!cleanWord || cleanWord.length === 0) return null;
+
+  try {
+    const wordRange = document.createRange();
+    wordRange.setStart(textNode, start);
+    wordRange.setEnd(textNode, end);
+    const rect = wordRange.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return null;
+    return { word: cleanWord, rect };
+  } catch {
+    return null;
+  }
+}
+
+export function attachWordLookup(
+  el: HTMLElement,
+  onWordLookup?: (word: string, rect: { left: number; top: number; right: number; bottom: number }) => void
+) {
+  if (!onWordLookup) return;
+
+  let lastTriggerTime = 0;
+
+  const handlePointer = (e: MouseEvent | TouchEvent) => {
+    // If text was selected by dragging, do not interfere (let DOM selection handler take care of it)
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) {
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastTriggerTime < 350) return; // Prevent dual fire of touchend + click
+
+    let clientX = 0;
+    let clientY = 0;
+    if ("touches" in e || "changedTouches" in e) {
+      const touch = (e as TouchEvent).changedTouches?.[0] || (e as TouchEvent).touches?.[0];
+      if (!touch) return;
+      clientX = touch.clientX;
+      clientY = touch.clientY;
+    } else {
+      const me = e as MouseEvent;
+      if (me.button !== 0) return;
+      clientX = me.clientX;
+      clientY = me.clientY;
+    }
+
+    const info = getWordAtPoint(clientX, clientY, el);
+    if (info && info.word) {
+      lastTriggerTime = now;
+      onWordLookup(info.word, info.rect);
+    }
+  };
+
+  el.addEventListener("click", handlePointer);
+  el.addEventListener("touchend", handlePointer, { passive: true });
 }
 
 export class CardPanel {
@@ -1070,6 +1196,7 @@ export class CardPanel {
       onCardRenderChange: () => {
         this.applyPanelHeight();
       },
+      onWordLookup: this.callbacks.onWordLookup,
     });
 
     this.voiceStage.render();
@@ -1173,7 +1300,8 @@ export class CardPanel {
 
     // Question body
     const qBody = stripEl.createDiv({ cls: "diary-copilot-pinned-q-body" });
-    qBody.createSpan({ cls: "diary-copilot-pinned-q-text", text: `❓ ${qText}` });
+    const qTextEl = qBody.createSpan({ cls: "diary-copilot-pinned-q-text", text: `❓ ${qText}` });
+    attachWordLookup(qTextEl, this.callbacks.onWordLookup);
     if (qZh) {
       qBody.createSpan({ cls: "diary-copilot-pinned-q-zh", text: ` (${qZh})` });
     }
@@ -1199,10 +1327,12 @@ export class CardPanel {
       }
 
       // Full multi-line wrapped text (shows complete sentence, no ellipsis)
-      cardEl.createDiv({ cls: "diary-copilot-inquiry-grid-card-text", text: card.text });
+      const textEl = cardEl.createDiv({ cls: "diary-copilot-inquiry-grid-card-text", text: card.text });
+      attachWordLookup(textEl, this.callbacks.onWordLookup);
 
       if (card.subText) {
-        cardEl.createDiv({ cls: "diary-copilot-card-translation-source", text: card.subText });
+        const subEl = cardEl.createDiv({ cls: "diary-copilot-card-translation-source", text: card.subText });
+        attachWordLookup(subEl, this.callbacks.onWordLookup);
       }
 
       // Action Bar inside each grid card: [ 🔊 朗讀 ] [ 🎙️ 跟讀 ] [ ⚡ 自動填入 / ⚡ 填入替換 ]
@@ -1283,10 +1413,12 @@ export class CardPanel {
     }
 
     // Full multi-line wrapped text (shows complete sentence)
-    heroCard.createDiv({ cls: "diary-copilot-hero-text", text: activeCard.text });
+    const heroTextEl = heroCard.createDiv({ cls: "diary-copilot-hero-text", text: activeCard.text });
+    attachWordLookup(heroTextEl, this.callbacks.onWordLookup);
 
     if (activeCard.subText) {
-      heroCard.createDiv({ cls: "diary-copilot-card-translation-source", text: activeCard.subText });
+      const subEl = heroCard.createDiv({ cls: "diary-copilot-card-translation-source", text: activeCard.subText });
+      attachWordLookup(subEl, this.callbacks.onWordLookup);
     }
 
     // Hero Card Action Bar (🔊 朗讀, 🎙️ 跟讀, ⚡ 自動填入 / ⚡ 填入替換)

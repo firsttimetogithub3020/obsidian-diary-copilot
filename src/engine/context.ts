@@ -238,24 +238,36 @@ export function extractInquiryContext(docText: string, cursorOffset: number): In
     }
   }
 
-  const sectionText = cleanDoc.slice(sectionStart, sectionEnd).trim();
+  const sectionRaw = cleanDoc.slice(sectionStart, sectionEnd).trim();
+  const sectionLines = sectionRaw.split("\n").map((l) => l.trim());
+  const sectionBodyLines = sectionLines.filter((l) => l.length > 0 && !l.startsWith("#") && !l.startsWith("---"));
+  const sectionHasBody = sectionBodyLines.length > 0;
 
-  // 3. Focus Sentence Detection with Bulletproof Fallback (Scheme B)
+  // 3. Focus Sentence & Context Isolation (Scheme B + C with Empty Heading Isolation)
   let focusSentence = "";
+  let surroundingContext = "";
 
-  // Try extracting sentence around cursor
-  const candidate = extractSentenceToPolish(cleanDoc, clampedCursor);
-  if (candidate && candidate.sentence.trim().length > 0 && !candidate.sentence.trim().startsWith("#")) {
-    focusSentence = candidate.sentence.trim();
-  }
+  if (activeHeading && !sectionHasBody) {
+    // Isolated Empty Section: The author just created a new heading with no body text yet.
+    // Strictly isolate inquiry to this heading; NEVER bleed into previous sections!
+    focusSentence = activeHeading.text;
+    surroundingContext = `The author just created a new diary section titled "${activeHeading.text}", but has not written any body content under it yet.`;
+  } else if (activeHeading && sectionHasBody) {
+    // Active Section with body content: Keep both focusSentence and context strictly within this section!
+    const candidate = extractSentenceToPolish(cleanDoc, clampedCursor);
+    if (
+      candidate &&
+      candidate.startIndex >= sectionStart &&
+      candidate.endIndex <= sectionEnd &&
+      candidate.sentence.trim().length > 0 &&
+      !candidate.sentence.trim().startsWith("#")
+    ) {
+      focusSentence = candidate.sentence.trim();
+    }
 
-  // Bulletproof fallback: If cursor was 0 or candidate was empty/heading, scan for the last non-empty sentence
-  if (!focusSentence) {
-    const targetText = sectionText.length > 0 ? sectionText : cleanDoc;
-    const lines = targetText.split("\n");
-    for (let i = lines.length - 1; i >= 0; i--) {
-      const line = lines[i].trim();
-      if (line && !line.startsWith("#") && !line.startsWith("---")) {
+    if (!focusSentence) {
+      for (let i = sectionBodyLines.length - 1; i >= 0; i--) {
+        const line = sectionBodyLines[i];
         const sents = line.split(/(?<=[.!?。！？])\s+/).map((s) => s.trim()).filter(Boolean);
         if (sents.length > 0) {
           focusSentence = sents[sents.length - 1];
@@ -266,32 +278,44 @@ export function extractInquiryContext(docText: string, cursorOffset: number): In
         }
       }
     }
-  }
 
-  // Final fallback to cleanDoc's last non-heading sentence
-  if (!focusSentence) {
-    const allSents = cleanDoc.split(/(?<=[.!?。！？\n])\s+/).map((s) => s.trim()).filter((s) => s && !s.startsWith("#"));
-    if (allSents.length > 0) {
-      focusSentence = allSents[allSents.length - 1];
+    if (!focusSentence) {
+      focusSentence = sectionBodyLines[sectionBodyLines.length - 1] || activeHeading.text;
     }
-  }
 
-  // 4. Surrounding Context Construction (Scheme B + C)
-  let surroundingContext = "";
-  if (sectionText.length > 0 && sectionText.length <= 1500) {
-    surroundingContext = sectionText;
-  } else if (cleanDoc.length <= 1500) {
-    surroundingContext = cleanDoc;
+    surroundingContext = sectionRaw.length <= 1500 ? sectionRaw : sectionRaw.slice(Math.max(0, sectionRaw.length - 1500));
   } else {
-    // If text is very long, extract the relevant portion around focusSentence
-    const searchIdx = cleanDoc.indexOf(focusSentence);
-    if (searchIdx !== -1) {
-      const start = Math.max(0, searchIdx - 800);
-      const end = Math.min(cleanDoc.length, searchIdx + focusSentence.length + 300);
-      surroundingContext = cleanDoc.slice(start, end).trim();
-    } else {
-      surroundingContext = cleanDoc.slice(Math.max(0, cleanDoc.length - 1000)).trim();
+    // No activeHeading (unsectioned document or preamble before first heading)
+    const candidate = extractSentenceToPolish(cleanDoc, clampedCursor);
+    if (candidate && candidate.sentence.trim().length > 0 && !candidate.sentence.trim().startsWith("#")) {
+      focusSentence = candidate.sentence.trim();
     }
+
+    if (!focusSentence) {
+      const lines = cleanDoc.split("\n");
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i].trim();
+        if (line && !line.startsWith("#") && !line.startsWith("---")) {
+          const sents = line.split(/(?<=[.!?。！？])\s+/).map((s) => s.trim()).filter(Boolean);
+          if (sents.length > 0) {
+            focusSentence = sents[sents.length - 1];
+            break;
+          } else {
+            focusSentence = line;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!focusSentence) {
+      const allSents = cleanDoc.split(/(?<=[.!?。！？\n])\s+/).map((s) => s.trim()).filter((s) => s && !s.startsWith("#"));
+      if (allSents.length > 0) {
+        focusSentence = allSents[allSents.length - 1];
+      }
+    }
+
+    surroundingContext = cleanDoc.length <= 1500 ? cleanDoc : cleanDoc.slice(Math.max(0, cleanDoc.length - 1500));
   }
 
   return {

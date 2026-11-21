@@ -20,6 +20,7 @@ export class SelectionPopover {
   private cache = new Map<string, { pos: string; translation: string }>();
   private activeRequestId = 0;
   private debounceTimer: number | null = null;
+  private dismissTimer: number | null = null;
   private currentQueryText = "";
 
   constructor(options: SelectionPopoverOptions) {
@@ -54,18 +55,26 @@ export class SelectionPopover {
         if (!this.popoverEl) return;
         const target = e.target as HTMLElement;
         if (this.popoverEl.contains(target)) return;
-        window.setTimeout(() => {
+        if (this.dismissTimer !== null) {
+          window.clearTimeout(this.dismissTimer);
+        }
+        this.dismissTimer = window.setTimeout(() => {
+          this.dismissTimer = null;
           const sel = window.getSelection();
           if (!sel || sel.isCollapsed) {
             this.hide();
           }
-        }, 120);
+        }, 150);
       },
       { passive: true }
     );
   }
 
-  handleSelection(selectedText: string, rect: { left: number; top: number; right: number; bottom: number }) {
+  handleSelection(
+    selectedText: string,
+    rect: { left: number; top: number; right: number; bottom: number },
+    immediate = false
+  ) {
     if (!this.isEnabled()) {
       this.hide();
       return;
@@ -77,13 +86,23 @@ export class SelectionPopover {
       return;
     }
 
-    if (this.debounceTimer !== null) {
-      window.clearTimeout(this.debounceTimer);
+    if (this.dismissTimer !== null) {
+      window.clearTimeout(this.dismissTimer);
+      this.dismissTimer = null;
     }
 
-    this.debounceTimer = window.setTimeout(() => {
+    if (this.debounceTimer !== null) {
+      window.clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+
+    if (immediate) {
       this.performLookup(cleanText, rect);
-    }, 280);
+    } else {
+      this.debounceTimer = window.setTimeout(() => {
+        this.performLookup(cleanText, rect);
+      }, 280);
+    }
   }
 
   private async performLookup(text: string, rect: { left: number; top: number; right: number; bottom: number }) {
@@ -237,6 +256,10 @@ export class SelectionPopover {
   }
 
   hide() {
+    if (this.dismissTimer !== null) {
+      window.clearTimeout(this.dismissTimer);
+      this.dismissTimer = null;
+    }
     if (this.debounceTimer !== null) {
       window.clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
