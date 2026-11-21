@@ -5,7 +5,7 @@ import { PluginData, PluginSettings, SuggestionItem, DiaryTone, InquiryItem, Eng
 import { GeminiProvider } from "./llm/gemini";
 import { SummaryManager } from "./engine/summary";
 import { SuggestionScheduler } from "./engine/scheduler";
-import { extractContextFromDoc, extractSentenceToPolish } from "./engine/context";
+import { extractContextFromDoc, extractSentenceToPolish, extractInquiryContext } from "./engine/context";
 import { CardPanel, forceDismissSoftKeyboard } from "./ui/cardPanel";
 import { ghostTextField, setGhostTextEffect, draftMarkField, setDraftMarkEffect } from "./ui/ghostText";
 import { createDiaryKeymap } from "./ui/keymap";
@@ -1391,8 +1391,9 @@ export default class DiaryCopilotPlugin extends Plugin {
     const docText = editor.getValue();
     const cursor = editor.posToOffset(editor.getCursor());
 
-    const context = extractContextFromDoc(docText, cursor);
-    if (!docText.trim()) {
+    // Scheme C + B: Extract section heading and focus sentence with bulletproof fallback
+    const inqContext = extractInquiryContext(docText, cursor);
+    if (!inqContext.focusSentence && !inqContext.surroundingContext) {
       // 空白筆記：直接提供啟發性的今日訪談引導問句，讓使用者能看著題目開口說寫第一句話！
       const starterQuestions: InquiryItem[] = [
         {
@@ -1440,10 +1441,10 @@ export default class DiaryCopilotPlugin extends Plugin {
 
     try {
       const systemPrompt = buildInquirySystemPrompt(this.settings.englishLevel, this.settings.diaryTone);
-      const surrounding = context.recentSentences.join(" ") || docText.slice(Math.max(0, cursor - 300), cursor);
       const userPrompt = buildInquiryUserPrompt({
-        surroundingContext: surrounding,
-        currentSentence: context.currentSentence || "",
+        surroundingContext: inqContext.surroundingContext,
+        currentSentence: inqContext.focusSentence,
+        sectionHeading: inqContext.sectionHeading,
         englishLevel: this.settings.englishLevel,
         tone: this.settings.diaryTone,
       });

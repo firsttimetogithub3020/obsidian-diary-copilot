@@ -271,6 +271,7 @@ Output ONLY JSON matching:
 export interface InquiryPromptInput {
   surroundingContext: string;
   currentSentence: string;
+  sectionHeading?: string;
   englishLevel: EnglishLevel;
   tone?: DiaryTone;
 }
@@ -299,12 +300,13 @@ Output STRICT JSON ONLY.`;
 }
 
 export function buildInquiryUserPrompt(input: InquiryPromptInput): string {
+  const headingLine = input.sectionHeading ? `[Current Section / Topic]: ${input.sectionHeading}\n` : "";
   return `<diary_context>
-${input.surroundingContext}
-[Recent sentence]: "${input.currentSentence}"
+${headingLine}${input.surroundingContext}
+[Recent / Focus sentence]: "${input.currentSentence}"
 </diary_context>
 
-Based on this diary context, generate:
+Based on this diary context and the author's focus, generate thoughtful questions that genuinely connect with their specific experiences, emotions, or reflections:
 1. One closed Yes/No question with 2 YES answers (yes1, yes2) and 2 NO answers (no1, no2). Provide Traditional Chinese translation for the question ("closedChinese").
 2. One open-ended Wh- question with 4 distinctly styled answers (openStyle1, openStyle2, openStyle3, openStyle4). Provide Traditional Chinese translation for the question ("openChinese").
 
