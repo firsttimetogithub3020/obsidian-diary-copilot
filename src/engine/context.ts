@@ -166,6 +166,101 @@ export function extractSentenceToPolish(docText: string, cursorOffset: number): 
 }
 
 /**
+ * Extract active paragraph around cursor for Paragraph Polish (整段潤色).
+ * Bounds paragraph by blank lines (\n\n) or Markdown headings (#), preventing section-wide bleeding.
+ */
+export function extractParagraphToPolish(docText: string, cursorOffset: number): SentenceToPolish | null {
+  if (!docText || docText.trim().length === 0) return null;
+
+  const len = docText.length;
+  const clampedCursor = Math.max(0, Math.min(cursorOffset, len));
+
+  // Split document into lines while tracking exact character offsets
+  const lines: { text: string; start: number; end: number; isHeading: boolean; isEmpty: boolean }[] = [];
+  let offset = 0;
+  const rawLines = docText.split("\n");
+  for (let i = 0; i < rawLines.length; i++) {
+    const raw = rawLines[i];
+    const trimmed = raw.trim();
+    lines.push({
+      text: raw,
+      start: offset,
+      end: offset + raw.length,
+      isHeading: trimmed.startsWith("#") || trimmed.startsWith("---"),
+      isEmpty: trimmed.length === 0,
+    });
+    offset += raw.length + 1; // +1 for '\n'
+  }
+
+  // Find line index corresponding to clampedCursor
+  let activeLineIdx = lines.findIndex((l) => clampedCursor >= l.start && clampedCursor <= l.end);
+  if (activeLineIdx === -1) {
+    activeLineIdx = lines.length - 1;
+  }
+
+  // If active line is empty or heading, walk backwards to find the nearest content line
+  if (lines[activeLineIdx].isEmpty || lines[activeLineIdx].isHeading) {
+    for (let i = activeLineIdx - 1; i >= 0; i--) {
+      if (!lines[i].isEmpty && !lines[i].isHeading) {
+        activeLineIdx = i;
+        break;
+      }
+    }
+  }
+
+  // If still empty or heading (e.g. cursor at top of doc before any text), look forward
+  if (lines[activeLineIdx].isEmpty || lines[activeLineIdx].isHeading) {
+    for (let i = 0; i < lines.length; i++) {
+      if (!lines[i].isEmpty && !lines[i].isHeading) {
+        activeLineIdx = i;
+        break;
+      }
+    }
+  }
+
+  // If no content line found at all, return null
+  if (lines[activeLineIdx].isEmpty || lines[activeLineIdx].isHeading) {
+    return null;
+  }
+
+  // Expand upwards to find start of paragraph
+  let pStartLineIdx = activeLineIdx;
+  while (pStartLineIdx > 0) {
+    const prev = lines[pStartLineIdx - 1];
+    if (prev.isEmpty || prev.isHeading) {
+      break;
+    }
+    pStartLineIdx--;
+  }
+
+  // Expand downwards to find end of paragraph
+  let pEndLineIdx = activeLineIdx;
+  while (pEndLineIdx < lines.length - 1) {
+    const next = lines[pEndLineIdx + 1];
+    if (next.isEmpty || next.isHeading) {
+      break;
+    }
+    pEndLineIdx++;
+  }
+
+  const from = lines[pStartLineIdx].start;
+  const to = lines[pEndLineIdx].end;
+  const paragraphText = docText.slice(from, to).trim();
+
+  if (!paragraphText) return null;
+
+  const contextStart = Math.max(0, from - 300);
+  const contextEnd = Math.min(len, to + 300);
+
+  return {
+    sentence: paragraphText,
+    from,
+    to,
+    surroundingContext: docText.slice(contextStart, contextEnd),
+  };
+}
+
+/**
  * Scheme C + B: Extract hierarchical context for Inquiry Guided Prompting.
  * Incorporates Markdown Section Heading (Scheme C) + Focus Sentence with Bulletproof Fallback (Scheme B).
  */

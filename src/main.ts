@@ -5,7 +5,7 @@ import { PluginData, PluginSettings, SuggestionItem, DiaryTone, InquiryItem, Eng
 import { GeminiProvider } from "./llm/gemini";
 import { SummaryManager } from "./engine/summary";
 import { SuggestionScheduler } from "./engine/scheduler";
-import { extractContextFromDoc, extractSentenceToPolish, extractInquiryContext } from "./engine/context";
+import { extractContextFromDoc, extractSentenceToPolish, extractParagraphToPolish, extractInquiryContext } from "./engine/context";
 import { CardPanel, forceDismissSoftKeyboard } from "./ui/cardPanel";
 import { ghostTextField, setGhostTextEffect, draftMarkField, setDraftMarkEffect } from "./ui/ghostText";
 import { createDiaryKeymap } from "./ui/keymap";
@@ -34,6 +34,12 @@ export default class DiaryCopilotPlugin extends Plugin {
   private currentActiveEditorView: EditorView | null = null;
   private isPolishMode = false;
   private currentPolishItem: SuggestionItem | null = null;
+  private lastPolishScope: "sentence" | "paragraph" = "sentence";
+  private lastPolishSentenceRange: { from: number; to: number } | null = null;
+  private lastPolishParagraphRange: { from: number; to: number } | null = null;
+  private lastPolishCursor: number = -1;
+  private lastPolishFilePath: string = "";
+  private activePolishRequestId = 0;
   private isInquiryMode = false;
   private currentInquiryItem: InquiryItem | null = null;
   private manuallyEnabledNotes = new Set<string>();
@@ -894,8 +900,7 @@ export default class DiaryCopilotPlugin extends Plugin {
       this.currentFilePath = "";
       this.cardPanel?.destroy();
       this.cardPanel = null;
-      this.isPolishMode = false;
-      this.currentPolishItem = null;
+      this.resetPolishToggleState();
       this.scheduler.clear();
       this.clearGhostText();
       this.updateRibbonIconState();
@@ -923,8 +928,7 @@ export default class DiaryCopilotPlugin extends Plugin {
     }
 
     // Normal mode: reset cards to idle state, but KEEP PANEL DOCKED in eligible notes!
-    this.isPolishMode = false;
-    this.currentPolishItem = null;
+    this.resetPolishToggleState();
     this.scheduler.clear();
     this.cardPanel?.renderIdleState();
     this.clearGhostText();
@@ -1221,8 +1225,7 @@ export default class DiaryCopilotPlugin extends Plugin {
 
     // Typing exits polish mode back to prediction mode
     if (this.isPolishMode) {
-      this.isPolishMode = false;
-      this.currentPolishItem = null;
+      this.resetPolishToggleState();
     }
 
     const docText = update.state.doc.toString();
@@ -1249,6 +1252,15 @@ export default class DiaryCopilotPlugin extends Plugin {
     }
   }
 
+  private resetPolishToggleState() {
+    this.isPolishMode = false;
+    this.currentPolishItem = null;
+    this.lastPolishScope = "sentence";
+    this.lastPolishSentenceRange = null;
+    this.lastPolishParagraphRange = null;
+    this.lastPolishCursor = -1;
+  }
+
   async handlePolishSentence(explicitText?: string) {
     const activeMarkdownView = this.getActiveMarkdownView();
     if (!activeMarkdownView || !activeMarkdownView.file) {
@@ -1267,11 +1279,13 @@ export default class DiaryCopilotPlugin extends Plugin {
       this.syncActiveView();
     }
 
+    const filePath = activeMarkdownView.file.path;
     const editor = activeMarkdownView.editor;
     const docText = editor.getValue();
     const cursor = editor.posToOffset(editor.getCursor());
 
     let target: SentenceToPolish | null = null;
+    let polishScope: "sentence" | "paragraph" = "sentence";
 
     if (explicitText && explicitText.trim().length > 0) {
       const trimmed = explicitText.trim();
@@ -1282,6 +1296,11 @@ export default class DiaryCopilotPlugin extends Plugin {
         to: loc ? loc.to : cursor + trimmed.length,
         surroundingContext: docText.slice(Math.max(0, cursor - 100), Math.min(docText.length, cursor + 100)),
       };
+      this.lastPolishScope = "sentence";
+      this.lastPolishSentenceRange = { from: target.from, to: target.to };
+      this.lastPolishParagraphRange = null;
+      this.lastPolishCursor = cursor;
+      this.lastPolishFilePath = filePath;
     } else {
       // 1. Prefer user's active editor selection if available
       const selectedText = editor.getSelection();
@@ -1296,6 +1315,11 @@ export default class DiaryCopilotPlugin extends Plugin {
           to: toOffset,
           surroundingContext: docText.slice(Math.max(0, fromOffset - 100), Math.min(docText.length, toOffset + 100)),
         };
+        this.lastPolishScope = "sentence";
+        this.lastPolishSentenceRange = { from: fromOffset, to: toOffset };
+        this.lastPolishParagraphRange = null;
+        this.lastPolishCursor = cursor;
+        this.lastPolishFilePath = filePath;
       } else if (
         this.lastSelectedText &&
         Date.now() - this.lastSelectedTime < 10000 &&
@@ -1310,13 +1334,52 @@ export default class DiaryCopilotPlugin extends Plugin {
           to,
           surroundingContext: docText.slice(Math.max(0, from - 100), Math.min(docText.length, to + 100)),
         };
+        this.lastPolishScope = "sentence";
+        this.lastPolishSentenceRange = { from, to };
+        this.lastPolishParagraphRange = null;
+        this.lastPolishCursor = cursor;
+        this.lastPolishFilePath = filePath;
       } else {
-        target = extractSentenceToPolish(docText, cursor);
+        // 2. Cursor-based automatic extraction with Sentence ⇄ Paragraph Toggle
+        const currentSentence = extractSentenceToPolish(docText, cursor);
+        const currentParagraph = extractParagraphToPolish(docText, cursor);
+
+        // Check if cursor is in the same location as previous polish call
+        const isSameSentence =
+          this.isPolishMode &&
+          this.lastPolishFilePath === filePath &&
+          this.lastPolishSentenceRange !== null &&
+          currentSentence !== null &&
+          this.lastPolishSentenceRange.from === currentSentence.from &&
+          this.lastPolishSentenceRange.to === currentSentence.to;
+
+        if (isSameSentence && currentParagraph) {
+          // Toggle between sentence and paragraph
+          if (this.lastPolishScope === "sentence") {
+            polishScope = "paragraph";
+            target = currentParagraph;
+            new Notice("📄 已切換為【整段潤色】模式", 1800);
+          } else {
+            polishScope = "sentence";
+            target = currentSentence;
+            new Notice("🎯 已切換為【單句潤飾】模式", 1800);
+          }
+        } else {
+          // New location or first trigger: default to sentence polish
+          polishScope = "sentence";
+          target = currentSentence;
+        }
+
+        this.lastPolishScope = polishScope;
+        this.lastPolishSentenceRange = currentSentence ? { from: currentSentence.from, to: currentSentence.to } : null;
+        this.lastPolishParagraphRange = currentParagraph ? { from: currentParagraph.from, to: currentParagraph.to } : null;
+        this.lastPolishCursor = cursor;
+        this.lastPolishFilePath = filePath;
       }
     }
 
     if (!target || target.sentence.length === 0) {
-      new Notice("游標附近未偵測到需要潤飾的句子");
+      new Notice("游標附近未偵測到需要潤飾的內容");
       return;
     }
 
@@ -1324,24 +1387,34 @@ export default class DiaryCopilotPlugin extends Plugin {
     this.isInquiryMode = false;
     this.currentInquiryItem = null;
     this.cardPanel?.clearPinnedInquiry();
-    this.cardPanel?.setLoading("✨ 正在為您構思 4 種更地道優雅的表達方式...");
+
+    const loadingText =
+      polishScope === "paragraph"
+        ? "📄 正在為您重塑整段語流與銜接..."
+        : "✨ 正在為您構思 4 種更地道優雅的單句表達...";
+    this.cardPanel?.setLoading(loadingText);
     this.clearGhostText();
 
+    const currentReqId = ++this.activePolishRequestId;
+
     try {
-      const systemPrompt = buildPolishSystemPrompt(this.settings.englishLevel, this.settings.diaryTone);
+      const systemPrompt = buildPolishSystemPrompt(this.settings.englishLevel, this.settings.diaryTone, polishScope);
       const userPrompt = buildPolishUserPrompt({
         targetSentence: target.sentence,
         surroundingContext: target.surroundingContext,
         englishLevel: this.settings.englishLevel,
         tone: this.settings.diaryTone,
+        scope: polishScope,
       });
 
       const responseText = await this.llm.complete({
         systemPrompt,
         userPrompt,
         temperature: 0.7,
-        maxOutputTokens: 400,
+        maxOutputTokens: polishScope === "paragraph" ? 900 : 400,
       });
+
+      if (currentReqId !== this.activePolishRequestId) return;
 
       let cleaned = responseText.trim();
       if (cleaned.startsWith("```")) {
@@ -1349,6 +1422,7 @@ export default class DiaryCopilotPlugin extends Plugin {
       }
 
       const parsed = JSON.parse(cleaned);
+      const label = polishScope === "paragraph" ? "消除 (整段)" : "消除 (單句)";
       const polishItem: SuggestionItem = {
         card1: parsed.card1 || parsed.option1 || "",
         card2: parsed.card2 || parsed.option2 || "",
@@ -1357,7 +1431,7 @@ export default class DiaryCopilotPlugin extends Plugin {
         continueText: parsed.card1 || parsed.option1 || "",
         alternativeText: parsed.card2 || parsed.option2 || "",
         translationText: parsed.card3 || parsed.option3 || "",
-        translationSource: target.sentence,
+        translationSource: `${label}: ${target.sentence}`,
         sourceRange: { from: target.from, to: target.to },
       };
 
@@ -1367,8 +1441,8 @@ export default class DiaryCopilotPlugin extends Plugin {
       // NOTE: Do NOT automatically set ghost text in the editor!
       // The editor remains 100% clean until user explicitly clicks a card for shadow typing drill.
     } catch (e: any) {
-      this.isPolishMode = false;
-      this.currentPolishItem = null;
+      if (currentReqId !== this.activePolishRequestId) return;
+      this.resetPolishToggleState();
       this.cardPanel?.setError("⚠️ 潤飾失敗，請檢查 API Key 或網路");
       new Notice(`潤飾失敗：${e?.message || e}`);
     }
@@ -1430,7 +1504,7 @@ export default class DiaryCopilotPlugin extends Plugin {
       ];
       const randomStarter = starterQuestions[Math.floor(Math.random() * starterQuestions.length)];
       this.isInquiryMode = true;
-      this.isPolishMode = false;
+      this.resetPolishToggleState();
       this.currentInquiryItem = randomStarter;
       this.cardPanel?.setPinnedInquiry(randomStarter);
       new Notice("💭 已為您開啟今日日記問答引導！請在筆記中回答", 2500);
@@ -1438,7 +1512,7 @@ export default class DiaryCopilotPlugin extends Plugin {
     }
 
     this.isInquiryMode = true;
-    this.isPolishMode = false;
+    this.resetPolishToggleState();
     this.cardPanel?.setLoading("❓ 正在根據日記內容構思是非與開放式引導問句...");
     this.clearGhostText();
 
@@ -1718,8 +1792,7 @@ export default class DiaryCopilotPlugin extends Plugin {
           userEvent: "input",
         });
         targetPos = from + cleanText.length;
-        this.isPolishMode = false;
-        this.currentPolishItem = null;
+        this.resetPolishToggleState();
         this.scheduler.clear();
         this.clearGhostText();
         this.cardPanel?.renderIdleState();
@@ -1741,8 +1814,7 @@ export default class DiaryCopilotPlugin extends Plugin {
           userEvent: "delete",
         });
         targetPos = from;
-        this.isPolishMode = false;
-        this.currentPolishItem = null;
+        this.resetPolishToggleState();
       }
     } else {
       // Scheme 3: Dual-Context Aware Snap for inserting new sentences (Continuation / Inquiry)
